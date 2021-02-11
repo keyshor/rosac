@@ -1,1 +1,1 @@
-# compositional-rl
+# Framework for Compositional Reinforcement Learning

@@ -1,10 +1,9 @@
-#!/usr/bin/python
-
 # typing annotations written for Python 3.8
 import numpy as np
-from typing import List, Dict, Tuple, Iterable, Mapping, Callable
+from typing import List, Dict, Tuple, Iterable
 from mode import Mode
 from transition import Transition
+
 
 class HybridEnv:
     modes: Dict[str, Mode]
@@ -13,17 +12,17 @@ class HybridEnv:
     start_probabilities: List[float]
 
     def __init__(self,
-            modes: Iterable[Mode],
-            start_probabilities: Iterable[float],
-            transitions: Iterable[Transition]
-            ) -> None:
+                 modes: Iterable[Mode],
+                 start_probabilities: Iterable[float],
+                 transitions: Iterable[Transition]
+                 ) -> None:
         mode_object_list = list(modes)
         transition_list = list(transitions)
-        self.modes = {m.id : m for m in mode_object_list}
+        self.modes = {m.id: m for m in mode_object_list}
         self.transitions = {
-                m.id : [t for t in transition_list if t.source == m.id]
-                for m in mode_object_list
-                }
+            m.id: [t for t in transition_list if t.source == m.id]
+            for m in mode_object_list
+        }
         self.mode_list = [m.id for m in mode_object_list]
         self.start_probabilities = list(start_probabilities)
 
@@ -34,13 +33,12 @@ class HybridEnv:
 
     # step : mode * state * action -> mode * state
     def step(self,
-            old_mode: str,
-            old_state: np.ndarray,
-            action: np.ndarray,
-            rng: np.random.Generator
-            ) -> Tuple[str, np.ndarray]:
+             old_mode: str,
+             old_state: np.ndarray,
+             action: np.ndarray,
+             rng: np.random.Generator
+             ) -> Tuple[str, np.ndarray]:
         middle_state = self.modes[old_mode].step(old_state, action)
-        new_state = middle_state
         for t in self.transitions[old_mode]:
             if t.guard(middle_state):
                 return t.jump(middle_state, rng)
