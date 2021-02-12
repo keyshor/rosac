@@ -1,4 +1,5 @@
 numpy
 matplotlib
 mypy
+gym
 git+https://github.com/numpy/numpy-stubs.git
