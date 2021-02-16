@@ -2,13 +2,13 @@
 import numpy as np
 import gym
 
-from typing import TypeVar
+from typing import TypeVar, Generic
 from abc import ABCMeta, abstractmethod
 
-StateType = TypeVar('T')
+StateType = TypeVar('StateType')
 
 
-class Mode(metaclass=ABCMeta):
+class Mode(Generic[StateType], metaclass=ABCMeta):
     '''
     Defines an abstract mode.
     '''

@@ -49,8 +49,8 @@ class HybridEnv:
         return self.modes[mode].observe(state)
 
     # reward : mode * state -> float
-    def reward(self, mode: str, state: Any) -> float:
-        return self.modes[mode].reward(state)
+    def reward(self, mode: str, state0: Any, action: np.ndarray, state1: Any) -> float:
+        return self.modes[mode].reward(state0, action, state1)
 
     # is_safe : mode * state -> bool
     def is_safe(self, mode: str, state: Any) -> bool:
