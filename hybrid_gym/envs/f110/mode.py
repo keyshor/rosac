@@ -465,6 +465,9 @@ class F110Mode(Mode[State]):
         
         return dXdt
 
+    def _step_fn(self, st: State, action: np.ndarray) -> State:
+        return self.helper_step(st, action[0])
+    
     def helper_step(self,
              st: State,
              delta: float,
@@ -693,9 +696,6 @@ class F110Mode(Mode[State]):
             missing_indices=st.missing_indices,
         )
 
-    def _step_fn(self, st: State, action: np.ndarray) -> State:
-        return self.helper_step(st, action[0])
-    
     def _observation_fn(self, st: State) -> np.ndarray:
         if self.state_feedback:
             #return np.array([self.car_dist_s, self.car_dist_f, self.car_V, self.car_heading]), reward, terminal, -1
@@ -736,6 +736,22 @@ class F110Mode(Mode[State]):
         else:
             return self.scan_lidar(st)
 
+    def is_safe(self, st: State) -> bool:
+        corner_angle = np.pi - np.abs(self.turns[st.curHall])
+        normal_to_top_wall = [np.sin(corner_angle), -np.cos(corner_angle)]
+
+        # note that dist_f is the x coordinate, and dist_s is the y coordinate
+        dot_prod_top = normal_to_top_wall[0] * st.car_dist_f + normal_to_top_wall[1] * st.car_dist_s
+        
+        if dot_prod_top <= SAFE_DISTANCE or\
+           (dot_prod_top >= (self.hallWidths[(st.curHall+1) % self.numHalls] - SAFE_DISTANCE)\
+           and st.car_dist_s >= self.hallWidths[(st.curHall) % self.numHalls] - SAFE_DISTANCE) or\
+           st.car_dist_s <= SAFE_DISTANCE:
+            print('heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
+            return False
+
+        return True
+
     def _reward_fn(self, st0: State, action: np.ndarray, st1: State) -> float:
 
         delta = action[0]
@@ -769,22 +785,11 @@ class F110Mode(Mode[State]):
             pass
             
         # Check for a crash
-        corner_angle = np.pi - np.abs(self.turns[st1.curHall])
-        normal_to_top_wall = [np.sin(corner_angle), -np.cos(corner_angle)]
-
-        # note that dist_f is the x coordinate, and dist_s is the y coordinate
-        dot_prod_top = normal_to_top_wall[0] * st1.car_dist_f + normal_to_top_wall[1] * st1.car_dist_s
-        
-        if dot_prod_top <= SAFE_DISTANCE or\
-           (dot_prod_top >= (self.hallWidths[(st1.curHall+1) % self.numHalls] - SAFE_DISTANCE)\
-           and st1.car_dist_s >= self.hallWidths[(st1.curHall) % self.numHalls] - SAFE_DISTANCE) or\
-           st1.car_dist_s <= SAFE_DISTANCE:
-            print('heading: ' + str(st1.car_heading) + ', position: ' + str(st1.car_dist_s))
-            
-            terminal = True
+        is_safe = self.is_safe(st1)
+        if not is_safe:
             reward = CRASH_REWARD
 
-        if st1.car_dist_s > self.hallWidths[st1.curHall] and not terminal:
+        if st1.car_dist_s > self.hallWidths[st1.curHall] and is_safe:
             
             corner_angle = np.pi - np.abs(self.turns[st1.curHall])
 
@@ -1159,6 +1164,9 @@ class F110Mode(Mode[State]):
                 
         return data
 
+    def render(self, st: State) -> None:
+        self.plot_lidar(st)
+
     def plot_trajectory(self, sts: List[State]) -> None:
         fig = plt.figure()
 
@@ -1398,6 +1406,9 @@ class F110Mode(Mode[State]):
             l2y = np.array([l2y1, l2y2])
             plt.plot(l1x, l1y, 'b', linewidth=wallwidth)
             plt.plot(l2x, l2y, 'b', linewidth=wallwidth)
+
+    def vectorize_state(self, st: State) -> np.ndarray:
+        return np.array([st.car_global_x, st.car_global_y, st.car_V, st.car_global_heading])
 
 def square_hall_right(width=1.5):
 
