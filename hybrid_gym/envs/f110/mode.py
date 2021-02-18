@@ -1,32 +1,32 @@
-import gym
-from gym import spaces
 import numpy as np
-from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 import math
-
-from hybrid_gym.mode import Mode
-from typing import List, Iterable, Tuple, Optional, Final, NamedTuple
 import enum
 
+from gym import spaces
+from scipy.integrate import odeint
+from hybrid_gym.model import Mode
+from typing import List, Iterable, Tuple, Optional, Final, NamedTuple
+
+
 # car parameters
-CAR_LENGTH: Final[float] = .45 # in m
-CAR_CENTER_OF_MASS: Final[float] = .225 # from rear of car (m)
+CAR_LENGTH: Final[float] = .45  # in m
+CAR_CENTER_OF_MASS: Final[float] = .225  # from rear of car (m)
 CAR_DECEL_CONST: Final[float] = .4
-CAR_ACCEL_CONST: Final[float] = 1.633 # estimated from data
-CAR_MOTOR_CONST: Final[float] = 0.2 # estimated from data
+CAR_ACCEL_CONST: Final[float] = 1.633  # estimated from data
+CAR_MOTOR_CONST: Final[float] = 0.2  # estimated from data
 HYSTERESIS_CONSTANT: Final[float] = 4
-MAX_TURNING_INPUT: Final[float] = 20 # in degrees
+MAX_TURNING_INPUT: Final[float] = 20  # in degrees
 
 # lidar parameter
-LIDAR_RANGE: Final[float] = 5 # in m
+LIDAR_RANGE: Final[float] = 5  # in m
 
 # safety parameter
-SAFE_DISTANCE: Final[float] = 0.1 # in m
+SAFE_DISTANCE: Final[float] = 0.1  # in m
 
 # default throttle if left unspecified
 CONST_THROTTLE: Final[float] = 16
-MAX_THROTTLE: Final[float] = 50 # just used to compute maximum possible velocity
+MAX_THROTTLE: Final[float] = 50  # just used to compute maximum possible velocity
 
 # training parameters
 STEP_REWARD_GAIN: Final[float] = 5
@@ -35,7 +35,8 @@ CRASH_REWARD: Final[float] = -100
 MIDDLE_REWARD_GAIN: Final[float] = -3
 HEADING_GAIN: Final[float] = -3
 MOVE_FORWARD_GAIN: Final[float] = 10
-REGION3_ENTER_GAIN: Final[float] = 0#100
+REGION3_ENTER_GAIN: Final[float] = 0  # 100
+
 
 # direction parameters
 class Direction(enum.Enum):
@@ -43,6 +44,7 @@ class Direction(enum.Enum):
     DOWN = 1
     RIGHT = 2
     LEFT = 3
+
 
 class State(NamedTuple):
     car_dist_s: float
@@ -60,6 +62,7 @@ class State(NamedTuple):
     inner_x: float
     inner_y: float
     missing_indices: List[int]
+
 
 class F110Mode(Mode[State]):
     hallWidths: List[float]
@@ -107,29 +110,29 @@ class F110Mode(Mode[State]):
         self.hallLengths = list(hallLengths)
         self.numHalls = len(self.hallWidths)
         self.turns = list(turns)
-        #self.curHall = 0
-        #self.in_region3 = False
-        #self.in_region3_1m = False
-        #self.in_region3_2m = False
-        #self.in_region3_3m = False
+        # self.curHall = 0
+        # self.in_region3 = False
+        # self.in_region3_1m = False
+        # self.in_region3_2m = False
+        # self.in_region3_3m = False
 
         # observation parameter
         self.state_feedback = state_feedback
 
-        ## car relative states
-        #self.car_dist_s = car_dist_s
-        #self.car_dist_f = car_dist_f
-        #self.car_V = car_V
-        #self.car_heading = car_heading
+        # car relative states
+        # self.car_dist_s = car_dist_s
+        # self.car_dist_f = car_dist_f
+        # self.car_V = car_V
+        # self.car_heading = car_heading
 
-        ## car global states
-        #self.car_global_x = -self.hallWidths[0] / 2.0 + self.car_dist_s
-        #if self.turns[0] > 0:
+        # car global states
+        # self.car_global_x = -self.hallWidths[0] / 2.0 + self.car_dist_s
+        # if self.turns[0] > 0:
         #    self.car_global_x = -self.car_global_x
-        #
-        #self.car_global_y = self.hallLengths[0] / 2.0 - car_dist_f
-        #self.car_global_heading = self.car_heading + np.pi / 2 #first hall goes "up" by default
-        #self.direction = UP
+
+        # self.car_global_y = self.hallLengths[0] / 2.0 - car_dist_f
+        # self.car_global_heading = self.car_heading + np.pi / 2 #first hall goes "up" by default
+        # self.direction = UP
 
         # car initial conditions (used in reset)
         self.init_car_dist_s = init_car_dist_s
@@ -139,26 +142,26 @@ class F110Mode(Mode[State]):
 
         # step parameters
         self.time_step = time_step
-        #self.cur_step = 0
+        # self.cur_step = 0
         self.episode_length = episode_length
 
         # storage
-        #self.allX = []
-        #self.allY = []
-        #self.allX.append(self.car_global_x)
-        #self.allY.append(self.car_global_y)
+        # self.allX = []
+        # self.allY = []
+        # self.allX.append(self.car_global_x)
+        # self.allY.append(self.car_global_y)
 
         # lidar setup
         self.lidar_field_of_view = lidar_field_of_view
         self.lidar_num_rays = lidar_num_rays
 
         self.lidar_noise = lidar_noise
-        #self.total_lidar_missing_rays = lidar_missing_rays
+        # self.total_lidar_missing_rays = lidar_missing_rays
 
         self.lidar_missing_in_turn_only = lidar_missing_in_turn_only
-        
+
         self.cur_num_missing_rays = lidar_missing_rays
-        #self.missing_indices = np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays)
+        # self.missing_indices = np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays)
 
         # coordinates of two corners in turn
         cur_hall_heading = np.pi/2
@@ -167,9 +170,9 @@ class F110Mode(Mode[State]):
             next_heading -= 2 * np.pi
         elif next_heading < -np.pi:
             next_heading += 2 * np.pi
-            
+
         reverse_cur_heading = cur_hall_heading - np.pi
-        
+
         if self.turns[0] < 0:
             self.init_outer_x = -self.hallWidths[0]/2.0
             self.init_outer_y = self.hallLengths[0]/2.0
@@ -186,18 +189,19 @@ class F110Mode(Mode[State]):
         self.init_inner_x = proj_point_x + np.cos(reverse_cur_heading) * in_wall_proj_length
         self.init_inner_y = proj_point_y + np.sin(reverse_cur_heading) * in_wall_proj_length
 
-        #self.init_outer_x = self.outer_x
-        #self.init_outer_y = self.outer_y
-        #self.init_inner_x = self.inner_x
-        #self.init_inner_y = self.inner_y
+        # self.init_outer_x = self.outer_x
+        # self.init_outer_y = self.outer_y
+        # self.init_inner_x = self.inner_x
+        # self.init_inner_y = self.inner_y
 
         # parameters needed for consistency with gym environments
         if state_feedback:
-            #self.obs_low = np.array([0, 0, 0, -np.pi])
-            #self.obs_high = np.array([max(hallLengths), max(hallLengths), CAR_MOTOR_CONST * (MAX_THROTTLE - HYSTERESIS_CONSTANT), np.pi])
-            
-            #self.obs_low = np.array([0, 0, -np.pi])
-            #self.obs_high = np.array([max(hallLengths), max(hallLengths), np.pi])
+            # self.obs_low = np.array([0, 0, 0, -np.pi])
+            # self.obs_high = np.array([max(hallLengths), max(hallLengths), CAR_MOTOR_CONST *
+            #   (MAX_THROTTLE - HYSTERESIS_CONSTANT), np.pi])
+
+            # self.obs_low = np.array([0, 0, -np.pi])
+            # self.obs_high = np.array([max(hallLengths), max(hallLengths), np.pi])
 
             obs_low = np.array([0, 0, -2*max(hallWidths), -2*max(hallWidths), -np.pi])
             obs_high = np.array([LIDAR_RANGE, LIDAR_RANGE, LIDAR_RANGE, LIDAR_RANGE, np.pi])
@@ -208,15 +212,16 @@ class F110Mode(Mode[State]):
 
         super(F110Mode, self).__init__(
             name=name,
-            action_space=spaces.Box(low=-MAX_TURNING_INPUT, high=MAX_TURNING_INPUT, shape=(1,), dtype=np.float32),
+            action_space=spaces.Box(low=-MAX_TURNING_INPUT,
+                                    high=MAX_TURNING_INPUT, shape=(1,), dtype=np.float32),
             observation_space=spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
         )
 
-        #self._max_episode_steps = episode_length
+        # self._max_episode_steps = episode_length
 
     # this is a limited-support function for setting the car state in the first hallway
     def set_state_local(self, x: float, y: float, theta: float, old_st: State) -> State:
-        
+
         car_dist_s = x
         car_dist_f = y
         car_heading = theta
@@ -226,11 +231,11 @@ class F110Mode(Mode[State]):
         car_global_heading = theta + np.pi / 2
         direction = Direction.UP
 
-        #test if in Region 3
+        # test if in Region 3
         if y > self.hallLengths[0] - LIDAR_RANGE:
 
             direction = Direction.RIGHT
-            
+
             temp = x
             car_dist_s = self.hallLengths[0] - y
             car_dist_f = temp
@@ -270,14 +275,14 @@ class F110Mode(Mode[State]):
         car_global_x = x
         car_global_y = y
         car_global_heading = theta
-        
+
         direction = Direction.UP
 
-        #test if in Region 3
+        # test if in Region 3
         if y > self.hallLengths[0] - LIDAR_RANGE:
 
             direction = Direction.RIGHT
-            
+
             temp = x
             car_dist_s = self.hallLengths[0] - y
             car_dist_f = temp
@@ -313,50 +318,52 @@ class F110Mode(Mode[State]):
               heading_noise: float = 0.1,
               front_pos_noise: float = 0.0
               ) -> State:
-        #self.curHall = 0
+        # self.curHall = 0
 
         car_dist_s = self.init_car_dist_s + np.random.uniform(-pos_noise, pos_noise)
 
-        if not side_pos == None:
+        if side_pos is not None:
             car_dist_s = side_pos
-        
+
         car_dist_f = self.init_car_dist_f + np.random.uniform(-front_pos_noise, front_pos_noise)
         car_V = self.init_car_V
         car_heading = self.init_car_heading + np.random.uniform(-heading_noise, heading_noise)
-        
+
         car_global_x = -self.hallWidths[0] / 2.0 + car_dist_s
         if self.turns[0] == np.pi/2:
             car_global_x = -car_global_x
-        
+
         car_global_y = self.hallLengths[0] / 2.0 - car_dist_f
-        
-        car_global_heading = car_heading + np.pi / 2 #first hall goes "up" by default
+
+        car_global_heading = car_heading + np.pi / 2  # first hall goes "up" by default
         direction = Direction.UP
 
-        #missing_indices = np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays)
-        
-        #self.cur_step = 0
+        # missing_indices = np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays)
 
-        #outer_x = self.init_outer_x
-        #outer_y = self.init_outer_y
-        #inner_x = self.init_inner_x
-        #inner_y = self.init_inner_y
+        # self.cur_step = 0
 
-        #self.in_region3 = False
-        #self.in_region3_1m = False
-        #self.in_region3_2m = False
-        #self.in_region3_3m = False
+        # outer_x = self.init_outer_x
+        # outer_y = self.init_outer_y
+        # inner_x = self.init_inner_x
+        # inner_y = self.init_inner_y
 
-        #self.allX = []
-        #self.allY = []
-        #self.allX.append(self.car_global_x)
-        #self.allY.append(self.car_global_y)
-        
-        #if self.state_feedback:
+        # self.in_region3 = False
+        # self.in_region3_1m = False
+        # self.in_region3_2m = False
+        # self.in_region3_3m = False
+
+        # self.allX = []
+        # self.allY = []
+        # self.allX.append(self.car_global_x)
+        # self.allY.append(self.car_global_y)
+
+        # if self.state_feedback:
         #    #return np.array([self.car_dist_s, self.car_dist_f, self.car_V, self.car_heading])
 
-        #    corner_dist = np.sqrt((self.outer_x - self.inner_x) ** 2 + (self.outer_y - self.inner_y) ** 2)
-        #    wall_dist = np.sqrt(corner_dist ** 2 - self.hallWidths[(self.curHall+1)%self.numHalls] ** 2)
+        #    corner_dist = np.sqrt((self.outer_x - self.inner_x) ** 2 +
+        #               (self.outer_y - self.inner_y) ** 2)
+        #    wall_dist = np.sqrt(corner_dist ** 2 -
+        #               self.hallWidths[(self.curHall+1)%self.numHalls] ** 2)
 
         #    dist_f = self.car_dist_f
         #    dist_f_inner = self.car_dist_f - wall_dist
@@ -372,7 +379,7 @@ class F110Mode(Mode[State]):
         #    else:
         #        return np.array([self.hallWidths[self.curHall] - self.car_dist_s, self.car_dist_s,\
         #                         dist_f_inner, dist_f, self.car_heading])
-        #else:
+        # else:
         #    return self.scan_lidar()
 
         return State(
@@ -393,11 +400,11 @@ class F110Mode(Mode[State]):
             missing_indices=np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays),
         )
 
-    #NB: Mode switches are handled in the step function
+    # NB: Mode switches are handled in the step function
     # x := [s, f, V, theta_local, x, y, theta_global]
     def bicycle_dynamics(self, x, t, u, delta, turn):
 
-        if turn < 0: #right turn
+        if turn < 0:  # right turn
             # -V * sin(theta_local + beta)
             dsdt = -x[2] * np.sin(x[3] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH))
         else:
@@ -405,35 +412,37 @@ class F110Mode(Mode[State]):
             dsdt = x[2] * np.sin(x[3] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH))
 
         # -V * cos(theta_local + beta)
-        dfdt = -x[2] * np.cos(x[3] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH)) 
+        dfdt = -x[2] * np.cos(x[3] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH))
 
         if u > HYSTERESIS_CONSTANT:
             # a * u - V
-            dVdt = CAR_ACCEL_CONST * CAR_MOTOR_CONST * (u - HYSTERESIS_CONSTANT) - CAR_ACCEL_CONST * x[2]
+            dVdt = CAR_ACCEL_CONST * CAR_MOTOR_CONST * \
+                (u - HYSTERESIS_CONSTANT) - CAR_ACCEL_CONST * x[2]
         else:
             dVdt = - CAR_ACCEL_CONST * x[2]
-            
 
-        dtheta_ldt = x[2] * np.cos(np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH)) * np.tan(delta) / CAR_LENGTH 
+        dtheta_ldt = x[2] * np.cos(np.arctan(
+            CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH)) * np.tan(delta) / CAR_LENGTH
 
         # V * cos(theta_global + beta)
-        dxdt = x[2] * np.cos(x[6] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH)) 
+        dxdt = x[2] * np.cos(x[6] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH))
 
         # V * sin(theta_global + beta)
         dydt = x[2] * np.sin(x[6] + np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH))
 
         # V * cos(beta) * tan(delta) / l
-        dtheta_gdt = x[2] * np.cos(np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH)) * np.tan(delta) / CAR_LENGTH
+        dtheta_gdt = x[2] * np.cos(np.arctan(
+            CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH)) * np.tan(delta) / CAR_LENGTH
 
         dXdt = [dsdt, dfdt, dVdt, dtheta_ldt, dxdt, dydt, dtheta_gdt]
-        
+
         return dXdt
 
-    #NB: Mode switches are handled in the step function
+    # NB: Mode switches are handled in the step function
     # x := [s, f, V, theta_local, x, y, theta_global]
     def bicycle_dynamics_no_beta(self, x, t, u, delta, turn):
 
-        if turn < 0: #right turn
+        if turn < 0:  # right turn
             # -V * sin(theta_local)
             dsdt = -x[2] * np.sin(x[3])
         else:
@@ -441,19 +450,20 @@ class F110Mode(Mode[State]):
             dsdt = x[2] * np.sin(x[3])
 
         # -V * cos(theta_local)
-        dfdt = -x[2] * np.cos(x[3]) 
+        dfdt = -x[2] * np.cos(x[3])
 
         if u > HYSTERESIS_CONSTANT:
             # a * u - V
-            dVdt = CAR_ACCEL_CONST * CAR_MOTOR_CONST * (u - HYSTERESIS_CONSTANT) - CAR_ACCEL_CONST * x[2]
+            dVdt = CAR_ACCEL_CONST * CAR_MOTOR_CONST * \
+                (u - HYSTERESIS_CONSTANT) - CAR_ACCEL_CONST * x[2]
         else:
             dVdt = - CAR_ACCEL_CONST * x[2]
-            
+
         # V * tan(delta) / l
-        dtheta_ldt = x[2] * np.tan(delta) / CAR_LENGTH 
+        dtheta_ldt = x[2] * np.tan(delta) / CAR_LENGTH
 
         # V * cos(theta_global)
-        dxdt = x[2] * np.cos(x[6]) 
+        dxdt = x[2] * np.cos(x[6])
 
         # V * sin(theta_global)
         dydt = x[2] * np.sin(x[6])
@@ -462,22 +472,22 @@ class F110Mode(Mode[State]):
         dtheta_gdt = x[2] * np.tan(delta) / CAR_LENGTH
 
         dXdt = [dsdt, dfdt, dVdt, dtheta_ldt, dxdt, dydt, dtheta_gdt]
-        
+
         return dXdt
 
     def _step_fn(self, st: State, action: np.ndarray) -> State:
         return self.helper_step(st, action[0])
-    
+
     def helper_step(self,
-             st: State,
-             delta: float,
-             throttle: float = CONST_THROTTLE,
-             x_noise: float = 0,
-             y_noise: float = 0,
-             v_noise: float = 0,
-             theta_noise: float = 0
-             ) -> State:
-        #self.cur_step += 1
+                    st: State,
+                    delta: float,
+                    throttle: float = CONST_THROTTLE,
+                    x_noise: float = 0,
+                    y_noise: float = 0,
+                    v_noise: float = 0,
+                    theta_noise: float = 0
+                    ) -> State:
+        # self.cur_step += 1
 
         # Constrain turning input
         if delta > MAX_TURNING_INPUT:
@@ -487,11 +497,14 @@ class F110Mode(Mode[State]):
             delta = -MAX_TURNING_INPUT
 
         # simulate dynamics
-        x0 = [st.car_dist_s, st.car_dist_f, st.car_V, st.car_heading, st.car_global_x, st.car_global_y, st.car_global_heading]
+        x0 = [st.car_dist_s, st.car_dist_f, st.car_V, st.car_heading,
+              st.car_global_x, st.car_global_y, st.car_global_heading]
         t = [0, self.time_step]
-        
-        #new_x = odeint(self.bicycle_dynamics, x0, t, args=(throttle, delta * np.pi / 180, self.turns[st.curHall],))
-        new_x = odeint(self.bicycle_dynamics_no_beta, x0, t, args=(throttle, delta * np.pi / 180, self.turns[st.curHall],))
+
+        # new_x = odeint(self.bicycle_dynamics, x0, t, args=(throttle, delta * np.pi / 180,
+        #       self.turns[st.curHall],))
+        new_x = odeint(self.bicycle_dynamics_no_beta, x0, t, args=(
+            throttle, delta * np.pi / 180, self.turns[st.curHall],))
 
         new_x = new_x[1]
 
@@ -499,7 +512,7 @@ class F110Mode(Mode[State]):
         x_added_noise = x_noise * (2 * np.random.random() - 1)
         y_added_noise = y_noise * (2 * np.random.random() - 1)
         v_added_noise = v_noise * (2 * np.random.random() - 1)
-        #theta_added_noise = theta_noise * (2 * np.random.random() - 1)
+        # theta_added_noise = theta_noise * (2 * np.random.random() - 1)
         theta_added_noise = theta_noise * (np.random.random())
 
         new_x[0] = new_x[0] + x_added_noise
@@ -507,39 +520,39 @@ class F110Mode(Mode[State]):
         if st.direction == Direction.UP and self.turns[st.curHall] == -np.pi/2\
            or st.direction == Direction.DOWN and self.turns[st.curHall] == np.pi/2:
             new_x[4] = new_x[4] + x_added_noise
-            
+
         elif st.direction == Direction.DOWN and self.turns[st.curHall] == -np.pi/2\
-             or st.direction == Direction.UP and self.turns[st.curHall] == np.pi/2:
+                or st.direction == Direction.UP and self.turns[st.curHall] == np.pi/2:
             new_x[4] = new_x[4] - x_added_noise
-            
+
         elif st.direction == Direction.RIGHT and self.turns[st.curHall] == -np.pi/2\
-             or st.direction == Direction.LEFT and self.turns[st.curHall] == np.pi/2:
+                or st.direction == Direction.LEFT and self.turns[st.curHall] == np.pi/2:
             new_x[4] = new_x[4] - y_added_noise
-            
+
         elif st.direction == Direction.LEFT and self.turns[st.curHall] == -np.pi/2\
-             or st.direction == Direction.RIGHT and self.turns[st.curHall] == np.pi/2:
+                or st.direction == Direction.RIGHT and self.turns[st.curHall] == np.pi/2:
             new_x[4] = new_x[4] + y_added_noise
-        
+
         new_x[1] = new_x[1] + y_added_noise
 
         if st.direction == Direction.UP and self.turns[st.curHall] == -np.pi/2\
            or st.direction == Direction.DOWN and self.turns[st.curHall] == np.pi/2:
             new_x[5] = new_x[5] - y_added_noise
-            
+
         elif st.direction == Direction.DOWN and self.turns[st.curHall] == -np.pi/2\
-             or st.direction == Direction.UP and self.turns[st.curHall] == np.pi/2:
+                or st.direction == Direction.UP and self.turns[st.curHall] == np.pi/2:
             new_x[5] = new_x[5] + y_added_noise
-            
+
         elif st.direction == Direction.RIGHT and self.turns[st.curHall] == -np.pi/2\
-             or st.direction == Direction.LEFT and self.turns[st.curHall] == np.pi/2:
+                or st.direction == Direction.LEFT and self.turns[st.curHall] == np.pi/2:
             new_x[5] = new_x[5] - x_added_noise
-            
+
         elif st.direction == Direction.LEFT and self.turns[st.curHall] == -np.pi/2\
-             or st.direction == Direction.RIGHT and self.turns[st.curHall] == np.pi/2:
+                or st.direction == Direction.RIGHT and self.turns[st.curHall] == np.pi/2:
             new_x[5] = new_x[5] + x_added_noise
-        
+
         new_x[2] = new_x[2] + v_added_noise
-        
+
         # new_x[3] = new_x[3] + theta_added_noise
         # new_x[6] = new_x[6] + theta_added_noise
 
@@ -553,26 +566,27 @@ class F110Mode(Mode[State]):
             new_x[6] = new_x[6] - theta_added_noise
         # end of adding noise
 
-        delta_s = new_x[0] - st.car_dist_s
-        delta_f = st.car_dist_f - new_x[1]
+        # delta_s = new_x[0] - st.car_dist_s
+        # delta_f = st.car_dist_f - new_x[1]
 
         # compute delta along the 2nd hallway
-        #old_s = st.car_dist_s
-        #old_f = st.car_dist_f
-                
-        car_dist_s, car_dist_f, car_V, car_heading, car_global_x, car_global_y, car_global_heading =\
-                    new_x[0], new_x[1], new_x[2], new_x[3], new_x[4], new_x[5], new_x[6]
+        # old_s = st.car_dist_s
+        # old_f = st.car_dist_f
+
+        (car_dist_s, car_dist_f, car_V, car_heading,
+         car_global_x, car_global_y, car_global_heading) =\
+            new_x[0], new_x[1], new_x[2], new_x[3], new_x[4], new_x[5], new_x[6]
 
         if car_heading > np.pi:
             car_heading -= 2*np.pi
         elif car_heading < -np.pi:
             car_heading += 2*np.pi
 
-        #terminal = False
+        # terminal = False
 
         # Compute reward (moved to separate function)
 
-        #if self.cur_step == self.episode_length:
+        # if self.cur_step == self.episode_length:
         #    terminal = True
         curHall = st.curHall
         cur_hall_heading = st.cur_hall_heading
@@ -584,7 +598,7 @@ class F110Mode(Mode[State]):
         # Check if a mode switch in the world has changed
         if car_dist_s > LIDAR_RANGE:
 
-            # update global hall heading            
+            # update global hall heading
             cur_hall_heading = st.cur_hall_heading + self.turns[st.curHall]
             if cur_hall_heading > np.pi:
                 cur_hall_heading -= 2 * np.pi
@@ -597,9 +611,9 @@ class F110Mode(Mode[State]):
             if self.turns[st.curHall] < 0:
 
                 # update corner coordinates
-                if self.turns[(st.curHall+1)%self.numHalls] < 0:
+                if self.turns[(st.curHall+1) % self.numHalls] < 0:
                     flip_sides = False
-                    
+
                 else:
                     flip_sides = True
 
@@ -611,12 +625,12 @@ class F110Mode(Mode[State]):
                     direction = Direction.LEFT
                 elif st.direction == Direction.LEFT:
                     direction = Direction.UP
-    
-            else: # left turn 
+
+            else:  # left turn
                 # update corner coordinates
-                if self.turns[(st.curHall+1)%self.numHalls] > 0:
+                if self.turns[(st.curHall+1) % self.numHalls] > 0:
                     flip_sides = False
-                        
+
                 else:
                     flip_sides = True
 
@@ -629,7 +643,7 @@ class F110Mode(Mode[State]):
                 elif st.direction == Direction.LEFT:
                     direction = Direction.DOWN
 
-            # update local car states          
+            # update local car states
             st1 = State(
                 car_dist_s=car_dist_s,
                 car_dist_f=car_dist_f,
@@ -670,13 +684,13 @@ class F110Mode(Mode[State]):
             (outer_x, outer_y, inner_x, inner_y) = self.next_corner_coordinates(st2, flip_sides)
 
             # update hall index
-            curHall = st.curHall + 1 # next hallway
-            #NB: this case deals with loops in the environment
+            curHall = st.curHall + 1  # next hallway
+            # NB: this case deals with loops in the environment
             if curHall >= self.numHalls:
                 curHall = 0
 
-        #self.allX.append(self.car_global_x)
-        #self.allY.append(self.car_global_y)
+        # self.allX.append(self.car_global_x)
+        # self.allY.append(self.car_global_y)
 
         return State(
             car_dist_s=car_dist_s,
@@ -698,13 +712,16 @@ class F110Mode(Mode[State]):
 
     def _observation_fn(self, st: State) -> np.ndarray:
         if self.state_feedback:
-            #return np.array([self.car_dist_s, self.car_dist_f, self.car_V, self.car_heading]), reward, terminal, -1
+            # return np.array([self.car_dist_s, self.car_dist_f, self.car_V, self.car_heading]),
+            #           reward, terminal, -1
 
             if st.car_dist_s <= self.hallWidths[st.curHall]:
 
-                corner_dist = np.sqrt((st.outer_x - st.inner_x) ** 2 + (st.outer_y - st.inner_y) ** 2)
-                wall_dist = np.sqrt(corner_dist ** 2 - self.hallWidths[(st.curHall+1)%self.numHalls] ** 2)
-                
+                corner_dist = np.sqrt((st.outer_x - st.inner_x) ** 2 +
+                                      (st.outer_y - st.inner_y) ** 2)
+                wall_dist = np.sqrt(corner_dist ** 2 -
+                                    self.hallWidths[(st.curHall+1) % self.numHalls] ** 2)
+
                 dist_s = st.car_dist_s
                 dist_s2 = self.hallWidths[st.curHall] - dist_s
                 dist_f = st.car_dist_f
@@ -713,14 +730,17 @@ class F110Mode(Mode[State]):
             else:
 
                 flip_sides = False
-                (next_outer_x, next_outer_y, next_inner_x, next_inner_y) = self.next_corner_coordinates(st, flip_sides)
+                (next_outer_x, next_outer_y, next_inner_x,
+                 next_inner_y) = self.next_corner_coordinates(st, flip_sides)
 
-                corner_dist = np.sqrt((next_outer_x - next_inner_x) ** 2 + (next_outer_y - next_inner_y) ** 2)
-                wall_dist = np.sqrt(corner_dist ** 2 - self.hallWidths[(st.curHall+2)%self.numHalls] ** 2)
-                
+                corner_dist = np.sqrt((next_outer_x - next_inner_x) ** 2 +
+                                      (next_outer_y - next_inner_y) ** 2)
+                wall_dist = np.sqrt(corner_dist ** 2 -
+                                    self.hallWidths[(st.curHall+2) % self.numHalls] ** 2)
+
                 (dist_s, dist_f, car_heading) = self.next_car_states(st, flip_sides)
-                
-                dist_s2 = self.hallWidths[(st.curHall+1)%self.numHalls] - dist_s
+
+                dist_s2 = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_s
                 dist_f2 = dist_f - wall_dist
 
             if dist_f > LIDAR_RANGE:
@@ -742,10 +762,10 @@ class F110Mode(Mode[State]):
 
         # note that dist_f is the x coordinate, and dist_s is the y coordinate
         dot_prod_top = normal_to_top_wall[0] * st.car_dist_f + normal_to_top_wall[1] * st.car_dist_s
-        
+
         if dot_prod_top <= SAFE_DISTANCE or\
-           (dot_prod_top >= (self.hallWidths[(st.curHall+1) % self.numHalls] - SAFE_DISTANCE)\
-           and st.car_dist_s >= self.hallWidths[(st.curHall) % self.numHalls] - SAFE_DISTANCE) or\
+           (dot_prod_top >= (self.hallWidths[(st.curHall+1) % self.numHalls] - SAFE_DISTANCE)
+            and st.car_dist_s >= self.hallWidths[(st.curHall) % self.numHalls] - SAFE_DISTANCE) or\
            st.car_dist_s <= SAFE_DISTANCE:
             print('heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
             return False
@@ -758,7 +778,8 @@ class F110Mode(Mode[State]):
         reward = STEP_REWARD_GAIN
 
         corner_dist = np.sqrt((st1.outer_x - st1.inner_x) ** 2 + (st1.outer_y - st1.inner_y) ** 2)
-        wall_dist = np.sqrt(corner_dist ** 2 - self.hallWidths[(st1.curHall+1)%self.numHalls] ** 2)
+        wall_dist = np.sqrt(corner_dist ** 2 -
+                            self.hallWidths[(st1.curHall+1) % self.numHalls] ** 2)
 
         # Region 1
         if st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
@@ -768,48 +789,52 @@ class F110Mode(Mode[State]):
             if st1.car_dist_f > LIDAR_RANGE:
 
                 reward += INPUT_REWARD_GAIN * delta * delta
-                reward += MIDDLE_REWARD_GAIN * abs(st1.car_dist_s - self.hallWidths[st1.curHall] / 2.0)
+                reward += MIDDLE_REWARD_GAIN * \
+                    abs(st1.car_dist_s - self.hallWidths[st1.curHall] / 2.0)
 
         # Region 2
         elif st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
-           st1.car_dist_f <= wall_dist:
+                st1.car_dist_f <= wall_dist:
 
             reward += HEADING_GAIN * (np.abs(st1.car_heading - self.turns[st1.curHall]))
             if not np.sign(st1.car_heading) == np.sign(self.turns[st1.curHall]):
                 reward -= 10 * STEP_REWARD_GAIN
 
         # Region 3
-        elif st1.car_dist_s >  self.hallWidths[st1.curHall] and\
-             st1.car_dist_f <= self.hallWidths[st1.curHall]:
+        elif st1.car_dist_s > self.hallWidths[st1.curHall] and\
+                st1.car_dist_f <= self.hallWidths[st1.curHall]:
 
             pass
-            
+
         # Check for a crash
         is_safe = self.is_safe(st1)
         if not is_safe:
             reward = CRASH_REWARD
 
         if st1.car_dist_s > self.hallWidths[st1.curHall] and is_safe:
-            
+
             corner_angle = np.pi - np.abs(self.turns[st1.curHall])
 
             dist_to_outer_old = np.sqrt(st0.car_dist_s ** 2 + st0.car_dist_f ** 2)
             dist_to_outer_new = np.sqrt(st1.car_dist_s ** 2 + st1.car_dist_f ** 2)
             inner_angle_old = corner_angle - math.atan(st0.car_dist_s / np.abs(st0.car_dist_f))
             inner_angle_new = corner_angle - math.atan(st1.car_dist_s / np.abs(st1.car_dist_f))
-        
+
             if corner_angle > np.pi/2:
-                inner_angle_old = corner_angle - math.atan(np.abs(st0.car_dist_f) / st0.car_dist_s) - np.pi/2
-                inner_angle_new = corner_angle - math.atan(np.abs(st1.car_dist_f) / st1.car_dist_s) - np.pi/2
+                inner_angle_old = corner_angle - \
+                    math.atan(np.abs(st0.car_dist_f) / st0.car_dist_s) - np.pi/2
+                inner_angle_new = corner_angle - \
+                    math.atan(np.abs(st1.car_dist_f) / st1.car_dist_s) - np.pi/2
 
             f2_old = np.cos(inner_angle_old) * dist_to_outer_old
             f2_new = np.cos(inner_angle_new) * dist_to_outer_new
-            
+
             s_new = np.sin(inner_angle_new) * dist_to_outer_new
 
             reward += MOVE_FORWARD_GAIN * (f2_new - f2_old)
 
-            reward += MIDDLE_REWARD_GAIN * abs(s_new - self.hallWidths[(st1.curHall+1)%self.numHalls] / 2.0)
+            reward += MIDDLE_REWARD_GAIN * \
+                abs(s_new - self.hallWidths[(st1.curHall+1) % self.numHalls] / 2.0)
 
         return reward
 
@@ -824,10 +849,11 @@ class F110Mode(Mode[State]):
 
         next_dist_s = np.sin(inner_angle) * dist_to_outer
         if flip_sides:
-            next_dist_s = self.hallWidths[(st.curHall+1)%self.numHalls] - next_dist_s
+            next_dist_s = self.hallWidths[(st.curHall+1) % self.numHalls] - next_dist_s
 
-        next_dist_f = self.hallLengths[(st.curHall+1)%self.numHalls] - np.cos(inner_angle) * dist_to_outer
-            
+        next_dist_f = self.hallLengths[(st.curHall+1) % self.numHalls] - \
+            np.cos(inner_angle) * dist_to_outer
+
         next_car_heading = st.car_heading - self.turns[st.curHall]
         if next_car_heading > np.pi:
             next_car_heading -= 2 * np.pi
@@ -836,37 +862,48 @@ class F110Mode(Mode[State]):
 
         return (next_dist_s, next_dist_f, next_car_heading)
 
-
-    def next_corner_coordinates(self, st: State, flip_sides: bool) -> Tuple[float, float, float, float]:
+    def next_corner_coordinates(self, st: State,
+                                flip_sides: bool) -> Tuple[float, float, float, float]:
 
         # add the length minus the distance from starting outer to inner corner
         if flip_sides:
-            starting_corner_dist = np.sqrt((st.outer_x - st.inner_x) ** 2 + (st.outer_y - st.inner_y) ** 2)
-            wall_dist = np.sqrt(starting_corner_dist ** 2 - self.hallWidths[(st.curHall+1)%self.numHalls] ** 2)
-                        
-            next_outer_x = st.inner_x + np.cos(st.cur_hall_heading) * (self.hallLengths[(st.curHall+1)%self.numHalls] - wall_dist)
-            next_outer_y = st.inner_y + np.sin(st.cur_hall_heading) * (self.hallLengths[(st.curHall+1)%self.numHalls] - wall_dist)
+            starting_corner_dist = np.sqrt((st.outer_x - st.inner_x)
+                                           ** 2 + (st.outer_y - st.inner_y) ** 2)
+            wall_dist = np.sqrt(starting_corner_dist ** 2 -
+                                self.hallWidths[(st.curHall+1) % self.numHalls] ** 2)
+
+            next_outer_x = st.inner_x + \
+                np.cos(st.cur_hall_heading) * \
+                (self.hallLengths[(st.curHall+1) % self.numHalls] - wall_dist)
+            next_outer_y = st.inner_y + \
+                np.sin(st.cur_hall_heading) * \
+                (self.hallLengths[(st.curHall+1) % self.numHalls] - wall_dist)
         else:
-            next_outer_x = st.outer_x + np.cos(st.cur_hall_heading) * self.hallLengths[(st.curHall+1)%self.numHalls]
-            next_outer_y = st.outer_y + np.sin(st.cur_hall_heading) * self.hallLengths[(st.curHall+1)%self.numHalls]
-            
+            next_outer_x = st.outer_x + np.cos(st.cur_hall_heading) * \
+                self.hallLengths[(st.curHall+1) % self.numHalls]
+            next_outer_y = st.outer_y + np.sin(st.cur_hall_heading) * \
+                self.hallLengths[(st.curHall+1) % self.numHalls]
+
         reverse_cur_heading = st.cur_hall_heading - np.pi
         if reverse_cur_heading > np.pi:
             reverse_cur_heading -= 2 * np.pi
         elif reverse_cur_heading < -np.pi:
             reverse_cur_heading += 2 * np.pi
 
-        next_heading = st.cur_hall_heading + self.turns[(st.curHall+1)%self.numHalls]
+        next_heading = st.cur_hall_heading + self.turns[(st.curHall+1) % self.numHalls]
         if next_heading > np.pi:
             next_heading -= 2 * np.pi
         elif next_heading < -np.pi:
             next_heading += 2 * np.pi
-                
-        out_wall_proj_length = np.abs(self.hallWidths[st.curHall] / np.sin(self.turns[(st.curHall+1)%self.numHalls]))
+
+        out_wall_proj_length = np.abs(
+            self.hallWidths[st.curHall] / np.sin(self.turns[(st.curHall+1) % self.numHalls]))
         proj_point_x = next_outer_x + np.cos(next_heading) * out_wall_proj_length
         proj_point_y = next_outer_y + np.sin(next_heading) * out_wall_proj_length
-        
-        in_wall_proj_length = np.abs(self.hallWidths[(st.curHall+1)%self.numHalls] / np.sin(self.turns[(st.curHall+1)%self.numHalls]))
+
+        in_wall_proj_length = np.abs(
+            self.hallWidths[(st.curHall+1) % self.numHalls] / np.sin(self.turns[(st.curHall+1)
+                                                                                % self.numHalls]))
         next_inner_x = proj_point_x + np.cos(reverse_cur_heading) * in_wall_proj_length
         next_inner_y = proj_point_y + np.sin(reverse_cur_heading) * in_wall_proj_length
 
@@ -876,7 +913,8 @@ class F110Mode(Mode[State]):
 
         car_heading_deg = st.car_heading * 180 / np.pi
 
-        theta_t = np.linspace(-self.lidar_field_of_view, self.lidar_field_of_view, self.lidar_num_rays)
+        theta_t = np.linspace(-self.lidar_field_of_view,
+                              self.lidar_field_of_view, self.lidar_num_rays)
 
         # lidar measurements
         data = np.zeros(len(theta_t))
@@ -896,7 +934,7 @@ class F110Mode(Mode[State]):
             theta_outer = np.arctan(float(st.car_dist_s) / st.car_dist_f) * 180 / np.pi
 
             if st.car_dist_s <= self.hallWidths[st.curHall]:
-                
+
                 theta_inner = -np.arctan(float(car_dist_s_inner) / car_dist_f_inner) * 180 / np.pi
 
                 if np.abs(theta_inner) <= np.abs(self.turns[st.curHall]) * 180 / np.pi:
@@ -914,31 +952,35 @@ class F110Mode(Mode[State]):
             normal_to_top_wall = [np.sin(corner_angle), -np.cos(corner_angle)]
 
             # note that dist_f is the x coordinate, and dist_s is the y coordinate
-            dot_prod_top = normal_to_top_wall[0] * st.car_dist_f + normal_to_top_wall[1] * st.car_dist_s
+            dot_prod_top = normal_to_top_wall[0] * \
+                st.car_dist_f + normal_to_top_wall[1] * st.car_dist_s
 
             car_dist_f_inner = np.abs(car_dist_f_inner)
-            
+
             if car_dist_s_inner >= 0:
 
                 if dot_prod_top >= self.hallWidths[(st.curHall+1) % self.numHalls]:
                     region1 = True
                 else:
                     region2 = True
-                    
-                theta_inner = -90 - np.arctan(float(car_dist_f_inner) / car_dist_s_inner) * 180 / np.pi
+
+                theta_inner = -90 - np.arctan(float(car_dist_f_inner) /
+                                              car_dist_s_inner) * 180 / np.pi
 
             else:
                 car_dist_s_inner = np.abs(car_dist_s_inner)
-                theta_inner = 90 + np.arctan(float(car_dist_f_inner) / car_dist_s_inner) * 180 / np.pi
+                theta_inner = 90 + np.arctan(float(car_dist_f_inner) /
+                                             car_dist_s_inner) * 180 / np.pi
                 region3 = True
 
             if st.car_dist_f >= 0:
-                car_dist_f_outer = st.car_dist_f
+                # car_dist_f_outer = st.car_dist_f
                 theta_outer = np.arctan(float(st.car_dist_s) / st.car_dist_f) * 180 / np.pi
-                
+
             else:
-                car_dist_f_outer = np.abs(st.car_dist_f)
-                theta_outer = 90 + np.arctan(np.abs(st.car_dist_f) / float(st.car_dist_s)) * 180 / np.pi
+                # car_dist_f_outer = np.abs(st.car_dist_f)
+                theta_outer = 90 + np.arctan(np.abs(st.car_dist_f) /
+                                             float(st.car_dist_s)) * 180 / np.pi
 
         car_dist_s_outer = st.car_dist_s
 
@@ -947,7 +989,7 @@ class F110Mode(Mode[State]):
             dist_r = car_dist_s_inner
             theta_l = theta_outer
             theta_r = theta_inner
-            
+
         else:
             dist_l = car_dist_s_inner
             dist_r = car_dist_s_outer
@@ -969,7 +1011,7 @@ class F110Mode(Mode[State]):
 
                 if angle <= theta_r:
                     data[index] = (dist_r) /\
-                            (np.cos( (90 + angle) * np.pi / 180))
+                        (np.cos((90 + angle) * np.pi / 180))
 
                 elif angle > theta_r and angle <= theta_l:
                     dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
@@ -978,28 +1020,28 @@ class F110Mode(Mode[State]):
                     else:
                         outer_angle = -self.turns[st.curHall] + theta_r * np.pi / 180
                     dist_to_top_wall = dist_to_outer * np.sin(outer_angle)
-                    
+
                     data[index] = dist_to_top_wall /\
-                                  np.sin(-self.turns[st.curHall] + angle * np.pi / 180)
+                        np.sin(-self.turns[st.curHall] + angle * np.pi / 180)
 
                 else:
-                    
-                    data[index] = (dist_l) /\
-                            (np.cos( (90 - angle) * np.pi / 180))
 
-                #add noise
+                    data[index] = (dist_l) /\
+                        (np.cos((90 - angle) * np.pi / 180))
+
+                # add noise
                 data[index] += np.random.uniform(0, self.lidar_noise)
 
                 if data[index] > LIDAR_RANGE or data[index] < 0:
                     data[index] = LIDAR_RANGE
-                    
+
                 index += 1
 
         # Region 2 (during turn)
         elif region2:
-                
+
             index = 0
-            
+
             for angle in theta_t:
 
                 angle = angle + car_heading_deg
@@ -1007,56 +1049,58 @@ class F110Mode(Mode[State]):
                     angle = angle - 360
                 elif angle < -180:
                     angle = angle + 360
-                    
+
                 if self.turns[st.curHall] < 0:
                     if angle <= theta_r:
                         data[index] = (dist_r) /\
-                                (np.cos( (90 + angle) * np.pi / 180))
+                            (np.cos((90 + angle) * np.pi / 180))
 
                     elif angle > theta_r and angle < self.turns[st.curHall] * 180 / np.pi:
-                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)                    
+                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = -self.turns[st.curHall] + theta_outer * np.pi / 180
-                        dist_to_bottom_wall = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
-                        
+                        dist_to_bottom_wall = self.hallWidths[(
+                            st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
+
                         data[index] = dist_to_bottom_wall /\
-                                  np.cos(np.pi/2 - self.turns[st.curHall] + angle * np.pi / 180)
+                            np.cos(np.pi/2 - self.turns[st.curHall] + angle * np.pi / 180)
 
                     elif angle > self.turns[st.curHall] * 180 / np.pi and angle <= theta_l:
                         dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = -self.turns[st.curHall] + theta_outer * np.pi / 180
                         dist_to_top_wall = dist_to_outer * np.sin(outer_angle)
-                    
+
                         data[index] = dist_to_top_wall /\
-                                  np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)                        
+                            np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
                     else:
                         data[index] = (dist_l) /\
-                                (np.cos( (90 - angle) * np.pi / 180))
+                            (np.cos((90 - angle) * np.pi / 180))
 
                 else:
                     if angle <= theta_r:
                         data[index] = (dist_r) /\
-                                (np.cos( (90 + angle) * np.pi / 180))
+                            (np.cos((90 + angle) * np.pi / 180))
 
                     elif angle > theta_r and angle <= self.turns[st.curHall] * 180 / np.pi:
                         dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = self.turns[st.curHall] - theta_r * np.pi / 180
                         dist_to_top_wall = dist_to_outer * np.sin(outer_angle)
-                    
+
                         data[index] = dist_to_top_wall /\
-                                  np.sin(np.pi - self.turns[st.curHall] + angle * np.pi / 180)   
+                            np.sin(np.pi - self.turns[st.curHall] + angle * np.pi / 180)
 
                     elif angle > self.turns[st.curHall] * 180 / np.pi and angle <= theta_l:
-                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)                    
+                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = self.turns[st.curHall] - theta_r * np.pi / 180
-                        dist_to_bottom_wall = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
-                        
+                        dist_to_bottom_wall = self.hallWidths[(
+                            st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
+
                         data[index] = dist_to_bottom_wall /\
-                                  np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
+                            np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
                     else:
                         data[index] = (dist_l) /\
-                                (np.cos( (90 - angle) * np.pi / 180))
+                            (np.cos((90 - angle) * np.pi / 180))
 
-                #add noise
+                # add noise
                 data[index] += np.random.uniform(0, self.lidar_noise)
 
                 if data[index] > LIDAR_RANGE or data[index] < 0:
@@ -1076,69 +1120,72 @@ class F110Mode(Mode[State]):
                     angle = angle - 360
                 elif angle < -180:
                     angle = angle + 360
-                    
+
                 if self.turns[st.curHall] < 0:
                     if angle < self.turns[st.curHall] * 180 / np.pi:
-                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)                    
+                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = -self.turns[st.curHall] + theta_outer * np.pi / 180
-                        dist_to_bottom_wall = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
-                        
+                        dist_to_bottom_wall = self.hallWidths[(
+                            st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
+
                         data[index] = dist_to_bottom_wall /\
-                                  np.cos(np.pi/2 - self.turns[st.curHall] + angle * np.pi / 180)
+                            np.cos(np.pi/2 - self.turns[st.curHall] + angle * np.pi / 180)
 
                     elif angle == self.turns[st.curHall] * 180 / np.pi:
-                          data[index] = LIDAR_RANGE
+                        data[index] = LIDAR_RANGE
 
                     elif angle >= self.turns[st.curHall] * 180 / np.pi and angle <= theta_l:
                         dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = -self.turns[st.curHall] + theta_outer * np.pi / 180
                         dist_to_top_wall = dist_to_outer * np.sin(outer_angle)
-                    
+
                         data[index] = dist_to_top_wall /\
-                                  np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)       
+                            np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
 
                     elif angle > theta_l and angle <= theta_r:
                         data[index] = (dist_l) /\
-                                (np.cos( (90 - angle) * np.pi / 180))
+                            (np.cos((90 - angle) * np.pi / 180))
 
                     else:
-                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)                    
+                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = -self.turns[st.curHall] + theta_outer * np.pi / 180
-                        dist_to_bottom_wall = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
-                        
+                        dist_to_bottom_wall = self.hallWidths[(
+                            st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
+
                         data[index] = dist_to_bottom_wall /\
-                                  np.cos(np.pi/2 - self.turns[st.curHall] + angle * np.pi / 180)
+                            np.cos(np.pi/2 - self.turns[st.curHall] + angle * np.pi / 180)
                 else:
 
                     if angle >= self.turns[st.curHall] * 180 / np.pi:
-                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)                    
+                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = self.turns[st.curHall] - theta_r * np.pi / 180
-                        dist_to_bottom_wall = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
-                        
+                        dist_to_bottom_wall = self.hallWidths[(
+                            st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
+
                         data[index] = dist_to_bottom_wall /\
-                                  np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
+                            np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
 
                     elif angle < self.turns[st.curHall] * 180 / np.pi and angle >= theta_r:
                         dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = self.turns[st.curHall] - theta_r * np.pi / 180
                         dist_to_top_wall = dist_to_outer * np.sin(outer_angle)
-                    
+
                         data[index] = dist_to_top_wall /\
-                                  np.sin(np.pi - self.turns[st.curHall] + angle * np.pi / 180)  
+                            np.sin(np.pi - self.turns[st.curHall] + angle * np.pi / 180)
 
                     elif angle < theta_r and angle >= theta_l:
                         data[index] = (dist_r) /\
-                                (np.cos( (90 + angle) * np.pi / 180))
+                            (np.cos((90 + angle) * np.pi / 180))
 
                     else:
 
-                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)                    
+                        dist_to_outer = np.sqrt(st.car_dist_s ** 2 + st.car_dist_f ** 2)
                         outer_angle = self.turns[st.curHall] - theta_r * np.pi / 180
-                        dist_to_bottom_wall = self.hallWidths[(st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
-                        
+                        dist_to_bottom_wall = self.hallWidths[(
+                            st.curHall+1) % self.numHalls] - dist_to_outer * np.sin(outer_angle)
+
                         data[index] = dist_to_bottom_wall /\
-                                  np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
-                        
+                            np.cos(np.pi/2 + self.turns[st.curHall] - angle * np.pi / 180)
 
                 # add noise
                 data[index] += np.random.uniform(0, self.lidar_noise)
@@ -1150,25 +1197,25 @@ class F110Mode(Mode[State]):
 
         # add missing rays
         if self.lidar_missing_in_turn_only:
-            
+
             # add missing rays only in Region 2 (plus an extra 1m before it)
             if st.car_dist_s > 0 and st.car_dist_s < self.hallWidths[st.curHall] and\
                st.car_dist_f <= self.hallWidths[(st.curHall + 1) % self.numHalls] + 1:
 
                 for ray in st.missing_indices:
-                    data[ray] = LIDAR_RANGE                
+                    data[ray] = LIDAR_RANGE
         else:
             # add missing rays in all regions
             for ray in st.missing_indices:
                 data[ray] = LIDAR_RANGE
-                
+
         return data
 
     def render(self, st: State) -> None:
         self.plot_lidar(st)
 
     def plot_trajectory(self, sts: List[State]) -> None:
-        fig = plt.figure()
+        plt.figure()
 
         self.plotHalls()
 
@@ -1185,7 +1232,7 @@ class F110Mode(Mode[State]):
                    savefilename: str = ''
                    ) -> None:
 
-        fig = plt.figure()
+        plt.figure()
 
         if show_halls:
             self.plotHalls()
@@ -1195,7 +1242,8 @@ class F110Mode(Mode[State]):
         lidX = []
         lidY = []
 
-        theta_t = np.linspace(-self.lidar_field_of_view, self.lidar_field_of_view, self.lidar_num_rays)
+        theta_t = np.linspace(-self.lidar_field_of_view,
+                              self.lidar_field_of_view, self.lidar_num_rays)
 
         index = 0
 
@@ -1204,66 +1252,76 @@ class F110Mode(Mode[State]):
             if zero_dist_rays and data[index] >= LIDAR_RANGE:
                 data[index] = 0
 
-            lidX.append(st.car_global_x + data[index] * np.cos(curAngle * np.pi / 180 + st.car_global_heading))
-            lidY.append(st.car_global_y + data[index] * np.sin(curAngle * np.pi / 180 + st.car_global_heading))
-                          
+            lidX.append(st.car_global_x + data[index] *
+                        np.cos(curAngle * np.pi / 180 + st.car_global_heading))
+            lidY.append(st.car_global_y + data[index] *
+                        np.sin(curAngle * np.pi / 180 + st.car_global_heading))
+
             index += 1
 
-        plt.scatter(lidX, lidY, c = 'green', s=8)
+        plt.scatter(lidX, lidY, c='green', s=8)
 
-        plt.scatter([st.car_global_x], [st.car_global_y], c = 'red')
+        plt.scatter([st.car_global_x], [st.car_global_y], c='red')
 
-        #plt.ylim((-1,11))
-        #plt.xlim((-2, np.max(self.hallLengths) + np.max(self.hallWidths)))
+        # plt.ylim((-1,11))
+        # plt.xlim((-2, np.max(self.hallLengths) + np.max(self.hallWidths)))
 
         if len(savefilename) > 0:
             plt.savefig(savefilename)
 
         plt.show()
 
-    def plot_real_lidar(self, st: State, data, newfig = True):
-
+    def plot_real_lidar(self, st: State, data, newfig=True):
 
         if newfig:
-            fig = plt.figure()
+            plt.figure()
 
             self.plotHalls()
 
-        plt.scatter([st.car_global_x], [st.car_global_y], c = 'red')
+        plt.scatter([st.car_global_x], [st.car_global_y], c='red')
 
         lidX = []
         lidY = []
 
-        theta_t = np.linspace(-self.lidar_field_of_view, self.lidar_field_of_view, self.lidar_num_rays)
+        theta_t = np.linspace(-self.lidar_field_of_view,
+                              self.lidar_field_of_view, self.lidar_num_rays)
 
         index = 0
 
-        for curAngle in theta_t:    
+        for curAngle in theta_t:
 
-            lidX.append(st.car_global_x + data[index] * np.cos(curAngle * np.pi / 180 + st.car_global_heading))
-            lidY.append(st.car_global_y + data[index] * np.sin(curAngle * np.pi / 180 + st.car_global_heading))
-                          
+            lidX.append(st.car_global_x + data[index] *
+                        np.cos(curAngle * np.pi / 180 + st.car_global_heading))
+            lidY.append(st.car_global_y + data[index] *
+                        np.sin(curAngle * np.pi / 180 + st.car_global_heading))
+
             index += 1
 
-        plt.scatter(lidX, lidY, c = 'green')
+        plt.scatter(lidX, lidY, c='green')
 
-        if newfig: 
+        if newfig:
             plt.show()
 
-    def plotHalls(self, wallwidth = 3):
+    def plotHalls(self, wallwidth=3):
 
         # 1st hall going up by default and centralized around origin
-        midX = 0
-        midY = 0
-        going_up = True
-        left = True
+        # midX = 0
+        # midY = 0
+        # going_up = True
+        # left = True
+        prev_outer_x = None
+        prev_outer_y = None
+
+        prev_inner_x = None
+        prev_inner_y = None
+        wall_dist = None
 
         cur_heading = np.pi / 2
-            
+
         for i in range(self.numHalls):
 
             # set up starting and ending outer corners
-            
+
             # the starting shape of the first hallway will assume a
             # loop (if the hallways do not form a loop, it will just
             # look non-symmetrical)
@@ -1290,15 +1348,17 @@ class F110Mode(Mode[State]):
                     l1y1 = prev_outer_y
 
                     if self.turns[i] < 0:
-                        
+
                         l1x2 = l1x1 + np.cos(cur_heading) * self.hallLengths[i]
                         l1y2 = l1y1 + np.sin(cur_heading) * self.hallLengths[i]
 
                     # add the length minus the distance from starting outer to inner corner
                     else:
-                        
-                        l2x2 = prev_inner_x + np.cos(cur_heading) * (self.hallLengths[i] - wall_dist)
-                        l2y2 = prev_inner_y + np.sin(cur_heading) * (self.hallLengths[i] - wall_dist)
+
+                        l2x2 = prev_inner_x + np.cos(cur_heading) * \
+                            (self.hallLengths[i] - wall_dist)
+                        l2y2 = prev_inner_y + np.sin(cur_heading) * \
+                            (self.hallLengths[i] - wall_dist)
 
                 else:
                     l2x1 = prev_outer_x
@@ -1306,8 +1366,10 @@ class F110Mode(Mode[State]):
 
                     # add the length minus the distance from starting outer to inner corner
                     if self.turns[i] < 0:
-                        l1x2 = prev_inner_x + np.cos(cur_heading) * (self.hallLengths[i] - wall_dist)
-                        l1y2 = prev_inner_y + np.sin(cur_heading) * (self.hallLengths[i] - wall_dist)
+                        l1x2 = prev_inner_x + np.cos(cur_heading) * \
+                            (self.hallLengths[i] - wall_dist)
+                        l1y2 = prev_inner_y + np.sin(cur_heading) * \
+                            (self.hallLengths[i] - wall_dist)
 
                     else:
 
@@ -1327,7 +1389,7 @@ class F110Mode(Mode[State]):
                 next_heading -= 2 * np.pi
             elif next_heading < -np.pi:
                 next_heading += 2 * np.pi
-            
+
             reverse_cur_heading = cur_heading - np.pi
 
             if reverse_cur_heading > np.pi:
@@ -1410,6 +1472,7 @@ class F110Mode(Mode[State]):
     def vectorize_state(self, st: State) -> np.ndarray:
         return np.array([st.car_global_x, st.car_global_y, st.car_V, st.car_global_heading])
 
+
 def square_hall_right(width=1.5):
 
     hallWidths = [width, width, width, width]
@@ -1417,6 +1480,7 @@ def square_hall_right(width=1.5):
     turns = [-np.pi/2, -np.pi/2, -np.pi/2, -np.pi/2]
 
     return (hallWidths, hallLengths, turns)
+
 
 def T_hall_right(width=1.5):
 
@@ -1426,6 +1490,7 @@ def T_hall_right(width=1.5):
 
     return (hallWidths, hallLengths, turns)
 
+
 def square_hall_left(width=1.5):
 
     hallWidths = [width, width, width, width]
@@ -1433,6 +1498,7 @@ def square_hall_left(width=1.5):
     turns = [np.pi/2, np.pi/2, np.pi/2, np.pi/2]
 
     return (hallWidths, hallLengths, turns)
+
 
 def trapezoid_hall_sharp_right(width=1.5):
 
@@ -1442,6 +1508,7 @@ def trapezoid_hall_sharp_right(width=1.5):
 
     return (hallWidths, hallLengths, turns)
 
+
 def trapezoid_hall_sharp_left(width=1.5):
 
     hallWidths = [width, width, width, width]
@@ -1449,6 +1516,7 @@ def trapezoid_hall_sharp_left(width=1.5):
     turns = [(3 * np.pi) / 4, np.pi/4, np.pi/4, (3 * np.pi)/4]
 
     return (hallWidths, hallLengths, turns)
+
 
 def triangle_hall_sharp_right(width=1.5):
 
@@ -1458,6 +1526,7 @@ def triangle_hall_sharp_right(width=1.5):
 
     return (hallWidths, hallLengths, turns)
 
+
 def triangle_hall_equilateral_right(width=1.5):
 
     hallWidths = [width, width, width]
@@ -1465,6 +1534,7 @@ def triangle_hall_equilateral_right(width=1.5):
     turns = [(-2 * np.pi) / 3, (-2 * np.pi) / 3, (-2 * np.pi) / 3]
 
     return (hallWidths, hallLengths, turns)
+
 
 def triangle_hall_equilateral_left(width=1.5):
 
@@ -1474,13 +1544,15 @@ def triangle_hall_equilateral_left(width=1.5):
 
     return (hallWidths, hallLengths, turns)
 
+
 def trapezoid_hall_slight_right(width=1.5):
 
     hallWidths = [width, width, width, width]
     hallLengths = [20, 20, 20 + 2 * np.sqrt(200), 20]
-    turns = [-np.pi/4, (-3 * np.pi) / 4,  (-3 * np.pi)/4, -np.pi/4]    
+    turns = [-np.pi/4, (-3 * np.pi) / 4,  (-3 * np.pi)/4, -np.pi/4]
 
-    return (hallWidths, hallLengths, turns)            
+    return (hallWidths, hallLengths, turns)
+
 
 def complex_track(width=1.5):
 
@@ -1496,6 +1568,7 @@ def complex_track(width=1.5):
 
     hallWidths = [width, width, width, width, width, width, width, width]
     hallLengths = [l1, l2, l3, l4, 2 * (l3 + x), l4, l3, l2]
-    turns = [(-2 * np.pi) / 3, (2 * np.pi) / 3, (-np.pi) / 2, (-np.pi) / 2, (-np.pi) / 2, (-np.pi) / 2, (2 * np.pi) / 3, (-2*np.pi) / 3]
+    turns = [(-2 * np.pi) / 3, (2 * np.pi) / 3, (-np.pi) / 2, (-np.pi) / 2,
+             (-np.pi) / 2, (-np.pi) / 2, (2 * np.pi) / 3, (-2*np.pi) / 3]
 
     return (hallWidths, hallLengths, turns)

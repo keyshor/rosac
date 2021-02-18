@@ -2,7 +2,7 @@
 import numpy as np
 import gym
 
-from typing import TypeVar, Generic
+from typing import TypeVar, Generic, List, Any, Iterable, Tuple
 from abc import ABCMeta, abstractmethod
 
 StateType = TypeVar('StateType')
@@ -10,7 +10,7 @@ StateType = TypeVar('StateType')
 
 class Mode(Generic[StateType], metaclass=ABCMeta):
     '''
-    Defines an abstract mode.
+    Defines an abstract mode of the hybrid automaton.
     '''
     name: str
     action_space: gym.Space
@@ -86,3 +86,47 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         Returns a vector representation of the given state.
         '''
         raise NotImplementedError
+
+
+class Transition(metaclass=ABCMeta):
+    source: str
+    targets: List[str]
+
+    def __init__(self, source: str, targets: Iterable[str]) -> None:
+        self.source = source
+        self.targets = list(targets)
+
+    @abstractmethod
+    def guard(self, state: Any) -> bool:
+        '''
+        Specifies when this transition can be taken.
+        '''
+        pass
+
+    @abstractmethod
+    def jump(self, target: str, state: Any) -> Any:
+        '''
+        Transforms the state for the target mode.
+        '''
+        pass
+
+
+class ModeSelector(metaclass=ABCMeta):
+    '''
+    Selects the next mode during a transition.
+    Can be stateful, tracking the history of transitions.
+    '''
+
+    @abstractmethod
+    def next_mode(transition: Transition, state: Any) -> Tuple[str, bool]:
+        '''
+        Returns the mode (name) to switch to and whether the simulation is done.
+        '''
+        pass
+
+    @abstractmethod
+    def reset() -> str:
+        '''
+        Returns an initial mode (name).
+        '''
+        pass
