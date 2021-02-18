@@ -118,14 +118,14 @@ class ModeSelector(metaclass=ABCMeta):
     '''
 
     @abstractmethod
-    def next_mode(transition: Transition, state: Any) -> Tuple[str, bool]:
+    def next_mode(self, transition: Transition, state: Any) -> Tuple[str, bool]:
         '''
         Returns the mode (name) to switch to and whether the simulation is done.
         '''
         pass
 
     @abstractmethod
-    def reset() -> str:
+    def reset(self) -> str:
         '''
         Returns an initial mode (name).
         '''
