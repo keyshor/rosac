@@ -8,6 +8,8 @@ from scipy.integrate import odeint
 from hybrid_gym.model import Mode
 from typing import List, Iterable, Tuple, Optional, Final, NamedTuple
 
+# hallway properties
+DEFAULT_HALL_WIDTH: Final[float] = 1.5
 
 # car parameters
 CAR_LENGTH: Final[float] = .45  # in m
@@ -37,6 +39,7 @@ HEADING_GAIN: Final[float] = -3
 MOVE_FORWARD_GAIN: Final[float] = 10
 REGION3_ENTER_GAIN: Final[float] = 0  # 100
 
+LIDAR_NUM_RAYS: Final[int] = 21
 
 # direction parameters
 class Direction(enum.Enum):
@@ -75,7 +78,7 @@ class F110Mode(Mode[State]):
     init_car_heading: float
     init_car_V: float
     time_step: float
-    episode_length: int
+    #episode_length: int
     lidar_field_of_view: float
     lidar_num_rays: int
     lidar_noise: float
@@ -95,7 +98,7 @@ class F110Mode(Mode[State]):
                  init_car_dist_f: float,
                  init_car_heading: float,
                  init_car_V: float,
-                 episode_length: int,
+                 #episode_length: int,
                  time_step: float,
                  lidar_field_of_view: float,
                  lidar_num_rays: int,
@@ -143,7 +146,7 @@ class F110Mode(Mode[State]):
         # step parameters
         self.time_step = time_step
         # self.cur_step = 0
-        self.episode_length = episode_length
+        #self.episode_length = episode_length
 
         # storage
         # self.allX = []
@@ -210,7 +213,7 @@ class F110Mode(Mode[State]):
             obs_low = np.zeros(self.lidar_num_rays, )
             obs_high = LIDAR_RANGE * np.ones(self.lidar_num_rays, )
 
-        super(F110Mode, self).__init__(
+        super().__init__(
             name=name,
             action_space=spaces.Box(low=-MAX_TURNING_INPUT,
                                     high=MAX_TURNING_INPUT, shape=(1,), dtype=np.float32),
@@ -316,7 +319,7 @@ class F110Mode(Mode[State]):
               side_pos: Optional[float] = None,
               pos_noise: float = 0.2,
               heading_noise: float = 0.1,
-              front_pos_noise: float = 0.0
+              front_pos_noise: float = 0.2
               ) -> State:
         # self.curHall = 0
 
@@ -688,6 +691,8 @@ class F110Mode(Mode[State]):
             # NB: this case deals with loops in the environment
             if curHall >= self.numHalls:
                 curHall = 0
+        else:
+            direction = st.direction
 
         # self.allX.append(self.car_global_x)
         # self.allY.append(self.car_global_y)
@@ -767,7 +772,7 @@ class F110Mode(Mode[State]):
            (dot_prod_top >= (self.hallWidths[(st.curHall+1) % self.numHalls] - SAFE_DISTANCE)
             and st.car_dist_s >= self.hallWidths[(st.curHall) % self.numHalls] - SAFE_DISTANCE) or\
            st.car_dist_s <= SAFE_DISTANCE:
-            print('heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
+            print('crash in mode ' + self.name + ' at heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
             return False
 
         return True
@@ -1472,17 +1477,26 @@ class F110Mode(Mode[State]):
     def vectorize_state(self, st: State) -> np.ndarray:
         return np.array([st.car_global_x, st.car_global_y, st.car_V, st.car_global_heading])
 
+def long_square_hall_right(length=20, width=DEFAULT_HALL_WIDTH):
 
-def square_hall_right(width=1.5):
+    short_length = 20
+    long_length = length + 2 * LIDAR_RANGE + 4
+    hallWidths = [width, width, width, width]
+    hallLengths = [long_length, short_length, long_length, short_length]
+    turns = [-np.pi/2, -np.pi/2, -np.pi/2, -np.pi/2]
+
+    return (hallWidths, hallLengths, turns)
+
+def square_hall_right(side_length=20, width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width, width]
-    hallLengths = [20, 20, 20, 20]
+    hallLengths = [side_length, side_length, side_length, side_length]
     turns = [-np.pi/2, -np.pi/2, -np.pi/2, -np.pi/2]
 
     return (hallWidths, hallLengths, turns)
 
 
-def T_hall_right(width=1.5):
+def T_hall_right(width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width, width, width, width, width, width]
     hallLengths = [10, 10, 10, 10, 27, 10, 10, 10]
@@ -1491,16 +1505,16 @@ def T_hall_right(width=1.5):
     return (hallWidths, hallLengths, turns)
 
 
-def square_hall_left(width=1.5):
+def square_hall_left(side_length=20, width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width, width]
-    hallLengths = [20, 20, 20, 20]
+    hallLengths = [side_length, side_length, side_length, side_length]
     turns = [np.pi/2, np.pi/2, np.pi/2, np.pi/2]
 
     return (hallWidths, hallLengths, turns)
 
 
-def trapezoid_hall_sharp_right(width=1.5):
+def trapezoid_hall_sharp_right(width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width, width]
     hallLengths = [20 + 2 * np.sqrt(200), 20, 20, 20]
@@ -1509,7 +1523,7 @@ def trapezoid_hall_sharp_right(width=1.5):
     return (hallWidths, hallLengths, turns)
 
 
-def trapezoid_hall_sharp_left(width=1.5):
+def trapezoid_hall_sharp_left(width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width, width]
     hallLengths = [20 + 2 * np.sqrt(200), 20, 20, 20]
@@ -1518,7 +1532,7 @@ def trapezoid_hall_sharp_left(width=1.5):
     return (hallWidths, hallLengths, turns)
 
 
-def triangle_hall_sharp_right(width=1.5):
+def triangle_hall_sharp_right(width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width]
     hallLengths = [30, np.sqrt(1800), 30]
@@ -1527,25 +1541,25 @@ def triangle_hall_sharp_right(width=1.5):
     return (hallWidths, hallLengths, turns)
 
 
-def triangle_hall_equilateral_right(width=1.5):
+def triangle_hall_equilateral_right(side_length=20, width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width]
-    hallLengths = [20, 20, 20]
+    hallLengths = [side_length, side_length, side_length]
     turns = [(-2 * np.pi) / 3, (-2 * np.pi) / 3, (-2 * np.pi) / 3]
 
     return (hallWidths, hallLengths, turns)
 
 
-def triangle_hall_equilateral_left(width=1.5):
+def triangle_hall_equilateral_left(side_length=20, width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width]
-    hallLengths = [20, 20, 20]
+    hallLengths = [side_length, side_length, side_length]
     turns = [(2 * np.pi) / 3, (2 * np.pi) / 3, (2 * np.pi) / 3]
 
     return (hallWidths, hallLengths, turns)
 
 
-def trapezoid_hall_slight_right(width=1.5):
+def trapezoid_hall_slight_right(width=DEFAULT_HALL_WIDTH):
 
     hallWidths = [width, width, width, width]
     hallLengths = [20, 20, 20 + 2 * np.sqrt(200), 20]
@@ -1554,7 +1568,7 @@ def trapezoid_hall_slight_right(width=1.5):
     return (hallWidths, hallLengths, turns)
 
 
-def complex_track(width=1.5):
+def complex_track(width=DEFAULT_HALL_WIDTH):
 
     l1 = 20
     l2 = 16
@@ -1572,3 +1586,79 @@ def complex_track(width=1.5):
              (-np.pi) / 2, (-np.pi) / 2, (2 * np.pi) / 3, (-2*np.pi) / 3]
 
     return (hallWidths, hallLengths, turns)
+
+def make_straight(length: float) -> F110Mode:
+    hallWidths, hallLengths, turns = long_square_hall_right(length)
+    return F110Mode(
+        name=f'f110_straight_{length}m',
+        hallWidths=hallWidths,
+        hallLengths=hallLengths,
+        turns=turns,
+        init_car_dist_s=hallWidths[0]/2.0,
+        init_car_dist_f=length + LIDAR_RANGE + 2,
+        init_car_heading=0,
+        init_car_V=2.4,
+        time_step=0.1,
+        lidar_field_of_view=115,
+        lidar_num_rays=LIDAR_NUM_RAYS,
+    )
+
+hallWidths, hallLengths, turns = square_hall_right()
+normal_right: F110Mode = F110Mode(
+    name='f110_normal_right',
+    hallWidths=hallWidths,
+    hallLengths=hallLengths,
+    turns=turns,
+    init_car_dist_s=hallWidths[0]/2.0,
+    init_car_dist_f=7,
+    init_car_heading=0,
+    init_car_V=2.4,
+    time_step=0.1,
+    lidar_field_of_view=115,
+    lidar_num_rays=LIDAR_NUM_RAYS,
+)
+
+hallWidths, hallLengths, turns = square_hall_left()
+normal_left: F110Mode = F110Mode(
+    name='f110_normal_left',
+    hallWidths=hallWidths,
+    hallLengths=hallLengths,
+    turns=turns,
+    init_car_dist_s=hallWidths[0]/2.0,
+    init_car_dist_f=7,
+    init_car_heading=0,
+    init_car_V=2.4,
+    time_step=0.1,
+    lidar_field_of_view=115,
+    lidar_num_rays=LIDAR_NUM_RAYS,
+)
+
+hallWidths, hallLengths, turns = triangle_hall_equilateral_right()
+sharp_right: F110Mode = F110Mode(
+    name='f110_sharp_right',
+    hallWidths=hallWidths,
+    hallLengths=hallLengths,
+    turns=turns,
+    init_car_dist_s=hallWidths[0]/2.0,
+    init_car_dist_f=8,
+    init_car_heading=0,
+    init_car_V=2.4,
+    time_step=0.1,
+    lidar_field_of_view=115,
+    lidar_num_rays=LIDAR_NUM_RAYS,
+)
+
+hallWidths, hallLengths, turns = triangle_hall_equilateral_left()
+sharp_left: F110Mode = F110Mode(
+    name='f110_sharp_left',
+    hallWidths=hallWidths,
+    hallLengths=hallLengths,
+    turns=turns,
+    init_car_dist_s=hallWidths[0]/2.0,
+    init_car_dist_f=8,
+    init_car_heading=0,
+    init_car_V=2.4,
+    time_step=0.1,
+    lidar_field_of_view=115,
+    lidar_num_rays=LIDAR_NUM_RAYS,
+)
