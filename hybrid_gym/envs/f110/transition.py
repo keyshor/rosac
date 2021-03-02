@@ -26,11 +26,11 @@ class F110Trans(Transition):
             dist, mode = straight_modes[target]
             return mode.set_state_local(
                 st.car_dist_s,
-                LIDAR_RANGE + dist + 2,
+                dist + st.car_dist_f,
                 st.car_heading,
                 st
             )
         except KeyError:
             return normal_right.set_state_local(
-                st.car_dist_s, LIDAR_RANGE + 2, st.car_heading, st
+                st.car_dist_s, st.car_dist_f, st.car_heading, st
             )

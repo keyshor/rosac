@@ -317,9 +317,9 @@ class F110Mode(Mode[State]):
 
     def reset(self,
               side_pos: Optional[float] = None,
-              pos_noise: float = 0.2,
-              heading_noise: float = 0.1,
-              front_pos_noise: float = 0.2
+              pos_noise: float = 0.01,
+              heading_noise: float = 0.0005,
+              front_pos_noise: float = 0.01
               ) -> State:
         # self.curHall = 0
 
@@ -1480,7 +1480,7 @@ class F110Mode(Mode[State]):
 def long_square_hall_right(length=20, width=DEFAULT_HALL_WIDTH):
 
     short_length = 20
-    long_length = length + 2 * LIDAR_RANGE + 4
+    long_length = length + 20
     hallWidths = [width, width, width, width]
     hallLengths = [long_length, short_length, long_length, short_length]
     turns = [-np.pi/2, -np.pi/2, -np.pi/2, -np.pi/2]
@@ -1595,7 +1595,7 @@ def make_straight(length: float) -> F110Mode:
         hallLengths=hallLengths,
         turns=turns,
         init_car_dist_s=hallWidths[0]/2.0,
-        init_car_dist_f=length + LIDAR_RANGE + 2,
+        init_car_dist_f=length + LIDAR_RANGE + 3,
         init_car_heading=0,
         init_car_V=2.4,
         time_step=0.1,
@@ -1610,7 +1610,7 @@ normal_right: F110Mode = F110Mode(
     hallLengths=hallLengths,
     turns=turns,
     init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=7,
+    init_car_dist_f=LIDAR_RANGE + 3,
     init_car_heading=0,
     init_car_V=2.4,
     time_step=0.1,
@@ -1625,7 +1625,7 @@ normal_left: F110Mode = F110Mode(
     hallLengths=hallLengths,
     turns=turns,
     init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=7,
+    init_car_dist_f=LIDAR_RANGE + 3,
     init_car_heading=0,
     init_car_V=2.4,
     time_step=0.1,
@@ -1640,7 +1640,7 @@ sharp_right: F110Mode = F110Mode(
     hallLengths=hallLengths,
     turns=turns,
     init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=8,
+    init_car_dist_f=LIDAR_RANGE + 3,
     init_car_heading=0,
     init_car_V=2.4,
     time_step=0.1,
@@ -1655,7 +1655,7 @@ sharp_left: F110Mode = F110Mode(
     hallLengths=hallLengths,
     turns=turns,
     init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=8,
+    init_car_dist_f=LIDAR_RANGE + 3,
     init_car_heading=0,
     init_car_V=2.4,
     time_step=0.1,
