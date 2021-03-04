@@ -130,3 +130,13 @@ class ModeSelector(metaclass=ABCMeta):
         Returns an initial mode (name).
         '''
         pass
+
+
+class Controller(metaclass=ABCMeta):
+    '''
+    Abstract class for controller.
+    '''
+
+    @abstractmethod
+    def get_action(self, observation: np.ndarray) -> np.ndarray:
+        pass
