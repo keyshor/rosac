@@ -2,4 +2,8 @@ numpy
 matplotlib
 mypy
 gym
+pyyaml
 git+https://github.com/numpy/numpy-stubs.git
+stable-baselines
+tensorflow<2.0.0
+mpi4py

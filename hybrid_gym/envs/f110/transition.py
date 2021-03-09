@@ -1,36 +1,45 @@
 from hybrid_gym.model import Transition
 from hybrid_gym.envs.f110.mode import (
-    LIDAR_RANGE, State, F110Mode, make_straight, normal_right
+    LIDAR_RANGE, State, F110Mode,
+    make_straight,
+    make_square_right, make_square_left,
+    make_sharp_right, make_sharp_left,
 )
-from typing import Iterable, Dict, Tuple, Final
+from typing import Iterable, Dict, Tuple, Optional
 
-straight_10 = make_straight(10)
-straight_15 = make_straight(15)
-
-straight_modes: Final[Dict[str, Tuple[float, F110Mode]]] = {
-    straight_10.name: (10, straight_10),
-    straight_15.name: (15, straight_15),
-}
-
+def straight_length(mode_name: str) -> Optional[float]:
+    length_str = mode_name[len('f110_straight_'):-1]
+    if mode_name != 'f110_straight_' + length_str + 'm':
+        return None
+    try:
+        return float(length_str)
+    except ValueError:
+        return None
 
 class F110Trans(Transition):
+    modes: Dict[str, F110Mode]
+
+    def __init__(self, source: str, modes: Dict[str, F110Mode]) -> None:
+        self.modes = modes
+        super().__init__(source, [m.name for m in modes.values()])
+
     def guard(self, st: State) -> bool:
-        if self.source in straight_modes:
+        if 'straight' in self.source:
             return st.curHall == 0 and \
                 st.car_dist_f <= LIDAR_RANGE + 2
         else:
             return st.curHall == 1
 
     def jump(self, target: str, st: State) -> State:
-        try:
-            dist, mode = straight_modes[target]
-            return mode.set_state_local(
+        dist = straight_length(target)
+        if dist is None:
+            return self.modes[target].set_state_local(
+                st.car_dist_s, st.car_dist_f, st.car_heading, st
+            )
+        else:
+            return self.modes[target].set_state_local(
                 st.car_dist_s,
                 dist + st.car_dist_f,
                 st.car_heading,
                 st
-            )
-        except KeyError:
-            return normal_right.set_state_local(
-                st.car_dist_s, st.car_dist_f, st.car_heading, st
             )

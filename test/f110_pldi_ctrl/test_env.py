@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.append(os.path.join('..', '..'))
-from hybrid_gym.envs.f110.hybrid_env import f110_automaton
+from hybrid_gym.envs.f110.hybrid_env import make_hybrid_env
 from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 
@@ -38,6 +38,20 @@ def int2mode(i):
     elif i == 3:
         return Modes.SHARP_RIGHT
     elif i == 4:
+        return Modes.SHARP_LEFT
+    else:
+        raise ValueError
+
+def str2mode(s, car_dist_f):
+    if 'straight' in s or car_dist_f > 10:
+        return Modes.STRAIGHT
+    elif 'square_right' in s:
+        return Modes.SQUARE_RIGHT
+    elif 'square_left' in s:
+        return Modes.SQUARE_LEFT
+    elif 'sharp_right' in s:
+        return Modes.SHARP_RIGHT
+    elif 'sharp_left' in s:
         return Modes.SHARP_LEFT
     else:
         raise ValueError
@@ -155,11 +169,14 @@ def reverse_lidar(data):
 
 def main(argv):
 
+    raw_env = make_hybrid_env(straight_lengths=[10], num_lidar_rays=21)
+    f110_automaton = raw_env.automaton
+
     env = HybridEnv(
         automaton=f110_automaton,
         selector=MaxJumpWrapper(
             wrapped_selector=UniformSelector(modes=f110_automaton.modes.values()),
-            max_jumps=30
+            max_jumps=100
         )
     )
 
@@ -216,6 +233,7 @@ def main(argv):
         observation = normalize(observation)
 
         mode = mode_predictor.predict(observation)
+        #mode = str2mode(env.mode.name, env.state.car_dist_f)
 
         if mode == Modes.SQUARE_LEFT or mode == Modes.SHARP_LEFT:
             observation = reverse_lidar(observation)

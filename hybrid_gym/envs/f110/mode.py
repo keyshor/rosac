@@ -6,40 +6,38 @@ import enum
 from gym import spaces
 from scipy.integrate import odeint
 from hybrid_gym.model import Mode
-from typing import List, Iterable, Tuple, Optional, Final, NamedTuple
+from typing import List, Iterable, Tuple, Optional, NamedTuple
 
 # hallway properties
-DEFAULT_HALL_WIDTH: Final[float] = 1.5
+DEFAULT_HALL_WIDTH: float = 1.5
 
 # car parameters
-CAR_LENGTH: Final[float] = .45  # in m
-CAR_CENTER_OF_MASS: Final[float] = .225  # from rear of car (m)
-CAR_DECEL_CONST: Final[float] = .4
-CAR_ACCEL_CONST: Final[float] = 1.633  # estimated from data
-CAR_MOTOR_CONST: Final[float] = 0.2  # estimated from data
-HYSTERESIS_CONSTANT: Final[float] = 4
-MAX_TURNING_INPUT: Final[float] = 20  # in degrees
+CAR_LENGTH: float = .45  # in m
+CAR_CENTER_OF_MASS: float = .225  # from rear of car (m)
+CAR_DECEL_CONST: float = .4
+CAR_ACCEL_CONST: float = 1.633  # estimated from data
+CAR_MOTOR_CONST: float = 0.2  # estimated from data
+HYSTERESIS_CONSTANT: float = 4
+MAX_TURNING_INPUT: float = 20  # in degrees
 
 # lidar parameter
-LIDAR_RANGE: Final[float] = 5  # in m
+LIDAR_RANGE: float = 5  # in m
 
 # safety parameter
-SAFE_DISTANCE: Final[float] = 0.1  # in m
+SAFE_DISTANCE: float = 0.1  # in m
 
 # default throttle if left unspecified
-CONST_THROTTLE: Final[float] = 16
-MAX_THROTTLE: Final[float] = 50  # just used to compute maximum possible velocity
+CONST_THROTTLE: float = 16
+MAX_THROTTLE: float = 50  # just used to compute maximum possible velocity
 
 # training parameters
-STEP_REWARD_GAIN: Final[float] = 5
-INPUT_REWARD_GAIN: Final[float] = 0
-CRASH_REWARD: Final[float] = -100
-MIDDLE_REWARD_GAIN: Final[float] = -3
-HEADING_GAIN: Final[float] = -3
-MOVE_FORWARD_GAIN: Final[float] = 10
-REGION3_ENTER_GAIN: Final[float] = 0  # 100
-
-LIDAR_NUM_RAYS: Final[int] = 21
+STEP_REWARD_GAIN: float = 5
+INPUT_REWARD_GAIN: float = 0
+CRASH_REWARD: float = -100
+MIDDLE_REWARD_GAIN: float = -3
+HEADING_GAIN: float = -3
+MOVE_FORWARD_GAIN: float = 10
+REGION3_ENTER_GAIN: float = 0  # 100
 
 # direction parameters
 class Direction(enum.Enum):
@@ -772,7 +770,7 @@ class F110Mode(Mode[State]):
            (dot_prod_top >= (self.hallWidths[(st.curHall+1) % self.numHalls] - SAFE_DISTANCE)
             and st.car_dist_s >= self.hallWidths[(st.curHall) % self.numHalls] - SAFE_DISTANCE) or\
            st.car_dist_s <= SAFE_DISTANCE:
-            print('crash in mode ' + self.name + ' at heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
+            #print('crash in mode ' + self.name + ' at heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
             return False
 
         return True
@@ -1587,7 +1585,7 @@ def complex_track(width=DEFAULT_HALL_WIDTH):
 
     return (hallWidths, hallLengths, turns)
 
-def make_straight(length: float) -> F110Mode:
+def make_straight(length: float, lidar_num_rays: int = 1081) -> F110Mode:
     hallWidths, hallLengths, turns = long_square_hall_right(length)
     return F110Mode(
         name=f'f110_straight_{length}m',
@@ -1600,65 +1598,69 @@ def make_straight(length: float) -> F110Mode:
         init_car_V=2.4,
         time_step=0.1,
         lidar_field_of_view=115,
-        lidar_num_rays=LIDAR_NUM_RAYS,
+        lidar_num_rays=lidar_num_rays,
     )
 
-hallWidths, hallLengths, turns = square_hall_right()
-normal_right: F110Mode = F110Mode(
-    name='f110_normal_right',
-    hallWidths=hallWidths,
-    hallLengths=hallLengths,
-    turns=turns,
-    init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=LIDAR_RANGE + 3,
-    init_car_heading=0,
-    init_car_V=2.4,
-    time_step=0.1,
-    lidar_field_of_view=115,
-    lidar_num_rays=LIDAR_NUM_RAYS,
-)
+def make_square_right(lidar_num_rays: int = 1081) -> F110Mode:
+    hallWidths, hallLengths, turns = square_hall_right()
+    return F110Mode(
+        name='f110_square_right',
+        hallWidths=hallWidths,
+        hallLengths=hallLengths,
+        turns=turns,
+        init_car_dist_s=hallWidths[0]/2.0,
+        init_car_dist_f=LIDAR_RANGE + 3,
+        init_car_heading=0,
+        init_car_V=2.4,
+        time_step=0.1,
+        lidar_field_of_view=115,
+        lidar_num_rays=lidar_num_rays,
+    )
 
-hallWidths, hallLengths, turns = square_hall_left()
-normal_left: F110Mode = F110Mode(
-    name='f110_normal_left',
-    hallWidths=hallWidths,
-    hallLengths=hallLengths,
-    turns=turns,
-    init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=LIDAR_RANGE + 3,
-    init_car_heading=0,
-    init_car_V=2.4,
-    time_step=0.1,
-    lidar_field_of_view=115,
-    lidar_num_rays=LIDAR_NUM_RAYS,
-)
+def make_square_left(lidar_num_rays: int = 1081) -> F110Mode:
+    hallWidths, hallLengths, turns = square_hall_left()
+    return F110Mode(
+        name='f110_square_left',
+        hallWidths=hallWidths,
+        hallLengths=hallLengths,
+        turns=turns,
+        init_car_dist_s=hallWidths[0]/2.0,
+        init_car_dist_f=LIDAR_RANGE + 3,
+        init_car_heading=0,
+        init_car_V=2.4,
+        time_step=0.1,
+        lidar_field_of_view=115,
+        lidar_num_rays=lidar_num_rays,
+    )
 
-hallWidths, hallLengths, turns = triangle_hall_equilateral_right()
-sharp_right: F110Mode = F110Mode(
-    name='f110_sharp_right',
-    hallWidths=hallWidths,
-    hallLengths=hallLengths,
-    turns=turns,
-    init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=LIDAR_RANGE + 3,
-    init_car_heading=0,
-    init_car_V=2.4,
-    time_step=0.1,
-    lidar_field_of_view=115,
-    lidar_num_rays=LIDAR_NUM_RAYS,
-)
+def make_sharp_right(lidar_num_rays: int = 1081) -> F110Mode:
+    hallWidths, hallLengths, turns = triangle_hall_equilateral_right()
+    return F110Mode(
+        name='f110_sharp_right',
+        hallWidths=hallWidths,
+        hallLengths=hallLengths,
+        turns=turns,
+        init_car_dist_s=hallWidths[0]/2.0,
+        init_car_dist_f=LIDAR_RANGE + 3,
+        init_car_heading=0,
+        init_car_V=2.4,
+        time_step=0.1,
+        lidar_field_of_view=115,
+        lidar_num_rays=lidar_num_rays,
+    )
 
-hallWidths, hallLengths, turns = triangle_hall_equilateral_left()
-sharp_left: F110Mode = F110Mode(
-    name='f110_sharp_left',
-    hallWidths=hallWidths,
-    hallLengths=hallLengths,
-    turns=turns,
-    init_car_dist_s=hallWidths[0]/2.0,
-    init_car_dist_f=LIDAR_RANGE + 3,
-    init_car_heading=0,
-    init_car_V=2.4,
-    time_step=0.1,
-    lidar_field_of_view=115,
-    lidar_num_rays=LIDAR_NUM_RAYS,
-)
+def make_sharp_left(lidar_num_rays: int = 1081) -> F110Mode:
+    hallWidths, hallLengths, turns = triangle_hall_equilateral_left()
+    return F110Mode(
+        name='f110_sharp_left',
+        hallWidths=hallWidths,
+        hallLengths=hallLengths,
+        turns=turns,
+        init_car_dist_s=hallWidths[0]/2.0,
+        init_car_dist_f=LIDAR_RANGE + 3,
+        init_car_heading=0,
+        init_car_V=2.4,
+        time_step=0.1,
+        lidar_field_of_view=115,
+        lidar_num_rays=lidar_num_rays,
+    )
