@@ -1,4 +1,3 @@
-# typing annotations written for Python 3.8
 import numpy as np
 import gym
 

@@ -1,16 +1,16 @@
-from enum import Enum
-import yaml
-import matplotlib.pyplot as plt
-from tensorflow.keras import models
-import random
-import numpy as np
 import os
 import sys
+sys.path.append(os.path.join('..', '..'))  # nopep8
 
-sys.path.append(os.path.join('..', '..'))
-from hybrid_gym.envs.f110.hybrid_env import make_hybrid_env
-from hybrid_gym.hybrid_env import HybridEnv
+from hybrid_gym import HybridEnv, Controller
+from hybrid_gym.envs import make_f110_model
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
+from tensorflow.keras import models
+from enum import Enum
+
+import numpy as np
+import matplotlib.pyplot as plt
+import yaml
 
 
 class Modes(Enum):
@@ -22,9 +22,7 @@ class Modes(Enum):
 
 
 def sigmoid(x):
-
     sigm = 1. / (1. + np.exp(-x))
-
     return sigm
 
 
@@ -41,6 +39,7 @@ def int2mode(i):
         return Modes.SHARP_LEFT
     else:
         raise ValueError
+
 
 def str2mode(s, car_dist_f):
     if 'straight' in s or car_dist_f > 10:
@@ -115,12 +114,29 @@ class ComposedSteeringPredictor:
 
     def predict(self, observation, mode):
         if mode == Modes.STRAIGHT or mode == Modes.SQUARE_RIGHT or mode == Modes.SQUARE_LEFT:
-            delta = self.action_scale * predict(self.square_ctrl, observation.reshape(1, -1)).reshape((1,))
+            delta = self.action_scale * \
+                predict(self.square_ctrl, observation.reshape(1, -1)).reshape((1,))
         else:
-            delta = self.action_scale * predict(self.sharp_ctrl, observation.reshape(1, -1)).reshape((1,))
+            delta = self.action_scale * \
+                predict(self.sharp_ctrl, observation.reshape(1, -1)).reshape((1,))
         if mode == Modes.SQUARE_LEFT or mode == Modes.SHARP_LEFT:
             delta = -delta
         return delta
+
+
+def normalize(s):
+    mean = [2.5]
+    spread = [5.0]
+    return (s - mean) / spread
+
+
+def reverse_lidar(data):
+    new_data = np.zeros((data.shape))
+
+    for i in range(len(data)):
+        new_data[i] = data[len(data) - i - 1]
+
+    return new_data
 
 
 def predict(model, inputs):
@@ -152,25 +168,9 @@ def predict(model, inputs):
     return curNeurons
 
 
-def normalize(s):
-    mean = [2.5]
-    spread = [5.0]
-    return (s - mean) / spread
-
-
-def reverse_lidar(data):
-    new_data = np.zeros((data.shape))
-
-    for i in range(len(data)):
-        new_data[i] = data[len(data) - i - 1]
-
-    return new_data
-
-
 def main(argv):
 
-    raw_env = make_hybrid_env(straight_lengths=[10], num_lidar_rays=21)
-    f110_automaton = raw_env.automaton
+    f110_automaton = make_f110_model(straight_lengths=[10], num_lidar_rays=21)
 
     env = HybridEnv(
         automaton=f110_automaton,
@@ -196,8 +196,6 @@ def main(argv):
         yml=True
     )
 
-    num_unsafe = 0
-
     action_scale = float(env.action_space.high[0])
 
     steering_ctrl = ComposedSteeringPredictor(
@@ -206,81 +204,25 @@ def main(argv):
         action_scale
     )
 
-    #allX = []
-    #allY = []
-    #allR = []
-    #end_modes = set()
-
-    #straight_pred_x = []
-    #square_right_pred_x = []
-    #square_left_pred_x = []
-    #sharp_right_pred_x = []
-    #sharp_left_pred_x = []
-    #straight_pred_y = []
-    #square_right_pred_y = []
-    #square_left_pred_y = []
-    #sharp_right_pred_y = []
-    #sharp_left_pred_y = []
-
     observation = env.reset()
 
     e = 0
     done = False
     while not done:
         e += 1
-
-        #if not state_feedback:
         observation = normalize(observation)
-
         mode = mode_predictor.predict(observation)
-        #mode = str2mode(env.mode.name, env.state.car_dist_f)
-
         if mode == Modes.SQUARE_LEFT or mode == Modes.SHARP_LEFT:
             observation = reverse_lidar(observation)
-
-        #allX.append(w.car_global_x)
-        #allY.append(w.car_global_y)
-
         delta = steering_ctrl.predict(observation, mode)
-
-        #if mode == Modes.STRAIGHT:
-        #    straight_pred_x.append(w.car_global_x)
-        #    straight_pred_y.append(w.car_global_y)
-        #elif mode == Modes.SQUARE_RIGHT:
-        #    square_right_pred_x.append(w.car_global_x)
-        #    square_right_pred_y.append(w.car_global_y)
-        #elif mode == Modes.SQUARE_LEFT:
-        #    square_left_pred_x.append(w.car_global_x)
-        #    square_left_pred_y.append(w.car_global_y)
-        #elif mode == Modes.SHARP_RIGHT:
-        #    sharp_right_pred_x.append(w.car_global_x)
-        #    sharp_right_pred_y.append(w.car_global_y)
-        #elif mode == Modes.SHARP_LEFT:
-        #    sharp_left_pred_x.append(w.car_global_x)
-        #    sharp_left_pred_y.append(w.car_global_y)
         state_history[env.mode.name, mode].append(env.state)
-
         observation, reward, done, info = env.step(delta)
 
         if not env.mode.is_safe(env.state):
             print('Crash after {} steps'.format(e))
 
-
-    #end_modes.add(mode_predictor.current_mode)
-
-    #print('number of crashes: ' + str(num_unsafe))
-    # print(it)
-
-    # plt.ylim((-1,11))
-    # plt.xlim((-1.75,15.25))
-    # plt.tick_params(labelsize=20)
-
-    #plt.scatter(posX, posY, s = 1, c = 'r')
-    #plt.scatter(negX, negY, s = 1, c = 'b')
-    # plt.plot(negX, negY, 'b')
     for (m_name, m) in f110_automaton.modes.items():
-        #fig = plt.figure(figsize=(12, 10))
-        fig = plt.figure()
+        # plt.figure()
         m.plotHalls()
         colors = ['r', 'g', 'b', 'm', 'c']
         for (pred_mode, c) in zip(list(Modes), colors):
@@ -288,12 +230,7 @@ def main(argv):
             y_hist = [s.car_global_y for s in state_history[m_name, pred_mode]]
             plt.scatter(x_hist, y_hist, s=1, c=c, label=pred_mode.name)
         plt.show()
-        plt.legend(markerscale=10)
         plt.savefig(f'trajectories_{m.name}.png')
-
-    # for i in range(numTrajectories):
-    #     plt.plot(allX[i], allY[i], 'r-')
-
 
 
 if __name__ == '__main__':

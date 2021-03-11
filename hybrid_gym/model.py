@@ -1,4 +1,3 @@
-# typing annotations written for Python 3.8
 import numpy as np
 import gym
 
@@ -139,4 +138,7 @@ class Controller(metaclass=ABCMeta):
 
     @abstractmethod
     def get_action(self, observation: np.ndarray) -> np.ndarray:
+        pass
+
+    def reset(self) -> None:
         pass

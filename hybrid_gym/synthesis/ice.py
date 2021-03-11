@@ -19,19 +19,21 @@ class IE:
 
 class CE:
 
-    def __init__(self, m: str, s: Any) -> None:
+    def __init__(self, m: str, s: Any, reason: str) -> None:
         self.m = m
         self.s = s
+        self.reason = reason
 
 
 def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                pre: Dict[str, AbstractState], max_timesteps: Dict[str, int],
-               num_iter: int, n_samples: int, abstract_samples: int = 0) -> List[CE]:
+               num_iter: int, n_samples: int, abstract_samples: int = 0,
+               print_debug: bool = False) -> List[CE]:
     start_states: Dict[str, List] = {}
     implication_examples: Set[IE] = set()
     counterexamples: List[CE] = []
 
-    for _ in range(num_iter):
+    for it in range(num_iter):
 
         for m in automaton.modes:
 
@@ -75,6 +77,14 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
             for ie in remove_ies:
                 implication_examples.discard(ie)
 
+        if print_debug:
+            print('\n**** Iteration {} ****'.format(it))
+            print('Implication examples generated: {}'.format(len(ies)))
+            print('Counterexamples generated: {}'.format(len(ces)))
+            print('Implication examples in buffer: {}'.format(len(implication_examples)))
+            for m, pre_m in pre.items():
+                print('\nPre({}):\n{}'.format(m, str(pre_m)))
+
     ret_ces = []
     for ce in counterexamples:
         if pre[ce.m].contains(ce.s):
@@ -99,6 +109,7 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
             state = s1
             step = 0
             done = False
+            controller.reset()
 
             # Episode loop
             while not done and step <= max_timesteps[m1]:
@@ -108,7 +119,7 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
 
                 # Check safety
                 if not mode.is_safe(state):
-                    counterexamples.append(CE(m1, s1))
+                    counterexamples.append(CE(m1, s1, 'safety'))
                     done = True
 
                 # Check guards of transitions out of m1
@@ -122,5 +133,8 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
 
                 # Increment step count
                 step += 1
+
+            if not done:
+                counterexamples.append(CE(m1, s1, 'liveness'))
 
     return implication_examples, counterexamples

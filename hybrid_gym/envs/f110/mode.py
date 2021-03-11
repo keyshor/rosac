@@ -40,6 +40,8 @@ MOVE_FORWARD_GAIN: float = 10
 REGION3_ENTER_GAIN: float = 0  # 100
 
 # direction parameters
+
+
 class Direction(enum.Enum):
     UP = 0
     DOWN = 1
@@ -76,7 +78,7 @@ class F110Mode(Mode[State]):
     init_car_heading: float
     init_car_V: float
     time_step: float
-    #episode_length: int
+    # episode_length: int
     lidar_field_of_view: float
     lidar_num_rays: int
     lidar_noise: float
@@ -96,7 +98,7 @@ class F110Mode(Mode[State]):
                  init_car_dist_f: float,
                  init_car_heading: float,
                  init_car_V: float,
-                 #episode_length: int,
+                 # episode_length: int,
                  time_step: float,
                  lidar_field_of_view: float,
                  lidar_num_rays: int,
@@ -144,7 +146,7 @@ class F110Mode(Mode[State]):
         # step parameters
         self.time_step = time_step
         # self.cur_step = 0
-        #self.episode_length = episode_length
+        # self.episode_length = episode_length
 
         # storage
         # self.allX = []
@@ -221,11 +223,16 @@ class F110Mode(Mode[State]):
         # self._max_episode_steps = episode_length
 
     # this is a limited-support function for setting the car state in the first hallway
-    def set_state_local(self, x: float, y: float, theta: float, old_st: State) -> State:
+    def set_state_local(self, x: float, y: float, theta: float, old_st: State,
+                        v: Optional[float] = None) -> State:
 
         car_dist_s = x
         car_dist_f = y
         car_heading = theta
+        if v is not None:
+            car_V = v
+        else:
+            car_V = old_st.car_V
 
         car_global_x = x - self.hallWidths[0]/2
         car_global_y = -y + self.hallLengths[0]/2
@@ -246,12 +253,12 @@ class F110Mode(Mode[State]):
                 car_heading = car_heading + 2 * np.pi
 
         if car_global_heading > np.pi:
-            car_global_heading = old_st.car_global_heading - 2 * np.pi
+            car_global_heading = car_global_heading - 2 * np.pi
 
         return State(
             car_dist_s=car_dist_s,
             car_dist_f=car_dist_f,
-            car_V=old_st.car_V,
+            car_V=car_V,
             car_heading=car_heading,
             car_global_x=car_global_x,
             car_global_y=car_global_y,
@@ -770,7 +777,8 @@ class F110Mode(Mode[State]):
            (dot_prod_top >= (self.hallWidths[(st.curHall+1) % self.numHalls] - SAFE_DISTANCE)
             and st.car_dist_s >= self.hallWidths[(st.curHall) % self.numHalls] - SAFE_DISTANCE) or\
            st.car_dist_s <= SAFE_DISTANCE:
-            #print('crash in mode ' + self.name + ' at heading: ' + str(st.car_heading) + ', position: ' + str(st.car_dist_s))
+            # print('crash in mode ' + self.name + ' at heading: ' + str(st.car_heading)
+            # + ', position: ' + str(st.car_dist_s))
             return False
 
         return True
@@ -1475,6 +1483,7 @@ class F110Mode(Mode[State]):
     def vectorize_state(self, st: State) -> np.ndarray:
         return np.array([st.car_global_x, st.car_global_y, st.car_V, st.car_global_heading])
 
+
 def long_square_hall_right(length=20, width=DEFAULT_HALL_WIDTH):
 
     short_length = 20
@@ -1484,6 +1493,7 @@ def long_square_hall_right(length=20, width=DEFAULT_HALL_WIDTH):
     turns = [-np.pi/2, -np.pi/2, -np.pi/2, -np.pi/2]
 
     return (hallWidths, hallLengths, turns)
+
 
 def square_hall_right(side_length=20, width=DEFAULT_HALL_WIDTH):
 
@@ -1585,6 +1595,7 @@ def complex_track(width=DEFAULT_HALL_WIDTH):
 
     return (hallWidths, hallLengths, turns)
 
+
 def make_straight(length: float, lidar_num_rays: int = 1081) -> F110Mode:
     hallWidths, hallLengths, turns = long_square_hall_right(length)
     return F110Mode(
@@ -1600,6 +1611,7 @@ def make_straight(length: float, lidar_num_rays: int = 1081) -> F110Mode:
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
+
 
 def make_square_right(lidar_num_rays: int = 1081) -> F110Mode:
     hallWidths, hallLengths, turns = square_hall_right()
@@ -1617,6 +1629,7 @@ def make_square_right(lidar_num_rays: int = 1081) -> F110Mode:
         lidar_num_rays=lidar_num_rays,
     )
 
+
 def make_square_left(lidar_num_rays: int = 1081) -> F110Mode:
     hallWidths, hallLengths, turns = square_hall_left()
     return F110Mode(
@@ -1633,6 +1646,7 @@ def make_square_left(lidar_num_rays: int = 1081) -> F110Mode:
         lidar_num_rays=lidar_num_rays,
     )
 
+
 def make_sharp_right(lidar_num_rays: int = 1081) -> F110Mode:
     hallWidths, hallLengths, turns = triangle_hall_equilateral_right()
     return F110Mode(
@@ -1648,6 +1662,7 @@ def make_sharp_right(lidar_num_rays: int = 1081) -> F110Mode:
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
+
 
 def make_sharp_left(lidar_num_rays: int = 1081) -> F110Mode:
     hallWidths, hallLengths, turns = triangle_hall_equilateral_left()

@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Any, Union
+from typing import Any, Optional
 
 import numpy as np
 
@@ -25,12 +25,12 @@ class AbstractState(metaclass=ABCMeta):
 
 
 class Box(AbstractState):
-    low: Union[np.ndarray, None]
-    high: Union[np.ndarray, None]
+    low: Any  # Hack to make mypy accept np.minimum and np.maximim.
+    high: Any
 
-    def __init__(self) -> None:
-        self.low = None
-        self.high = None
+    def __init__(self, low: Optional[np.ndarray] = None, high: Optional[np.ndarray] = None) -> None:
+        self.low = low
+        self.high = high
 
     def contains(self, state: np.ndarray) -> bool:
         if self.low is not None and self.high is not None:
@@ -48,7 +48,7 @@ class Box(AbstractState):
         else:
             self.high = state.copy()
 
-    def sample(self) -> Union[np.ndarray, None]:
+    def sample(self) -> Optional[np.ndarray]:
         if self.low is not None and self.high is not None:
             return np.random.uniform(self.low, self.high)
         else:

@@ -8,11 +8,13 @@ from stable_baselines.ddpg.policies import MlpPolicy as MlpDdpg
 from stable_baselines.deepq.policies import MlpPolicy as MlpDqn
 from stable_baselines.sac.policies import MlpPolicy as MlpSac
 from stable_baselines.td3.policies import MlpPolicy as MlpTd3
-from typing import Iterable, List, Tuple, Dict, Optional, Union, Callable, NoReturn, Generic, TypeVar
+from typing import (Iterable, List, Tuple, Dict, Optional,
+                    Union, Callable, NoReturn, Generic, TypeVar)
 from hybrid_gym.model import Mode, Transition, Controller, StateType
 
 T = TypeVar('T')
 NotMethod = Union[T, NoReturn]
+
 
 class GymEnvWrapper(gym.Env, Generic[StateType]):
     mode: Mode[StateType]
@@ -55,6 +57,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
 
     def render(self) -> None:
         self.mode.render(self.state)
+
 
 def BaselineCtrlWrapper(Controller):
     model: BaseRLModel
@@ -102,10 +105,11 @@ def BaselineCtrlWrapper(Controller):
             raise ValueError
         return cls(model)
 
+
 def train_stable(mode: Mode[StateType],
                  transitions: Iterable[Transition],
                  algo_name: str = 'td3',
-                 wrapped_algo: str = 'ddpg', # only relevent to HER
+                 wrapped_algo: str = 'ddpg',  # only relevent to HER
                  policy: Optional[BasePolicy] = None,
                  total_timesteps: int = 10000,
                  init_states: Optional[Callable[[], StateType]] = None,

@@ -1,11 +1,9 @@
 from hybrid_gym.model import Transition
 from hybrid_gym.envs.f110.mode import (
-    LIDAR_RANGE, State, F110Mode,
-    make_straight,
-    make_square_right, make_square_left,
-    make_sharp_right, make_sharp_left,
+    LIDAR_RANGE, State, F110Mode
 )
-from typing import Iterable, Dict, Tuple, Optional
+from typing import Dict, Optional
+
 
 def straight_length(mode_name: str) -> Optional[float]:
     length_str = mode_name[len('f110_straight_'):-1]
@@ -15,6 +13,7 @@ def straight_length(mode_name: str) -> Optional[float]:
         return float(length_str)
     except ValueError:
         return None
+
 
 class F110Trans(Transition):
     modes: Dict[str, F110Mode]
