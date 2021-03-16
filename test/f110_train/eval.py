@@ -4,7 +4,7 @@ sys.path.append(os.path.join('..', '..'))  # nopep8
 
 from hybrid_gym.train.single_mode import BaselineCtrlWrapper
 from hybrid_gym.envs import make_f110_model
-from hydrid_gym.hybrid_env import HybridEnv
+from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 from typing import Dict, List
 
@@ -13,14 +13,14 @@ import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
-    controllers = {name: BaselineCtrlWrapper.load(f'{name}.td3', algo='td3')
+    controllers = {name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
                    for name in automaton.modes}
 
     test_env = HybridEnv(
         automaton=automaton,
         selector=MaxJumpWrapper(
             wrapped_selector=UniformSelector(modes=automaton.modes.values()),
-            max_jumps=100
+            max_jumps=10
         )
     )
 
@@ -47,5 +47,4 @@ if __name__ == '__main__':
         y_hist = [s.car_global_y for s in state_history[m_name]]
         plt.scatter(x_hist, y_hist, s=1, c='r')
         plt.show()
-        plt.legend(markerscale=10)
         plt.savefig(f'trajectories_{m.name}.png')

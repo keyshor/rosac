@@ -10,6 +10,7 @@ from stable_baselines.sac.policies import MlpPolicy as MlpSac
 from stable_baselines.td3.policies import MlpPolicy as MlpTd3
 from typing import (Iterable, List, Tuple, Dict, Optional,
                     Union, Callable, NoReturn, Generic, TypeVar)
+from stable_baselines.ddpg.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 from hybrid_gym.model import Mode, Transition, Controller, StateType
 
 T = TypeVar('T')
@@ -48,18 +49,15 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
         next_state = self.mode.step(self.state, action)
         reward = self.reward_fn(self.state, action, next_state)
         self.state = next_state
-        done = False
-        for t in self.transitions:
-            if t.guard(self.state):
-                done = True
-                break
+        done = not self.mode.is_safe(self.state) \
+            or any([t.guard(self.state) for t in self.transitions])
         return self.mode.observe(self.state), reward, done, {}
 
     def render(self) -> None:
         self.mode.render(self.state)
 
 
-def BaselineCtrlWrapper(Controller):
+class BaselineCtrlWrapper(Controller):
     model: BaseRLModel
 
     def __init__(self, model: BaseRLModel) -> None:
@@ -114,9 +112,15 @@ def train_stable(mode: Mode[StateType],
                  total_timesteps: int = 10000,
                  init_states: Optional[Callable[[], StateType]] = None,
                  reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
+                 action_noise_scale: float = 0.1,
                  verbose: int = 0
-                 ) -> Controller:
+                 ) -> BaselineCtrlWrapper:
     env = GymEnvWrapper(mode, transitions, init_states, reward_fn)
+    action_shape = mode.action_space.shape
+    ddpg_action_noise = NormalActionNoise(
+        mean=np.zeros(action_shape),
+        sigma=action_noise_scale * np.ones(action_shape)
+    )
     common_policy = policy or MlpCommon
     if algo_name == 'a2c':
         model: BaseRLModel = A2C(common_policy, env, verbose=verbose)
@@ -125,7 +129,7 @@ def train_stable(mode: Mode[StateType],
     elif algo_name == 'acktr':
         model = ACKTR(common_policy, env, verbose=verbose)
     elif algo_name == 'ddpg':
-        model = DDPG(policy or MlpDdpg, env, verbose=verbose)
+        model = DDPG(policy or MlpDdpg, env, action_noise=ddpg_action_noise, verbose=verbose)
     elif algo_name == 'dqn':
         model = DQN(policy or MlpDqn, env, verbose=verbose)
     elif algo_name == 'gail':
@@ -145,11 +149,10 @@ def train_stable(mode: Mode[StateType],
     elif algo_name == 'sac':
         model = SAC(policy or MlpSac, env, verbose=verbose)
     elif algo_name == 'td3':
-        model = TD3(policy or MlpTd3, env, verbose=verbose)
+        model = TD3(policy or MlpTd3, env, action_noise=ddpg_action_noise, verbose=verbose)
     elif algo_name == 'trpo':
         model = TRPO(common_policy, env, verbose=verbose)
     else:
         raise ValueError
     model.learn(total_timesteps=total_timesteps)
-    ctrl = BaselineCtrlWrapper(model)
-    return ctrl
+    return BaselineCtrlWrapper(model)

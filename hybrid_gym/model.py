@@ -24,9 +24,14 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         self.action_space = action_space
         self.observation_space = observation_space
 
+    def clip_action(self, action: np.ndarray) -> np.ndarray:
+        if isinstance(self.action_space, gym.spaces.Box):
+            return np.clip(action, self.action_space.low, self.action_space.high)
+        return action
+
     def step(self, state: StateType, action: np.ndarray) -> StateType:
-        assert self.action_space.contains(action)
-        new_state = self._step_fn(state, action)
+        assert action.shape == self.action_space.shape
+        new_state = self._step_fn(state, self.clip_action(action))
         return new_state
 
     def observe(self, state: StateType) -> np.ndarray:
@@ -35,8 +40,7 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         return obs
 
     def reward(self, state: StateType, action: np.ndarray, next_state: StateType) -> float:
-        assert self.action_space.contains(action)
-        return self._reward_fn(state, action, next_state)
+        return self._reward_fn(state, self.clip_action(action), next_state)
 
     @abstractmethod
     def reset(self) -> StateType:
