@@ -8,6 +8,7 @@ from hybrid_gym import Controller
 from hybrid_gym.envs import make_f110_model
 from hybrid_gym.synthesis.abstractions import AbstractState, Box
 from hybrid_gym.synthesis.ice import synthesize
+from hybrid_gym.falsification.single_mode import falsify, reward_eval_func
 from copy import deepcopy
 
 import numpy as np
@@ -95,4 +96,9 @@ if __name__ == '__main__':
            for m, mode in f110_automaton.modes.items()}
     max_timesteps = {m: 100 for m in f110_automaton.modes}
 
-    ces = synthesize(f110_automaton, controllers, pre, max_timesteps, 5, 1, 0, True)
+    ces = synthesize(f110_automaton, controllers, pre, max_timesteps, 2, 20, 1, True)
+    mname = 'f110_square_right'
+    worst_states = falsify(f110_automaton.modes[mname], f110_automaton.transitions[mname],
+                           controllers[mname], pre[mname],
+                           reward_eval_func(f110_automaton.modes[mname]),
+                           100, 100, 20, 5, alpha=0.6, print_debug=True)

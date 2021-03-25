@@ -53,3 +53,22 @@ class Box(AbstractState):
             return np.random.uniform(self.low, self.high)
         else:
             return None
+
+
+class VectorWrapper(AbstractState):
+
+    def __init__(self, mode, abstract_state):
+        self.mode = mode
+        self.abstract_state = abstract_state
+
+    def contains(self, state: np.ndarray) -> bool:
+        return self.abstract_state.contains(self.mode.state_from_vector(state))
+
+    def extend(self, state: np.ndarray) -> None:
+        self.abstract_state.extend(self.mode.state_from_vector(state))
+
+    def sample(self) -> Optional[np.ndarray]:
+        state = self.abstract_state.sample()
+        if state is not None:
+            state = self.mode.vectorize_state(state)
+        return state

@@ -90,6 +90,12 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         '''
         raise NotImplementedError
 
+    def state_from_vector(self, vec: np.ndarray) -> StateType:
+        '''
+        Returns state from a given vector.
+        '''
+        raise NotImplementedError
+
 
 class Transition(metaclass=ABCMeta):
     source: str

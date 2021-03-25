@@ -2,6 +2,7 @@
 Synthesis of pre/post conditions using implication counterexamples.
 '''
 
+import random
 from hybrid_gym.model import Controller
 from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.synthesis.abstractions import AbstractState
@@ -29,8 +30,9 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                pre: Dict[str, AbstractState], max_timesteps: Dict[str, int],
                num_iter: int, n_samples: int, abstract_samples: int = 0,
                print_debug: bool = False) -> List[CE]:
+    all_states: Dict[str, List] = {}
     start_states: Dict[str, List] = {}
-    implication_examples: Set[IE] = set()
+    implication_examples: List[IE] = []
     counterexamples: List[CE] = []
 
     for it in range(num_iter):
@@ -38,29 +40,26 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
         for m in automaton.modes:
 
             # Initial set of start states sampled randomly
-            if m not in start_states:
-                start_states[m] = []
+            if m not in all_states:
                 mode = automaton.modes[m]
-                for _ in range(n_samples):
-                    start_states[m].append(mode.reset())
+                all_states[m] = [mode.reset() for _ in range(n_samples)]
 
             # Sample from current estimate of pre
-            else:
-                for _ in range(abstract_samples):
-                    s = pre[m].sample()
-                    if s is not None:
-                        start_states[m].append(s)
+            start_states[m] = random.sample(all_states[m], min(n_samples, len(all_states[m])))
+            all_states[m] = [s for s in all_states[m] if s not in start_states[m]]
+            for _ in range(abstract_samples):
+                s = pre[m].sample()
+                if s is not None:
+                    start_states[m].append(s)
 
         # Simulate and generate examples
         ies, ces = generate_examples(automaton, controllers, max_timesteps, start_states)
         counterexamples.extend(ces)
-        for m in automaton.modes:
-            start_states[m] = []
         for ie in ies:
             if not pre[ie.m2].contains(ie.s2):
-                implication_examples.add(ie)
+                implication_examples.append(ie)
             else:
-                start_states[ie.m2].append(ie.s2)
+                all_states[ie.m2].append(ie.s2)
 
         # Extend the pre sets until fixed point
         reached_fp = False
@@ -71,11 +70,10 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                 if pre[ie.m1].contains(ie.s1):
                     if not pre[ie.m2].contains(ie.s2):
                         pre[ie.m2].extend(ie.s2)
-                        start_states[ie.m2].append(ie.s2)
+                        all_states[ie.m2].append(ie.s2)
                         reached_fp = False
                     remove_ies.append(ie)
-            for ie in remove_ies:
-                implication_examples.discard(ie)
+            implication_examples = [ie for ie in implication_examples if ie not in remove_ies]
 
         if print_debug:
             print('\n**** Iteration {} ****'.format(it))
