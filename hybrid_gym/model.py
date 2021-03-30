@@ -152,3 +152,15 @@ class Controller(metaclass=ABCMeta):
 
     def reset(self) -> None:
         pass
+
+class ModePredictor(metaclass=ABCMeta):
+    '''
+    Abstract class for mode predictor.
+    '''
+
+    @abstractmethod
+    def get_mode(self, observation: np.ndarray) -> str:
+        pass
+
+    def reset(self) -> None:
+        pass

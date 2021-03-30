@@ -235,6 +235,8 @@ class F110Mode(Mode[State]):
             car_V = old_st.car_V
 
         car_global_x = x - self.hallWidths[0]/2
+        if self.turns[0] > 0:
+            car_global_x = -car_global_x
         car_global_y = -y + self.hallLengths[0]/2
         car_global_heading = theta + np.pi / 2
         direction = Direction.UP
@@ -322,9 +324,9 @@ class F110Mode(Mode[State]):
 
     def reset(self,
               side_pos: Optional[float] = None,
-              pos_noise: float = 0.01,
-              heading_noise: float = 0.0005,
-              front_pos_noise: float = 0.01
+              pos_noise: float = 0.2,
+              heading_noise: float = 0.1,
+              front_pos_noise: float = 0.2
               ) -> State:
         # self.curHall = 0
 
@@ -338,7 +340,7 @@ class F110Mode(Mode[State]):
         car_heading = self.init_car_heading + np.random.uniform(-heading_noise, heading_noise)
 
         car_global_x = -self.hallWidths[0] / 2.0 + car_dist_s
-        if self.turns[0] == np.pi/2:
+        if self.turns[0] > 0:
             car_global_x = -car_global_x
 
         car_global_y = self.hallLengths[0] / 2.0 - car_dist_f
@@ -1313,7 +1315,7 @@ class F110Mode(Mode[State]):
         if newfig:
             plt.show()
 
-    def plotHalls(self, wallwidth=3):
+    def plotHalls(self, ax=plt.gca(), wallwidth=3):
 
         # 1st hall going up by default and centralized around origin
         # midX = 0
@@ -1599,8 +1601,11 @@ def complex_track(width=DEFAULT_HALL_WIDTH):
     return (hallWidths, hallLengths, turns)
 
 
-def make_straight(length: float, lidar_num_rays: int = 1081) -> F110Mode:
-    hallWidths, hallLengths, turns = long_square_hall_right(length)
+def make_straight(length: float,
+                  lidar_num_rays: int = 1081,
+                  width=DEFAULT_HALL_WIDTH,
+                  ) -> F110Mode:
+    hallWidths, hallLengths, turns = long_square_hall_right(length, width=width)
     return F110Mode(
         name=f'f110_straight_{length}m',
         hallWidths=hallWidths,
@@ -1616,8 +1621,10 @@ def make_straight(length: float, lidar_num_rays: int = 1081) -> F110Mode:
     )
 
 
-def make_square_right(lidar_num_rays: int = 1081) -> F110Mode:
-    hallWidths, hallLengths, turns = square_hall_right()
+def make_square_right(lidar_num_rays: int = 1081,
+                      width=DEFAULT_HALL_WIDTH,
+                      ) -> F110Mode:
+    hallWidths, hallLengths, turns = square_hall_right(width=width)
     return F110Mode(
         name='f110_square_right',
         hallWidths=hallWidths,
@@ -1633,8 +1640,10 @@ def make_square_right(lidar_num_rays: int = 1081) -> F110Mode:
     )
 
 
-def make_square_left(lidar_num_rays: int = 1081) -> F110Mode:
-    hallWidths, hallLengths, turns = square_hall_left()
+def make_square_left(lidar_num_rays: int = 1081,
+                     width=DEFAULT_HALL_WIDTH,
+                     ) -> F110Mode:
+    hallWidths, hallLengths, turns = square_hall_left(width=width)
     return F110Mode(
         name='f110_square_left',
         hallWidths=hallWidths,
@@ -1650,8 +1659,10 @@ def make_square_left(lidar_num_rays: int = 1081) -> F110Mode:
     )
 
 
-def make_sharp_right(lidar_num_rays: int = 1081) -> F110Mode:
-    hallWidths, hallLengths, turns = triangle_hall_equilateral_right()
+def make_sharp_right(lidar_num_rays: int = 1081,
+                     width=DEFAULT_HALL_WIDTH,
+                     ) -> F110Mode:
+    hallWidths, hallLengths, turns = triangle_hall_equilateral_right(width=width)
     return F110Mode(
         name='f110_sharp_right',
         hallWidths=hallWidths,
@@ -1667,8 +1678,10 @@ def make_sharp_right(lidar_num_rays: int = 1081) -> F110Mode:
     )
 
 
-def make_sharp_left(lidar_num_rays: int = 1081) -> F110Mode:
-    hallWidths, hallLengths, turns = triangle_hall_equilateral_left()
+def make_sharp_left(lidar_num_rays: int = 1081,
+                    width=DEFAULT_HALL_WIDTH,
+                    ) -> F110Mode:
+    hallWidths, hallLengths, turns = triangle_hall_equilateral_left(width=width)
     return F110Mode(
         name='f110_sharp_left',
         hallWidths=hallWidths,

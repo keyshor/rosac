@@ -6,4 +6,5 @@ pyyaml
 git+https://github.com/numpy/numpy-stubs.git
 stable-baselines
 tensorflow<2.0.0
+scikit-learn
 mpi4py
