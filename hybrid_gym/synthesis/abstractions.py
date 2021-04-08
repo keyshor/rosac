@@ -55,9 +55,13 @@ class Box(AbstractState):
             return None
 
 
-class VectorWrapper(AbstractState):
+class VectorizeWrapper(AbstractState):
+    '''
+    Defines an abstract state in the space of vectorized states from
+        an abstract state in the original state space.
+    '''
 
-    def __init__(self, mode, abstract_state):
+    def __init__(self, mode, abstract_state) -> None:
         self.mode = mode
         self.abstract_state = abstract_state
 
@@ -71,4 +75,27 @@ class VectorWrapper(AbstractState):
         state = self.abstract_state.sample()
         if state is not None:
             state = self.mode.vectorize_state(state)
+        return state
+
+
+class StateWrapper(AbstractState):
+    '''
+    Defines an abstract state in the original state space from
+        an abstract state in the space of vectorized states.
+    '''
+
+    def __init__(self, mode, abstract_state) -> None:
+        self.mode = mode
+        self.abstract_state = abstract_state
+
+    def contains(self, state) -> bool:
+        return self.abstract_state.contains(self.mode.vectorize_state(state))
+
+    def extend(self, state) -> None:
+        self.abstract_state.extend(self.mode.vectorize_state(state))
+
+    def sample(self) -> Any:
+        state = self.abstract_state.sample()
+        if state is not None:
+            state = self.mode.state_from_vector(state)
         return state

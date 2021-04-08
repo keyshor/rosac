@@ -3,14 +3,15 @@ Optimization methods used for falsification.
 '''
 
 import numpy as np
+from scipy.stats import truncnorm, norm
 
 from typing import Callable, List
-from hybrid_gym.synthesis.abstractions import AbstractState
+from hybrid_gym.synthesis.abstractions import AbstractState, Box
 
 
 def cem(f: Callable[[np.ndarray], float], X: AbstractState, mu: np.ndarray,
         sigma: np.ndarray, num_iter: int, samples_per_iter: int, num_top_samples: int,
-        alpha: float = 0.9, print_debug: bool = False) -> List[np.ndarray]:
+        alpha: float = 0.9, print_debug: bool = False, max_samples=500) -> List[np.ndarray]:
     '''
     Cross-entropy method for minimizing a function f.
     '''
@@ -24,10 +25,22 @@ def cem(f: Callable[[np.ndarray], float], X: AbstractState, mu: np.ndarray,
         samples: List[np.ndarray] = []
 
         # collect samples
-        while len(samples) < samples_per_iter:
-            s = mu + sigma * np.random.randn(*mu.shape)
-            if X.contains(s):
-                samples.append(s)
+        if isinstance(X, Box) and X.low is not None and X.high is not None:
+            # Special case: abstract state is a box
+            sgen = []
+            for j in range(len(X.low)):
+                sgen.append(_get_truncnorm(mu[j], sigma[j], X.low[j], X.high[j]))
+            samples = [np.array([g.rvs() for g in sgen]) for _ in range(samples_per_iter)]
+        else:
+            # General case: use rejection sampling (slow)
+            tries = 0
+            while len(samples) < samples_per_iter:
+                s = mu + sigma * np.random.randn(*mu.shape)
+                if X.contains(s):
+                    samples.append(s)
+                tries += 1
+                if tries >= max_samples:
+                    break
         values = [f(s) for s in samples]
 
         # find top-k samples
@@ -44,3 +57,11 @@ def cem(f: Callable[[np.ndarray], float], X: AbstractState, mu: np.ndarray,
             print('Iteration {}: mu = {} | sigma = {}'.format(i, mu, sigma))
 
     return top_samples
+
+
+def _get_truncnorm(mean, sd, low, high):
+    a = (low-mean)/sd
+    b = (high-mean)/sd
+    if abs(a-b) < 1e-15:
+        return norm(loc=mean, scale=0.)
+    return truncnorm(a, b, loc=mean, scale=sd)

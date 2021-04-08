@@ -6,7 +6,7 @@ from test_env import (ComposedSteeringPredictor, ComposedModePredictor,
                       normalize, reverse_lidar, Modes)
 from hybrid_gym import Controller
 from hybrid_gym.envs import make_f110_model
-from hybrid_gym.synthesis.abstractions import AbstractState, Box
+from hybrid_gym.synthesis.abstractions import AbstractState, Box, StateWrapper
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.falsification.single_mode import falsify, reward_eval_func
 from copy import deepcopy
@@ -32,34 +32,17 @@ class FullController(Controller):
         self.mode_predictor.current_mode = Modes.STRAIGHT
 
 
-class F110AbstractState(AbstractState):
+class F110AbstractState(StateWrapper):
     '''
     low, high: [x, y, theta, v]
     '''
 
     def __init__(self, low, high, mode):
-        self.box = Box(low, high)
-        self.mode = mode
-        self.init_state = mode.reset()
-
-    def contains(self, state):
-        return self.box.contains(self.get_array(state))
-
-    def extend(self, state):
-        self.box.extend(self.get_array(state))
-
-    def sample(self):
-        return self.get_state(self.box.sample())
-
-    def get_array(self, state):
-        return np.array([state.car_dist_s, state.car_dist_f, state.car_heading, state.car_V])
-
-    def get_state(self, arr):
-        return self.mode.set_state_local(x=arr[0], y=arr[1], theta=arr[2], v=arr[3], old_st=self.init_state)
+        super().__init__(mode, Box(low, high))
 
     def __str__(self):
-        low = self.box.low
-        high = self.box.high
+        low = self.abstract_state.low
+        high = self.abstract_state.high
         return 'x in [{}, {}]\n'.format(low[0], high[0]) + \
             'y in [{}, {}]\n'.format(low[1], high[1]) + \
             'theta in [{}, {}]\n'.format(low[2], high[2]) + \
@@ -96,7 +79,7 @@ if __name__ == '__main__':
            for m, mode in f110_automaton.modes.items()}
     max_timesteps = {m: 100 for m in f110_automaton.modes}
 
-    ces = synthesize(f110_automaton, controllers, pre, max_timesteps, 2, 20, 1, True)
+    ces = synthesize(f110_automaton, controllers, pre, max_timesteps, 10, 20, 1, True)
     mname = 'f110_square_right'
     worst_states = falsify(f110_automaton.modes[mname], f110_automaton.transitions[mname],
                            controllers[mname], pre[mname],

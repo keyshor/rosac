@@ -4,7 +4,7 @@ Falsify controller for a given mode and pre-region.
 
 import numpy as np
 from hybrid_gym.model import Mode, Controller, Transition
-from hybrid_gym.synthesis.abstractions import AbstractState, VectorWrapper
+from hybrid_gym.synthesis.abstractions import AbstractState, VectorizeWrapper, StateWrapper
 from hybrid_gym.falsification.optim import cem
 from hybrid_gym.util import get_rollout
 from typing import List, Callable, Any
@@ -21,7 +21,10 @@ def falsify(mode: Mode, transitions: List[Transition], controller: Controller,
         sass = get_rollout(mode, transitions, controller, state, max_timesteps=max_timesteps)
         return eval_func(sass)
 
-    X = VectorWrapper(mode, pre)
+    if isinstance(pre, StateWrapper):
+        X = pre.abstract_state
+    else:
+        X = VectorizeWrapper(mode, pre)
     init_samples = [X.sample() for _ in range(num_init_samples)]
     mu = np.mean(init_samples, axis=0)
     sigma = np.std(init_samples, axis=0)
