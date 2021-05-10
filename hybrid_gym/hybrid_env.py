@@ -50,7 +50,7 @@ class HybridEnv(gym.Env):
     def reset(self) -> np.ndarray:
         mode_name = self.selector.reset()
         self.mode = self.automaton.modes[mode_name]
-        self.state = self.mode.reset()
+        self.state = self.mode.end_to_end_reset()
         return self.mode.observe(self.state)
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict]:

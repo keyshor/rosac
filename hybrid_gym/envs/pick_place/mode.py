@@ -3,6 +3,8 @@ from gym.envs.robotics import rotations, robot_env, utils
 import gym.utils
 import os
 import enum
+from copy import deepcopy
+import mujoco_py
 
 from hybrid_gym.model import Mode
 from typing import List, Dict, Union, NamedTuple, Any
@@ -17,9 +19,9 @@ mujoco_xml_path = os.path.abspath(os.path.join(
 ))
 half_object_diagonal: float = 0.5 * np.sqrt(3) * object_length
 
-def goal_distance(goal_a: np.ndarray, goal_b: np.ndarray) -> np.ndarray:
+def goal_distance(goal_a: np.ndarray, goal_b: np.ndarray) -> float:
     assert goal_a.shape == goal_b.shape
-    return np.linalg.norm(goal_a - goal_b, axis=-1)
+    return np.linalg.norm(goal_a - goal_b)
 
 class ModeType(enum.Enum):
     PICK_OBJ = enum.auto()
@@ -87,11 +89,11 @@ class MultiObjectEnv(robot_env.RobotEnv):
     # GoalEnv methods
     # ----------------------------
 
-    def compute_reward(self, achieved_goal: np.ndarray, goal: np.ndarray, info: Any) -> np.ndarray:
+    def compute_reward(self, achieved_goal: np.ndarray, goal: np.ndarray, info: Any) -> float:
         # Compute distance between goal and the achieved goal.
         d = goal_distance(achieved_goal, goal)
         if self.reward_type == 'sparse':
-            return -(d > self.distance_threshold).astype(np.float32)
+            return -float(d > self.distance_threshold)
         else:
             return -d
 
@@ -182,20 +184,22 @@ class MultiObjectEnv(robot_env.RobotEnv):
             self.sim.model.site_pos[site_id] = self.goal[l:h] - sites_offset[0]
         self.sim.forward()
 
-    def _reset_sim(self) -> bool:
+    def initialize_positions(self) -> None:
         self.sim.set_state(self.initial_state)
 
         # randomize start position of objects
-        self.num_stack = self.np_random.randint(self.num_objects)
+        self.tower_location = self.initial_gripper_xpos[:2] \
+            + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
         self.obj_perm = self.np_random.permutation(self.num_objects)
         # object_xpos[i] is the position of object{self.obj_perm[i]}
         object_xpos = [self.initial_gripper_xpos[:2] for i in range(self.num_objects)]
         for i in range(self.num_objects):
             object_name = f'object{self.obj_perm[i]}:joint'
-            if 1 <= i < self.num_stack:
-                object_xpos[i] = object_xpos[i-1].copy()
+            if i < self.num_stack:
+                object_xpos[i] = self.tower_location.copy()
             else:
                 while np.linalg.norm(object_xpos[i] - self.initial_gripper_xpos[:2]) < 0.1 or \
+                        np.linalg.norm(object_xpos[i] - self.tower_location) < 0.1 or \
                         (i >= 1 and np.nanmin([np.linalg.norm(object_xpos[i] - object_xpos[j]) for j in range(i)]) < min_obj_dist):
                     object_xpos[i] = self.initial_gripper_xpos[:2] + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
             object_qpos = self.sim.data.get_joint_qpos(object_name)
@@ -235,9 +239,13 @@ class MultiObjectEnv(robot_env.RobotEnv):
         for _ in range(10):
             self.sim.step()
         self.sim.forward()
+
+    def _reset_sim(self) -> bool:
+        self.num_stack = self.np_random.randint(self.num_objects)
+        self.initialize_positions()
         return True
 
-    def _sample_goal(self) -> np.ndarray:
+    def make_goal_dict(self) -> Dict[str, np.ndarray]:
         desired_object_pos = [self.object_position(i) for i in range(self.num_objects)]
         if self.mode_type == ModeType.MOVE_WITH_OBJ:
             desired_arm_position = self.object_position(self.obj_perm[self.num_stack-1]) \
@@ -252,16 +260,26 @@ class MultiObjectEnv(robot_env.RobotEnv):
         else: # self.mode_type == ModeType.PLACE_OBJ
             desired_arm_position = self.arm_position()
             desired_object_pos[self.obj_perm[self.num_stack]] = desired_object_pos[self.obj_perm[self.num_stack-1]] + [0,0,object_length]
-        self.goal_dict['arm'] = desired_arm_position
-        for i in range(self.num_objects):
-            self.goal_dict[f'obj{i}'] = desired_object_pos[i]
-        return np.concatenate(
-            [desired_arm_position] + [x.ravel() for x in desired_object_pos]
+        return dict(
+            [('arm', desired_arm_position)] +
+            [(f'obj{i}', desired_object_pos[i])
+             for i in range(self.num_objects)]
         )
+
+    def goal_vector(self, goal_dict: Dict[str, np.ndarray]) -> np.ndarray:
+        return np.concatenate(
+            [goal_dict['arm']] +
+            [goal_dict[f'obj{i}'].ravel()
+             for i in range(self.num_objects)]
+        )
+
+    def _sample_goal(self) -> np.ndarray:
+        self.goal_dict = self.make_goal_dict()
+        return self.goal_vector(self.goal_dict)
 
     def _is_success(self, achieved_goal, desired_goal) -> bool:
         d = goal_distance(achieved_goal, desired_goal)
-        return (d < self.distance_threshold).astype(np.float32)
+        return (d < self.distance_threshold)
 
     def _env_setup(self, initial_qpos: Dict[str, np.ndarray]) -> None:
         for name, value in initial_qpos.items():
@@ -318,12 +336,17 @@ class MultiObjectEnv(robot_env.RobotEnv):
                 and gripper_l + gripper_r < 1.01 * object_length
 
 class State(NamedTuple):
-    gripper_pos: np.ndarray
-    gripper_fingers: np.ndarray
-    object_pos: List[np.ndarray]
+    mujoco_state: mujoco_py.MjSimState
+    obj_perm: np.ndarray
+    num_stack: int
+    goal_dict: Dict[str, np.ndarray]
 
 class PickPlaceMode(Mode[State]):
     multi_obj: MultiObjectEnv
+    obj_perm_index: int
+    num_stack_index: int
+    goal_arm_index: int
+    goal_obj_index: int
 
     def __init__(self, mode_type: ModeType, num_objects=3, reward_type='sparse'):
         model_xml_path = os.path.join(
@@ -344,25 +367,49 @@ class PickPlaceMode(Mode[State]):
             obj_range=0.15, target_range=0.15, distance_threshold=0.05*num_objects,
             initial_qpos=initial_qpos, reward_type=reward_type, mode_type=mode_type,
         )
+        self.obj_perm_index = -4 * num_objects - 4
+        self.num_stack_index = -3 * num_objects - 4
+        goal_arm_index = -3 * num_objects - 3
+        goal_obj_index = -3 * num_objects
+        super().__init__(
+            name=str(mode_type),
+            action_space=self.multi_obj.action_space,
+            observation_space=self.multi_obj.observation_space['observation'],
+            goal_space=self.multi_obj.observation_space['desired_goal'],
+        )
 
     def set_state(self, state: State) -> None:
-        self.multi_obj.sim.data.set_mocap_pos('robot0:mocap', state.gripper_pos)
-        self.multi_obj.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', state.gripper_fingers[0])
-        self.multi_obj.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', state.gripper_fingers[1])
-        for i in range(len(state.object_pos)):
-            object_name = f'object{i}:joint'
-            self.multi_obj.sim.data.set_joint_qpos(object_name, state.object_pos[i])
+        self.multi_obj.sim.reset()
+        old_mujoco_state = self.multi_obj.sim.get_state()
+        self.multi_obj.sim.set_state(mujoco_py.MjSimState(
+            old_mujoco_state.time,
+            state.mujoco_state.qpos,
+            state.mujoco_state.qvel,
+            state.mujoco_state.act,
+            state.mujoco_state.udd_state
+        ))
+        self.multi_obj.obj_perm = state.obj_perm.copy()
+        self.multi_obj.num_stack = state.num_stack
+        self.multi_obj.goal_dict = dict(state.goal_dict)
+        self.multi_obj.goal = self.multi_obj.goal_vector(state.goal_dict)
 
     def get_state(self) -> State:
         return State(
-            gripper_pos = self.multi_obj.arm_position(),
-            gripper_fingers = self.multi_obj.gripper_fingers(),
-            object_pos = [self.multi_obj.object_qpos(i)
-                          for i in range(self.multi_obj.num_objects)],
+            mujoco_state = deepcopy(self.multi_obj.sim.get_state()),
+            obj_perm = self.multi_obj.obj_perm.copy(),
+            num_stack = self.multi_obj.num_stack,
+            goal_dict = dict(self.multi_obj.goal_dict),
         )
 
     def reset(self) -> State:
         self.multi_obj.reset()
+        return self.get_state()
+
+    def end_to_end_reset(self) -> State:
+        assert self.multi_obj.mode_type == ModeType.MOVE_WITHOUT_OBJ
+        self.multi_obj.num_stack = 0
+        self.multi_obj.initialize_positions()
+        self.multi_obj._sample_goal()
         return self.get_state()
 
     def is_safe(self, state: State) -> bool:
@@ -386,6 +433,14 @@ class PickPlaceMode(Mode[State]):
         self.set_state(state)
         return self.multi_obj._get_obs()['observation']
 
+    def achieved_goal(self, state: State) -> np.ndarray:
+        self.set_state(state)
+        return self.multi_obj._get_obs()['achieved_goal']
+
+    def desired_goal(self, state: State) -> np.ndarray:
+        self.set_state(state)
+        return self.multi_obj._get_obs()['desired_goal']
+
     def _reward_fn(self, state: State, action: np.ndarray, next_state: State) -> float:
         self.set_state(next_state)
         obs_dict = self.multi_obj._get_obs()
@@ -393,14 +448,29 @@ class PickPlaceMode(Mode[State]):
             obs_dict['achieved_goal'],
             obs_dict['desired_goal'],
             None,
-        )[0]
+        )
 
     def vectorize_state(self, state: State) -> np.ndarray:
-        return np.concatenate([state.gripper_pos, state.gripper_fingers] + state.object_pos)
+        flattened_mujoco_state = state.mujoco_state.flatten()
+        flattened_goal_dict = self.multi_obj.goal_vector(state.goal_dict)
+        return np.concatenate([
+            flattened_mujoco_state,
+            state.obj_perm,
+            [state.num_stack],
+            flattened_goal_dict,
+        ])
 
     def state_from_vector(self, vec: np.ndarray) -> State:
         return State(
-            gripper_pos=vec[0:3],
-            gripper_fingers=vec[3:5],
-            object_pos=[vec[3*i+5, 3*i+8] for i in range(self.multi_obj.num_objects)],
+            mujoco_state = mujoco_py.MjSimState.from_flattened(
+                vec[0 : self.obj_perm_index],
+                self.multi_obj.sim,
+            ),
+            obj_perm = vec[self.obj_perm_index : self.num_stack_index],
+            num_stack = vec[self.num_stack_index],
+            goal_dict = dict(
+                [('arm', vec[self.goal_arm_index : self.goal_obj_index])] +
+                [(f'obj{i}', vec[self.goal_obj_index + 3*i : self.goal_obj_index + 3*i + 3])
+                 for i in range(self.multi_obj.num_objects)]
+            ),
         )

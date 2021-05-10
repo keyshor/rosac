@@ -14,15 +14,18 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
     name: str
     action_space: gym.Space
     observation_space: gym.Space
+    goal_space: gym.Space # for compatibility with HER
 
     def __init__(self,
                  name: str,
                  action_space: gym.Space,
                  observation_space: gym.Space,
+                 goal_space: gym.Space = gym.Space(),
                  ) -> None:
         self.name = name
         self.action_space = action_space
         self.observation_space = observation_space
+        self.goal_space = goal_space
 
     def clip_action(self, action: np.ndarray) -> np.ndarray:
         if isinstance(self.action_space, gym.spaces.Box):
@@ -41,6 +44,12 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
 
     def reward(self, state: StateType, action: np.ndarray, next_state: StateType) -> float:
         return self._reward_fn(state, self.clip_action(action), next_state)
+
+    def end_to_end_reset(self) -> StateType:
+        # allow change in distribution in end-to-end testing
+        # in a F110Mode, use the same reset function as for an individual mode
+        # in a PickPlaceMode, reset with empty tower
+        return self.reset()
 
     @abstractmethod
     def reset(self) -> StateType:
@@ -94,6 +103,14 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         '''
         Returns state from a given vector.
         '''
+        raise NotImplementedError
+
+    def achieved_goal(self, state: StateType) -> np.ndarray:
+        # for compatibility with HER
+        raise NotImplementedError
+
+    def desired_goal(self, state: StateType) -> np.ndarray:
+        # for compatibility with HER
         raise NotImplementedError
 
 
