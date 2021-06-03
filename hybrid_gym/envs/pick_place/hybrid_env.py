@@ -1,8 +1,7 @@
-from hybrid_gym.hybrid_env import HybridAutomaton, HybridEnv
-from hybrid_gym.envs.pick_place.mode import (
-    PickPlaceMode, ModeType,
-)
+from hybrid_gym.hybrid_env import HybridAutomaton
+from hybrid_gym.envs.pick_place.mode import PickPlaceMode, ModeType
 from hybrid_gym.envs.pick_place.transition import PickPlaceTrans
+
 
 def make_pick_place_model(num_objects: int = 3) -> HybridAutomaton:
     move_without_obj = PickPlaceMode(
@@ -24,8 +23,6 @@ def make_pick_place_model(num_objects: int = 3) -> HybridAutomaton:
             PickPlaceTrans(move_without_obj, pick_obj),
             PickPlaceTrans(pick_obj, move_with_obj),
             PickPlaceTrans(move_with_obj, place_obj),
-            PickPlaceTrans(place_obj, move_without_obj),
-        ]
-    )
+            PickPlaceTrans(place_obj, move_without_obj)])
 
     return pick_place_automaton

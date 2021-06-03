@@ -14,7 +14,7 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
     name: str
     action_space: gym.Space
     observation_space: gym.Space
-    goal_space: gym.Space # for compatibility with HER
+    goal_space: gym.Space  # for compatibility with HER
 
     def __init__(self,
                  name: str,
@@ -44,12 +44,6 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
 
     def reward(self, state: StateType, action: np.ndarray, next_state: StateType) -> float:
         return self._reward_fn(state, self.clip_action(action), next_state)
-
-    def end_to_end_reset(self) -> StateType:
-        # allow change in distribution in end-to-end testing
-        # in a F110Mode, use the same reset function as for an individual mode
-        # in a PickPlaceMode, reset with empty tower
-        return self.reset()
 
     @abstractmethod
     def reset(self) -> StateType:
@@ -113,6 +107,12 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         # for compatibility with HER
         raise NotImplementedError
 
+    def end_to_end_reset(self) -> StateType:
+        # allow change in distribution in end-to-end testing
+        # in a F110Mode, use the same reset function as for an individual mode
+        # in a PickPlaceMode, reset with empty tower
+        return self.reset()
+
 
 class Transition(metaclass=ABCMeta):
     source: str
@@ -169,6 +169,7 @@ class Controller(metaclass=ABCMeta):
 
     def reset(self) -> None:
         pass
+
 
 class ModePredictor(metaclass=ABCMeta):
     '''

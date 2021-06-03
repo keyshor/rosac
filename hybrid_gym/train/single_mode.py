@@ -1,11 +1,10 @@
 import gym
 import numpy as np
 from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2, SAC, TD3, TRPO
-from stable_baselines.common.policies import BasePolicy
 from stable_baselines.common.base_class import BaseRLModel
 from typing import (Iterable, List, Tuple, Dict, Optional,
                     Union, Callable, NoReturn, Generic, TypeVar)
-from stable_baselines.ddpg.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
+from stable_baselines.ddpg.noise import NormalActionNoise
 from hybrid_gym.model import Mode, Transition, Controller, StateType
 
 T = TypeVar('T')
@@ -51,6 +50,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
 
     def render(self) -> None:
         self.mode.render(self.state)
+
 
 class GymGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
     mode: Mode[StateType]
@@ -151,19 +151,16 @@ class BaselineCtrlWrapper(Controller):
         return cls(model)
 
 
-def train_stable(mode: Mode[StateType],
-                 transitions: Iterable[Transition],
-                 algo_name: str = 'td3',
-                 wrapped_algo: str = 'ddpg',  # only relevent to HER
-                 policy: str = 'MlpPolicy',
-                 total_timesteps: int = 10000,
-                 init_states: Optional[Callable[[], StateType]] = None,
-                 reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
-                 action_noise_scale: float = 0.1,
-                 verbose: int = 0
-                 ) -> BaselineCtrlWrapper:
-    env = GymEnvWrapper(mode, transitions, init_states, reward_fn)
-    goal_env = GymGoalEnvWrapper(mode, transitions, init_states, reward_fn)
+def make_sb_model(mode: Mode[StateType],
+                  transitions: Iterable[Transition],
+                  algo_name: str = 'td3',
+                  wrapped_algo: str = 'ddpg',  # only relevent to HER
+                  policy: str = 'MlpPolicy',
+                  action_noise_scale: float = 0.1,
+                  verbose: int = 0
+                  ) -> BaseRLModel:
+    env = GymEnvWrapper(mode, transitions)
+    goal_env = GymGoalEnvWrapper(mode, transitions)
     action_shape = mode.action_space.shape
     ddpg_action_noise = NormalActionNoise(
         mean=np.zeros(action_shape),
@@ -201,5 +198,15 @@ def train_stable(mode: Mode[StateType],
         model = TRPO(policy, env, verbose=verbose)
     else:
         raise ValueError
+    return model
+
+
+def train_stable(model, mode, transitions, total_timesteps=1000,
+                 init_states: Optional[Callable[[], StateType]] = None,
+                 reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
+                 algo_name='td3'):
+    env = GymEnvWrapper(mode, transitions, init_states, reward_fn)
+    if algo_name == 'her':
+        env = GymGoalEnvWrapper(mode, transitions, init_states, reward_fn)
+    model.set_env(env)
     model.learn(total_timesteps=total_timesteps)
-    return BaselineCtrlWrapper(model)

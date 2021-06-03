@@ -14,7 +14,8 @@ if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
     controllers = {name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
                    for name in automaton.modes}
-    mode_predictor = ScipyModePredictor.load('mode_predictor.mlp', automaton.observation_space, 'mlp')
+    mode_predictor = ScipyModePredictor.load(
+        'mode_predictor.mlp', automaton.observation_space, 'mlp')
 
     env = HybridEnv(
         automaton=automaton,
@@ -24,12 +25,11 @@ if __name__ == '__main__':
         )
     )
 
-    state_history = {
+    state_history: dict = {
         (m_name, pred_mode): []
         for m_name in automaton.modes
         for pred_mode in automaton.modes
     }
-
 
     for _ in range(20):
         observation = env.reset()
@@ -38,7 +38,7 @@ if __name__ == '__main__':
         while not done:
             e += 1
             mode = mode_predictor.get_mode(observation)
-            #mode = env.mode.name
+            # mode = env.mode.name
             delta = controllers[mode].get_action(observation)
             state_history[env.mode.name, mode].append(env.state)
             observation, reward, done, info = env.step(delta)

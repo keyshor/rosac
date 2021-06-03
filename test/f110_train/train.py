@@ -9,7 +9,7 @@ from hybrid_gym.envs import make_f110_model
 
 if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
-    #controller = {
+    # controller = {
     #    name: train_stable(
     #        mode,
     #        automaton.transitions[name],
@@ -19,8 +19,8 @@ if __name__ == '__main__':
     #        verbose=2
     #    )
     #    for (name, mode) in automaton.modes.items()
-    #}
-    #for (mode_name, ctrl) in controller.items():
+    # }
+    # for (mode_name, ctrl) in controller.items():
     #    ctrl.save(f'{mode_name}.td3')
     controller = {
         name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
@@ -28,6 +28,6 @@ if __name__ == '__main__':
     }
     mode_pred = train_mode_predictor(
         automaton, {}, controller, 'mlp', num_iters=10,
-        #hidden_layer_sizes=(192,32), activation='tanh'
+        # hidden_layer_sizes=(192,32), activation='tanh'
     )
     mode_pred.save('mode_predictor.mlp')

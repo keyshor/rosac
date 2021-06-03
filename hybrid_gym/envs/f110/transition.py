@@ -1,8 +1,6 @@
 from hybrid_gym.model import Transition
-from hybrid_gym.envs.f110.mode import (
-    LIDAR_RANGE, State, F110Mode
-)
-from typing import Dict, Optional
+from hybrid_gym.envs.f110.mode import LIDAR_RANGE, State, F110Mode
+from typing import Dict
 
 
 def straight_length(mode_name: str) -> float:
@@ -14,8 +12,10 @@ def straight_length(mode_name: str) -> float:
     except ValueError:
         return 0
 
+
 def flip_sides(mode1: str, mode2: str):
     return ('left' in mode1) != ('left' in mode2)
+
 
 class F110Trans(Transition):
     modes: Dict[str, F110Mode]
@@ -47,5 +47,4 @@ class F110Trans(Transition):
         else:
             car_dist_s = st.car_dist_s
         return self.modes[target].set_state_local(
-            car_dist_s, dist + new_dist_f, st.car_heading, st
-        )
+            car_dist_s, dist + new_dist_f, st.car_heading, st)

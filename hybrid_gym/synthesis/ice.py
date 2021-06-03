@@ -6,7 +6,7 @@ import random
 from hybrid_gym.model import Controller
 from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.synthesis.abstractions import AbstractState
-from typing import Dict, List, Any, Tuple, Set
+from typing import Dict, List, Any, Tuple
 
 
 class IE:

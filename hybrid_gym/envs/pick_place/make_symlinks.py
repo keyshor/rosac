@@ -1,6 +1,7 @@
 import site
 import os
 
+
 def make_symlinks():
     current_dir = os.path.abspath(os.path.dirname(__file__))
     for package_dir in site.getsitepackages():
@@ -14,6 +15,7 @@ def make_symlinks():
                            os.path.join(current_dir, 'mujoco_xml', xml))
             return
     raise FileNotFoundError('failed to locate installed gym package')
+
 
 if __name__ == '__main__':
     make_symlinks()

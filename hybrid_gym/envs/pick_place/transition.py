@@ -1,9 +1,10 @@
 import numpy as np
 from hybrid_gym.model import Transition
 from hybrid_gym.envs.pick_place.mode import (
-    State, ModeType, PickPlaceMode, pick_height_offset, object_length
+    State, ModeType, PickPlaceMode,
+    pick_height_offset, object_length
 )
-from typing import Dict, Optional
+
 
 class PickPlaceTrans(Transition):
     source_mode: PickPlaceMode
@@ -40,13 +41,13 @@ class PickPlaceTrans(Transition):
                 + np.array([0, 0, pick_height_offset])
         elif target_mode_type == ModeType.PICK_OBJ:
             goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm']
-        else: # target_mode_type == ModeType.PLACE_OBJ
+        else:  # target_mode_type == ModeType.PLACE_OBJ
             goal_dict[f'obj{st.obj_perm[num_stack]}'] = \
                 goal_dict[f'obj{st.obj_perm[num_stack-1]}'] \
-                + [0,0,object_length]
+                + [0, 0, object_length]
         return State(
-            mujoco_state = st.mujoco_state,
-            obj_perm = st.obj_perm,
-            num_stack = num_stack,
-            goal_dict = goal_dict,
+            mujoco_state=st.mujoco_state,
+            obj_perm=st.obj_perm,
+            num_stack=num_stack,
+            goal_dict=goal_dict,
         )

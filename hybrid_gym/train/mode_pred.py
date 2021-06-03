@@ -6,12 +6,12 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 import joblib
-from typing import (Iterable, List, Tuple, Set, Dict, Optional,
-                    Union, Callable, NoReturn, Any, Generic, TypeVar)
+from typing import (Tuple, Dict, Optional,
+                    Callable, Any)
 from typing_extensions import Protocol
-from abc import ABCMeta, abstractmethod
-from hybrid_gym.model import Mode, Transition, Controller, ModePredictor, StateType
+from hybrid_gym.model import Controller, ModePredictor
 from hybrid_gym.hybrid_env import HybridAutomaton
+
 
 class ScipyClassifier(Protocol):
     def fit(self, data: np.ndarray, labels: np.ndarray) -> None:
@@ -19,6 +19,7 @@ class ScipyClassifier(Protocol):
 
     def predict(self, observations: np.ndarray) -> np.ndarray:
         pass
+
 
 def scipy_from_str(model_type: str, **kwargs: Dict[str, Any]) -> ScipyClassifier:
     if model_type == 'svm':
@@ -28,6 +29,7 @@ def scipy_from_str(model_type: str, **kwargs: Dict[str, Any]) -> ScipyClassifier
     if model_type == 'mlp':
         return make_pipeline(StandardScaler(), MLPClassifier(**kwargs))
     raise ValueError
+
 
 class ScipyModePredictor(ModePredictor):
     model: ScipyClassifier
@@ -45,7 +47,7 @@ class ScipyModePredictor(ModePredictor):
         return self.model.predict(observation[np.newaxis, ...])[0]
 
     def save(self, path: str) -> None:
-        #with open(path, 'w') as f:
+        # with open(path, 'w') as f:
         #    yaml.dump(self.model.get_params(), f)
         joblib.dump(self, path)
 
@@ -54,11 +56,11 @@ class ScipyModePredictor(ModePredictor):
              observation_space: gym.Space,
              model_type: str = 'svm'
              ) -> ModePredictor:
-        #m = scipy_from_str(model_type)
-        #with open(path, 'r') as f:
+        # m = scipy_from_str(model_type)
+        # with open(path, 'r') as f:
         #    params = yaml.full_load(f)
-        #m.set_params(**params)
-        #return cls(m, observation_space)
+        # m.set_params(**params)
+        # return cls(m, observation_space)
         return joblib.load(path)
 
 
@@ -71,7 +73,7 @@ def generate_data(automaton: HybridAutomaton,
                   ) -> Tuple[np.ndarray, np.ndarray]:
     if mode_pred is not None:
         def predict_mode(observation: np.ndarray, mode: str) -> str:
-            assert mode_pred is not None # for mypy
+            assert mode_pred is not None  # for mypy
             return mode_pred.predict(observation[np.newaxis, ...])[0]
     else:
         def predict_mode(observation: np.ndarray, mode: str) -> str:
@@ -97,6 +99,7 @@ def generate_data(automaton: HybridAutomaton,
     assert data_array.shape[0] == samples_per_mode * len(automaton.modes)
     assert label_array.shape == (samples_per_mode * len(automaton.modes),)
     return data_array, label_array
+
 
 def train_mode_predictor(automaton: HybridAutomaton,
                          reset_fns: Dict[str, Callable[[], Any]],

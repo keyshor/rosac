@@ -391,6 +391,7 @@ class F110Mode(Mode[State]):
         #                         dist_f_inner, dist_f, self.car_heading])
         # else:
         #    return self.scan_lidar()
+
         self.init_state = State(
             car_dist_s=car_dist_s,
             car_dist_f=car_dist_f,
@@ -568,6 +569,7 @@ class F110Mode(Mode[State]):
 
         # NB: The heading noise only affects heading in the direction
         # of less change
+
         if new_x[3] < x0[3]:
             new_x[3] = new_x[3] + theta_added_noise
             new_x[6] = new_x[6] + theta_added_noise
@@ -598,6 +600,7 @@ class F110Mode(Mode[State]):
 
         # if self.cur_step == self.episode_length:
         #    terminal = True
+
         curHall = st.curHall
         cur_hall_heading = st.cur_hall_heading
         outer_x = st.outer_x
@@ -1322,6 +1325,7 @@ class F110Mode(Mode[State]):
         # midY = 0
         # going_up = True
         # left = True
+
         prev_outer_x = None
         prev_outer_y = None
 
@@ -1486,7 +1490,8 @@ class F110Mode(Mode[State]):
         return np.array([st.car_dist_s, st.car_dist_f, st.car_heading, st.car_V])
 
     def state_from_vector(self, arr: np.ndarray) -> State:
-        return self.set_state_local(x=arr[0], y=arr[1], theta=arr[2], v=arr[3], old_st=self.init_state)
+        return self.set_state_local(x=arr[0], y=arr[1], theta=arr[2],
+                                    v=arr[3], old_st=self.init_state)
 
 
 def long_square_hall_right(length=20, width=DEFAULT_HALL_WIDTH):
