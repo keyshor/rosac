@@ -1,10 +1,15 @@
 import os
 import sys
+import numpy as np
+import gym
+from stable_baselines import DDPG, HER
+from stable_baselines.ddpg.noise import NormalActionNoise
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
 from hybrid_gym.train.single_mode import make_sb_model, train_stable, BaselineCtrlWrapper
 from hybrid_gym.train.mode_pred import train_mode_predictor
 from hybrid_gym.envs import make_pick_place_model
+from hybrid_gym.envs.pick_place.mode import PickPlaceMode
 
 if __name__ == '__main__':
     automaton = make_pick_place_model(num_objects=3)
@@ -20,7 +25,7 @@ if __name__ == '__main__':
     }
     for (name, mode) in automaton.modes.items():
         train_stable(models[name], mode, automaton.transitions[name],
-                     total_timesteps=200000, algo_name='her')
+                     total_timesteps=2000, algo_name='her')
     controller = {name: BaselineCtrlWrapper(model) for (name, model) in models.items()}
     for (mode_name, ctrl) in controller.items():
         ctrl.save(f'{mode_name}.her')

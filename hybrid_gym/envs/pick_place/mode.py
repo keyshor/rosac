@@ -6,7 +6,7 @@ from copy import deepcopy
 import mujoco_py
 
 from hybrid_gym.model import Mode
-from typing import List, Dict, Union, NamedTuple, Any
+from typing import List, Tuple, Dict, Union, NamedTuple, Any
 
 pick_height_offset: float = 0.1
 object_length: float = 0.05  # each object is a object_length x object_length x object_length cube
@@ -14,6 +14,7 @@ min_obj_dist: float = 0.1  # minimum distance between objects
 # norm(obj_pos - point) >= obj_pos_tolerance means that the object is not at the point
 obj_pos_tolerance: float = 0.1
 height_offset: float = 0.42470206262153437  # height of table's surface
+unsafe_reward: float = -5
 mujoco_xml_path = os.path.abspath(os.path.join(
     os.path.dirname(__file__), 'mujoco_xml'))
 half_object_diagonal: float = 0.5 * np.sqrt(3) * object_length
@@ -48,13 +49,15 @@ class MultiObjectEnv(robot_env.RobotEnv):
     num_stack: int
     obj_perm: np.ndarray
     goal_dict: Dict[str, np.ndarray]
+    num_timesteps: int
+    max_episode_length: int
 
     def __init__(
         self, model_path: str, n_substeps: int, gripper_extra_height: float,
         block_gripper: bool, num_objects: int,
         target_offset: Union[float, np.ndarray], obj_range: float,
         target_range: float, distance_threshold: float, initial_qpos: Dict,
-        reward_type: str, mode_type: ModeType,
+        reward_type: str, mode_type: ModeType, max_episode_length: int
     ):
         """Initializes a new Fetch environment.
 
@@ -85,6 +88,8 @@ class MultiObjectEnv(robot_env.RobotEnv):
         self.num_stack = 0
         self.obj_perm = np.array(range(num_objects))
         self.goal_dict = {}
+        self.num_timesteps = 0
+        self.max_episode_length = max_episode_length
 
         super().__init__(
             model_path=model_path, n_substeps=n_substeps, n_actions=4,
@@ -95,6 +100,8 @@ class MultiObjectEnv(robot_env.RobotEnv):
 
     def compute_reward(self, achieved_goal: np.ndarray, goal: np.ndarray, info: Any) -> float:
         # Compute distance between goal and the achieved goal.
+        if not self.is_safe():
+            return unsafe_reward
         d = goal_distance(achieved_goal, goal)
         if self.reward_type == 'sparse':
             return -float(d > self.distance_threshold)
@@ -190,6 +197,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
 
     def initialize_positions(self) -> None:
         self.sim.set_state(self.initial_state)
+        self.num_timesteps = 0
 
         # randomize start position of objects
         self.tower_location = self.initial_gripper_xpos[:2] \
@@ -229,6 +237,10 @@ class MultiObjectEnv(robot_env.RobotEnv):
         self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
         self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
 
+        for _ in range(10):
+            self.sim.step()
+        self.sim.forward()
+
         # place object in gripper's grip
         self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', half_object_diagonal)
         self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', half_object_diagonal)
@@ -240,9 +252,9 @@ class MultiObjectEnv(robot_env.RobotEnv):
                 object_qpos = self.object_qpos(object_index)
                 object_qpos[0:3] = self.arm_position()
                 self.sim.data.set_joint_qpos(object_name, object_qpos)
-                self.step([0, 0, 0, -1])
+                self.step(np.array([0, 0, 0, -1]))
 
-        for _ in range(10):
+        for _ in range(5):
             self.sim.step()
         self.sim.forward()
 
@@ -311,6 +323,26 @@ class MultiObjectEnv(robot_env.RobotEnv):
     def render(self, mode: str = 'human', width: int = 500, height: int = 500) -> None:
         return super().render(mode, width, height)
 
+    # override step()
+    def step(self, action: np.ndarray) -> Tuple[
+            Dict[str, np.ndarray],
+            float,
+            bool,
+            Dict[str, Any]
+    ]:
+        self.num_timesteps += 1
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        self._set_action(action)
+        self.sim.step()
+        self._step_callback()
+        obs = self._get_obs()
+
+        is_success = self._is_success(obs['achieved_goal'], self.goal)
+        done = is_success or not self.is_safe() or self.num_timesteps > self.max_episode_length
+        info = {'is_success': is_success}
+        reward = self.compute_reward(obs['achieved_goal'], self.goal, info)
+        return obs, reward, done, info
+
     def object_qpos(self, object_index: int) -> np.ndarray:
         if object_index < 0 or object_index >= self.num_objects:
             raise KeyError('valid object indices i satisfy 0 <= i < {}'.format(self.num_objects))
@@ -345,6 +377,14 @@ class MultiObjectEnv(robot_env.RobotEnv):
             and gripper_l + gripper_r < 1.01 * object_length
 
 
+    def is_safe(self) -> bool:
+        for i in range(self.num_stack):
+            if np.linalg.norm(self.object_position(self.obj_perm[i]) -
+                              self.goal_dict[f'obj{self.obj_perm[i]}']) \
+                    >= obj_pos_tolerance:
+                return False
+        return True
+
 class State(NamedTuple):
     mujoco_state: mujoco_py.MjSimState
     obj_perm: np.ndarray
@@ -375,8 +415,9 @@ class PickPlaceMode(Mode[State]):
         self.multi_obj = MultiObjectEnv(
             model_path=model_xml_path, num_objects=num_objects, block_gripper=False, n_substeps=20,
             gripper_extra_height=0.2, target_offset=0.0,
-            obj_range=0.15, target_range=0.15, distance_threshold=0.05*num_objects,
+            obj_range=0.15, target_range=0.15, distance_threshold=0.02*np.sqrt(num_objects),
             initial_qpos=initial_qpos, reward_type=reward_type, mode_type=mode_type,
+            max_episode_length=50,
         )
         self.obj_perm_index = -4 * num_objects - 4
         self.num_stack_index = -3 * num_objects - 4
@@ -390,10 +431,11 @@ class PickPlaceMode(Mode[State]):
         )
 
     def set_state(self, state: State) -> None:
-        self.multi_obj.sim.reset()
-        old_mujoco_state = self.multi_obj.sim.get_state()
+        #self.multi_obj.sim.reset()
+        #old_mujoco_state = self.multi_obj.sim.get_state()
         self.multi_obj.sim.set_state(mujoco_py.MjSimState(
-            old_mujoco_state.time,
+            #old_mujoco_state.time,
+            state.mujoco_state.time,
             state.mujoco_state.qpos,
             state.mujoco_state.qvel,
             state.mujoco_state.act,

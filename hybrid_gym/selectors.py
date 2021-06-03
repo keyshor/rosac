@@ -5,7 +5,7 @@ import random
 
 
 from hybrid_gym.model import ModeSelector, Transition, Mode
-from typing import Tuple, Any, Iterable
+from typing import Tuple, Any, Iterable, List
 
 
 class UniformSelector(ModeSelector):
@@ -43,3 +43,33 @@ class MaxJumpWrapper(ModeSelector):
     def reset(self) -> str:
         self.num_jumps = 0
         return self.wrapped_selector.reset()
+
+class FixedSequenceSelector(ModeSelector):
+    '''
+    Selects a fixed sequence of modes.
+    '''
+    mode_list: List[str]
+    index: int
+    loop_at_end: bool
+
+    def __init__(self,
+                 mode_list: Iterable[Mode],
+                 loop_at_end: bool = False,
+                 ) -> None:
+        self.mode_list = [m.name for m in mode_list]
+        self.index = 0
+        self.loop_at_end = loop_at_end
+
+    def next_mode(self, transition: Transition, state: Any) -> Tuple[str, bool]:
+        try:
+            assert transition.source == self.mode_list[self.index] and \
+                self.mode_list[self.index + 1] in transition.targets
+            self.index += 1
+            return self.mode_list[self.index], False
+        except IndexError:
+            return (self.reset(), False) if self.loop_at_end else \
+                (self.mode_list[self.index], True)
+
+    def reset(self) -> str:
+        self.index = 0
+        return self.mode_list[0]

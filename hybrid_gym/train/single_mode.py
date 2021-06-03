@@ -6,6 +6,8 @@ from typing import (Iterable, List, Tuple, Dict, Optional,
                     Union, Callable, NoReturn, Generic, TypeVar)
 from stable_baselines.ddpg.noise import NormalActionNoise
 from hybrid_gym.model import Mode, Transition, Controller, StateType
+from hybrid_gym.envs.pick_place.mode import PickPlaceMode
+from hybrid_gym.envs.pick_place.mode import State as PickPlaceState
 
 T = TypeVar('T')
 NotMethod = Union[T, NoReturn]
@@ -120,38 +122,39 @@ class BaselineCtrlWrapper(Controller):
     @classmethod
     def load(cls,
              path: str,
-             algo_name: str = 'td3'
+             algo_name: str = 'td3',
+             **kwargs: Dict,
              ) -> Controller:
         if algo_name == 'a2c':
-            model: BaseRLModel = A2C.load(path)
+            model: BaseRLModel = A2C.load(path, **kwargs)
         elif algo_name == 'acer':
-            model = ACER.load(path)
+            model = ACER.load(path, **kwargs)
         elif algo_name == 'acktr':
-            model = ACKTR.load(path)
+            model = ACKTR.load(path, **kwargs)
         elif algo_name == 'ddpg':
-            model = DDPG.load(path)
+            model = DDPG.load(path, **kwargs)
         elif algo_name == 'dqn':
-            model = DQN.load(path)
+            model = DQN.load(path, **kwargs)
         elif algo_name == 'gail':
-            model = GAIL.load(path)
+            model = GAIL.load(path, **kwargs)
         elif algo_name == 'her':
-            model = HER.load(path)
+            model = HER.load(path, **kwargs)
         elif algo_name == 'ppo1':
-            model = PPO1.load(path)
+            model = PPO1.load(path, **kwargs)
         elif algo_name == 'ppo2':
-            model = PPO2.load(path)
+            model = PPO2.load(path, **kwargs)
         elif algo_name == 'sac':
-            model = SAC.load(path)
+            model = SAC.load(path, **kwargs)
         elif algo_name == 'td3':
-            model = TD3.load(path)
+            model = TD3.load(path, **kwargs)
         elif algo_name == 'trpo':
-            model = TRPO.load(path)
+            model = TRPO.load(path, **kwargs)
         else:
             raise ValueError
         return cls(model)
 
 
-def make_sb_model(mode: Mode[StateType],
+def make_sb_model(mode: Mode,
                   transitions: Iterable[Transition],
                   algo_name: str = 'td3',
                   wrapped_algo: str = 'ddpg',  # only relevent to HER
@@ -159,8 +162,12 @@ def make_sb_model(mode: Mode[StateType],
                   action_noise_scale: float = 0.1,
                   verbose: int = 0
                   ) -> BaseRLModel:
-    env = GymEnvWrapper(mode, transitions)
-    goal_env = GymGoalEnvWrapper(mode, transitions)
+    transition_list = list(transitions)
+    env = GymEnvWrapper(mode, transition_list)
+    if isinstance(mode, PickPlaceMode):
+        goal_env = mode.multi_obj
+    else:
+        goal_env = GymGoalEnvWrapper(mode, transition_list)
     action_shape = mode.action_space.shape
     ddpg_action_noise = NormalActionNoise(
         mean=np.zeros(action_shape),
@@ -179,13 +186,13 @@ def make_sb_model(mode: Mode[StateType],
     elif algo_name == 'gail':
         model = GAIL(policy, env, verbose=verbose)
     elif algo_name == 'her' and wrapped_algo == 'ddpg':
-        model = HER(policy, goal_env, DDPG, verbose=verbose)
+        model = HER(policy, goal_env, DDPG, action_noise=ddpg_action_noise, verbose=verbose)
     elif algo_name == 'her' and wrapped_algo == 'dqn':
         model = HER(policy, goal_env, DQN, verbose=verbose)
     elif algo_name == 'her' and wrapped_algo == 'sac':
         model = HER(policy, goal_env, SAC, verbose=verbose)
     elif algo_name == 'her' and wrapped_algo == 'td3':
-        model = HER(policy, goal_env, TD3, verbose=verbose)
+        model = HER(policy, goal_env, TD3, action_noise=ddpg_action_noise, verbose=verbose)
     elif algo_name == 'ppo1':
         model = PPO1(policy, env, verbose=verbose)
     elif algo_name == 'ppo2':
@@ -201,12 +208,16 @@ def make_sb_model(mode: Mode[StateType],
     return model
 
 
-def train_stable(model, mode, transitions, total_timesteps=1000,
+def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_timesteps=1000,
                  init_states: Optional[Callable[[], StateType]] = None,
                  reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
                  algo_name='td3'):
-    env = GymEnvWrapper(mode, transitions, init_states, reward_fn)
+    transition_list = list(transitions)
+    env = GymEnvWrapper(mode, transition_list, init_states, reward_fn)
     if algo_name == 'her':
-        env = GymGoalEnvWrapper(mode, transitions, init_states, reward_fn)
+        if isinstance(mode, PickPlaceMode):
+            env = mode.multi_obj
+        else:
+            env = GymGoalEnvWrapper(mode, transition_list, init_states, reward_fn)
     model.set_env(env)
     model.learn(total_timesteps=total_timesteps)
