@@ -7,6 +7,7 @@ from hybrid_gym.train.single_mode import make_sb_model, train_stable, BaselineCt
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from typing import List, Dict, Any
+from copy import deepcopy
 
 import numpy as np
 import random
@@ -65,16 +66,19 @@ def cegrl(automaton: HybridAutomaton,
     controllers: Dict[str, Controller] = {
         name: BaselineCtrlWrapper(model) for (name, model) in models.items()}
 
-    for _ in range(num_iter):
+    for i in range(num_iter):
+        print('\n**** Iteration {} ****'.format(i))
 
         # train agents
         for (name, mode) in automaton.modes.items():
+            print('\n---- Training controller for mode {} ----'.format(name))
             train_stable(models[name], mode, automaton.transitions[name],
                          total_timesteps=steps_per_iter, init_states=reset_funcs[name],
                          algo_name=algo_name)
 
         # synthesis
-        ces = synthesize(automaton, controllers, pre, max_timesteps, num_synth_iter,
+        print('\n---- Running synthesis ----')
+        ces = synthesize(automaton, controllers, deepcopy(pre), max_timesteps, num_synth_iter,
                          n_samples, abstract_samples, print_debug)
 
         # add counterexamples to reset function

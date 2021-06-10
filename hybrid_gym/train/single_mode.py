@@ -7,7 +7,6 @@ from typing import (Iterable, List, Tuple, Dict, Optional,
 from stable_baselines.ddpg.noise import NormalActionNoise
 from hybrid_gym.model import Mode, Transition, Controller, StateType
 from hybrid_gym.envs.pick_place.mode import PickPlaceMode
-from hybrid_gym.envs.pick_place.mode import State as PickPlaceState
 
 T = TypeVar('T')
 NotMethod = Union[T, NoReturn]
