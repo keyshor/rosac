@@ -8,4 +8,4 @@ stable-baselines[mpi]
 tensorflow<2.0.0
 scikit-learn
 mpi4py
-mujoco-py<2
+mujoco-py==2.0.2.8

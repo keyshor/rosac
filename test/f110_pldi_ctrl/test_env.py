@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
+# flake8: noqa: E402
 from hybrid_gym import HybridEnv, Controller
 from hybrid_gym.envs import make_f110_model
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper

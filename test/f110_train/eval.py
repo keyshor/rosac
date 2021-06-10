@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
+# flake8: noqa: E402
 from hybrid_gym.train.single_mode import BaselineCtrlWrapper
 from hybrid_gym.train.mode_pred import ScipyModePredictor
 from hybrid_gym.envs import make_f110_model

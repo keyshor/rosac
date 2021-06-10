@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
+# flake8: noqa: E402
 from hybrid_gym.train.single_mode import BaselineCtrlWrapper, GymGoalEnvWrapper
 from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.hybrid_env import HybridGoalEnv
@@ -14,7 +15,7 @@ if __name__ == '__main__':
     env = HybridGoalEnv(
         automaton=automaton,
         selector=FixedSequenceSelector(
-            mode_list = [
+            mode_list=[
                 automaton.modes['ModeType.MOVE_WITHOUT_OBJ'],
                 automaton.modes['ModeType.PICK_OBJ'],
                 automaton.modes['ModeType.MOVE_WITH_OBJ'],
@@ -22,10 +23,10 @@ if __name__ == '__main__':
             ] * num_objects
         )
     )
-    #controllers = {name: BaselineCtrlWrapper.load(f'{name}.her', algo_name='her', env=env)
+    # controllers = {name: BaselineCtrlWrapper.load(f'{name}.her', algo_name='her', env=env)
     #               for name in automaton.modes}
 
-    #for _ in range(20):
+    # for _ in range(20):
     #    observation = env.reset()
     #    mode = ''
     #    e = 0

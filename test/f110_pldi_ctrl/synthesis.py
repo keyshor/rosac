@@ -2,6 +2,7 @@ import os
 import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
+# flake8: noqa: E402
 from test_env import (ComposedSteeringPredictor, ComposedModePredictor,
                       normalize, reverse_lidar, Modes)
 from hybrid_gym import Controller

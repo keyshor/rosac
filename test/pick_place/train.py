@@ -6,6 +6,7 @@ from stable_baselines import DDPG, HER
 from stable_baselines.ddpg.noise import NormalActionNoise
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
+# flake8: noqa: E402
 from hybrid_gym.train.single_mode import make_sb_model, train_stable, BaselineCtrlWrapper
 from hybrid_gym.train.mode_pred import train_mode_predictor
 from hybrid_gym.envs import make_pick_place_model
