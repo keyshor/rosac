@@ -38,6 +38,6 @@ if __name__ == '__main__':
            for m, mode in f110_automaton.modes.items()}
     max_timesteps = {m: 100 for m in f110_automaton.modes}
 
-    controllers = cegrl(f110_automaton, pre, max_timesteps, steps_per_iter=2000,
-                        num_iter=10, action_noise_scale=4.0, verbose=1,
+    controllers = cegrl(f110_automaton, pre, max_timesteps, steps_per_iter=20000,
+                        num_iter=20, action_noise_scale=4.0, verbose=1,
                         num_synth_iter=10, abstract_samples=1, print_debug=True)

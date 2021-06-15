@@ -78,6 +78,7 @@ class HybridEnv(gym.Env):
     def render(self) -> None:
         self.mode.render(self.state)
 
+
 class HybridGoalEnv(gym.GoalEnv):
 
     def __init__(self, automaton: HybridAutomaton, selector: ModeSelector) -> None:
