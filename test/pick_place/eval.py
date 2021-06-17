@@ -1,5 +1,7 @@
 import os
 import sys
+import gym
+from stable_baselines import HER
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
 # flake8: noqa: E402
@@ -19,7 +21,8 @@ if __name__ == '__main__':
                 automaton.modes['ModeType.MOVE_WITHOUT_OBJ'],
                 automaton.modes['ModeType.PICK_OBJ'],
                 automaton.modes['ModeType.MOVE_WITH_OBJ'],
-                automaton.modes['ModeType.PLACE_OBJ'],
+                automaton.modes['ModeType.PLACE_OBJ_PT1'],
+                automaton.modes['ModeType.PLACE_OBJ_PT2'],
             ] * num_objects
         )
     )
@@ -43,6 +46,7 @@ if __name__ == '__main__':
     #        print(f'terminated normally after {e} steps')
     #    else:
     #        print(f'safety violation after {e} steps')
+    #for (name, mode) in [('ModeType.PLACE_OBJ_PT2', automaton.modes['ModeType.PLACE_OBJ_PT2'])]:
     for name, mode in automaton.modes.items():
         goal_env = GymGoalEnvWrapper(mode, automaton.transitions[name])
         ctrl = BaselineCtrlWrapper.load(f'{name}.her', algo_name='her', env=goal_env)
@@ -55,3 +59,13 @@ if __name__ == '__main__':
                     action = ctrl.get_action(obs)
                     obs, _, done, _ = goal_env.step(action)
                 goal_env.render()
+    #env = gym.envs.robotics.fetch.pick_and_place.FetchPickAndPlaceEnv()
+    #model = HER.load('FetchPickAndPlace-v1.zip', env=env)
+    #for _ in range(5):
+    #    obs = env.reset()
+    #    done = False
+    #    for _ in range(100):
+    #        if not done:
+    #            action, _ = model.predict(obs)
+    #            obs, _, done, _ = env.step(action)
+    #        env.render()
