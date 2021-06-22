@@ -6,7 +6,7 @@ import numpy as np
 from hybrid_gym.model import Mode, Controller, Transition
 from hybrid_gym.synthesis.abstractions import AbstractState, VectorizeWrapper, StateWrapper
 from hybrid_gym.falsification.optim import cem
-from hybrid_gym.util import get_rollout
+from hybrid_gym.util.test import get_rollout
 from typing import List, Callable, Any
 
 
@@ -18,7 +18,7 @@ def falsify(mode: Mode, transitions: List[Transition], controller: Controller,
 
     def f(s):
         state = mode.state_from_vector(s)
-        sass = get_rollout(mode, transitions, controller, state, max_timesteps=max_timesteps)
+        sass, _ = get_rollout(mode, transitions, controller, state, max_timesteps=max_timesteps)
         return eval_func(sass)
 
     if isinstance(pre, StateWrapper):

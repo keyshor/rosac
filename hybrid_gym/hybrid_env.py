@@ -39,6 +39,9 @@ class HybridAutomaton:
 
 
 class HybridEnv(gym.Env):
+    '''
+    Gym environment simulating the automaton with the given mode selector.
+    '''
 
     def __init__(self, automaton: HybridAutomaton, selector: ModeSelector) -> None:
         self.automaton = automaton

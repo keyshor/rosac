@@ -3,7 +3,7 @@ import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.train.single_mode import BaselineCtrlWrapper
+from hybrid_gym.util.wrappers import BaselineCtrlWrapper
 from hybrid_gym.train.mode_pred import ScipyModePredictor
 from hybrid_gym.envs import make_f110_model
 from hybrid_gym.hybrid_env import HybridEnv
@@ -15,8 +15,9 @@ if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
     controllers = {name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
                    for name in automaton.modes}
-    mode_predictor = ScipyModePredictor.load(
-        'mode_predictor.mlp', automaton.observation_space, 'mlp')
+    controllers['f110_straight_10m'] = controllers['f110_square_right']
+    # mode_predictor = ScipyModePredictor.load(
+    #     'mode_predictor.mlp', automaton.observation_space, 'mlp')
 
     env = HybridEnv(
         automaton=automaton,
@@ -38,8 +39,8 @@ if __name__ == '__main__':
         done = False
         while not done:
             e += 1
-            mode = mode_predictor.get_mode(observation)
-            # mode = env.mode.name
+            # mode = mode_predictor.get_mode(observation)
+            mode = env.mode.name
             delta = controllers[mode].get_action(observation)
             state_history[env.mode.name, mode].append(env.state)
             observation, reward, done, info = env.step(delta)

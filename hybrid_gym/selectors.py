@@ -44,6 +44,7 @@ class MaxJumpWrapper(ModeSelector):
         self.num_jumps = 0
         return self.wrapped_selector.reset()
 
+
 class FixedSequenceSelector(ModeSelector):
     '''
     Selects a fixed sequence of modes.

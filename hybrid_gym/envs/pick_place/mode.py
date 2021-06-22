@@ -1,11 +1,11 @@
 import numpy as np
-from gym.envs.robotics import rotations, robot_env, utils
 import os
 import enum
-from copy import deepcopy
 import mujoco_py
 
+from copy import deepcopy
 from hybrid_gym.model import Mode
+from gym.envs.robotics import rotations, robot_env, utils
 from typing import List, Tuple, Dict, Union, NamedTuple, Any
 
 pick_height_offset: float = 0.05
@@ -99,7 +99,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
 
     def compute_reward(self, achieved_goal: np.ndarray, goal: np.ndarray, info: Any) -> float:
         # Compute distance between goal and the achieved goal.
-        #if not self.is_safe():
+        # if not self.is_safe():
         #    return unsafe_reward
         d = goal_distance(achieved_goal, goal)
         if self.reward_type == 'sparse':
@@ -234,7 +234,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
                 or self.mode_type == ModeType.MOVE_WITHOUT_OBJ:
             gripper_target = self.object_position(self.obj_perm[self.num_stack-1]) \
                 + np.array([0, 0, object_length + pick_height_offset])
-        else: # self.modeType == ModeType.PLACE_OBJ_PT2
+        else:  # self.modeType == ModeType.PLACE_OBJ_PT2
             gripper_target = self.object_position(self.obj_perm[self.num_stack-1]) \
                 + np.array([0, 0, object_length])
         gripper_rotation = np.array([1., 0., 1., 0.])
@@ -384,7 +384,6 @@ class MultiObjectEnv(robot_env.RobotEnv):
         return np.linalg.norm(object_xpos - gripper_xpos) < 0.5 * object_length \
             and gripper_l + gripper_r < 1.01 * object_length
 
-
     def is_safe(self) -> bool:
         for i in range(self.num_stack):
             if np.linalg.norm(self.object_position(self.obj_perm[i]) -
@@ -392,6 +391,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
                     >= obj_pos_tolerance:
                 return False
         return True
+
 
 class State(NamedTuple):
     mujoco_state: mujoco_py.MjSimState
@@ -438,10 +438,10 @@ class PickPlaceMode(Mode[State]):
         )
 
     def set_state(self, state: State) -> None:
-        #self.multi_obj.sim.reset()
-        #old_mujoco_state = self.multi_obj.sim.get_state()
+        # self.multi_obj.sim.reset()
+        # old_mujoco_state = self.multi_obj.sim.get_state()
         self.multi_obj.sim.set_state(mujoco_py.MjSimState(
-            #old_mujoco_state.time,
+            # old_mujoco_state.time,
             state.mujoco_state.time,
             state.mujoco_state.qpos,
             state.mujoco_state.qvel,

@@ -5,7 +5,7 @@ from stable_baselines import HER
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.train.single_mode import BaselineCtrlWrapper, GymGoalEnvWrapper
+from hybrid_gym.util.wrappers import BaselineCtrlWrapper, GymGoalEnvWrapper
 from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.hybrid_env import HybridGoalEnv
 from hybrid_gym.selectors import FixedSequenceSelector
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     #        print(f'terminated normally after {e} steps')
     #    else:
     #        print(f'safety violation after {e} steps')
-    #for (name, mode) in [('ModeType.PLACE_OBJ_PT2', automaton.modes['ModeType.PLACE_OBJ_PT2'])]:
+    # for (name, mode) in [('ModeType.PLACE_OBJ_PT2', automaton.modes['ModeType.PLACE_OBJ_PT2'])]:
     for name, mode in automaton.modes.items():
         goal_env = GymGoalEnvWrapper(mode, automaton.transitions[name])
         ctrl = BaselineCtrlWrapper.load(f'{name}.her', algo_name='her', env=goal_env)
@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 goal_env.render()
     #env = gym.envs.robotics.fetch.pick_and_place.FetchPickAndPlaceEnv()
     #model = HER.load('FetchPickAndPlace-v1.zip', env=env)
-    #for _ in range(5):
+    # for _ in range(5):
     #    obs = env.reset()
     #    done = False
     #    for _ in range(100):

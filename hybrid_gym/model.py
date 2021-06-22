@@ -100,17 +100,23 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         raise NotImplementedError
 
     def achieved_goal(self, state: StateType) -> np.ndarray:
-        # for compatibility with HER
+        '''
+        Goal achieved in the current state.
+        (For learning using HER)
+        '''
         raise NotImplementedError
 
     def desired_goal(self, state: StateType) -> np.ndarray:
-        # for compatibility with HER
+        '''
+        Desired goal of the mode w.r.t. the current state.
+        (For learning using HER)
+        '''
         raise NotImplementedError
 
     def end_to_end_reset(self) -> StateType:
-        # allow change in distribution in end-to-end testing
-        # in a F110Mode, use the same reset function as for an individual mode
-        # in a PickPlaceMode, reset with empty tower
+        '''
+        Allows change in distribution in end-to-end testing.
+        '''
         return self.reset()
 
 

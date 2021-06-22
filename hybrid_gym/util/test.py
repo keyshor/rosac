@@ -2,7 +2,7 @@
 Utility functions.
 '''
 from hybrid_gym.model import Mode, Transition, Controller
-from typing import List, Any
+from typing import List, Any, Dict
 
 
 def get_rollout(mode: Mode, transitions: List[Transition], controller: Controller,
@@ -13,6 +13,7 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
         state = mode.reset()
 
     sass = []
+    info: Dict[str, Any] = {'safe': True, 'jump': None}
 
     while step <= max_timesteps:
         obs = mode.observe(state)
@@ -23,6 +24,7 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
 
         # Check safety
         if not mode.is_safe(state):
+            info['safe'] = False
             break
 
         # Check guards of transitions out of mode
@@ -30,10 +32,11 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
         for t in transitions:
             if t.guard(state):
                 jumped = True
+                info['jump'] = t
         if jumped:
             break
 
         # Increment step count
         step += 1
 
-    return sass
+    return sass, info

@@ -4,7 +4,7 @@ sys.path.append(os.path.join('..', '..'))  # nopep8
 
 # flake8: noqa: E402
 from hybrid_gym.envs import make_pick_place_model
-from hybrid_gym.train.single_mode import GymGoalEnvWrapper
+from hybrid_gym.util.wrappers import GymGoalEnvWrapper
 
 if __name__ == '__main__':
     pick_place_automaton = make_pick_place_model(num_objects=3)

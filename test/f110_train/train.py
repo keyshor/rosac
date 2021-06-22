@@ -3,8 +3,9 @@ import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.train.single_mode import train_stable, BaselineCtrlWrapper, make_sb_model
+from hybrid_gym.train.single_mode import train_stable, make_sb_model
 from hybrid_gym.train.mode_pred import train_mode_predictor
+from hybrid_gym.util.wrappers import BaselineCtrlWrapper
 from hybrid_gym.envs import make_f110_model
 
 

@@ -3,9 +3,10 @@ CounterExample Guided Reinforcement Learning
 '''
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
-from hybrid_gym.train.single_mode import make_sb_model, train_stable, BaselineCtrlWrapper
+from hybrid_gym.train.single_mode import make_sb_model, train_stable
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
+from hybrid_gym.util.wrappers import BaselineCtrlWrapper
 from typing import List, Dict, Any
 from copy import deepcopy
 

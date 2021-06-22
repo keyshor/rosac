@@ -6,6 +6,7 @@ import random
 from hybrid_gym.model import Controller
 from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.synthesis.abstractions import AbstractState
+from hybrid_gym.util.test import get_rollout
 from typing import Dict, List, Any, Tuple
 
 
@@ -104,35 +105,20 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
 
         # Simulate m1 from different start states
         for s1 in start_states[m1]:
-            state = s1
-            step = 0
-            done = False
-            controller.reset()
 
-            # Episode loop
-            while not done and step <= max_timesteps[m1]:
-                obs = mode.observe(state)
-                action = controller.get_action(obs)
-                state = mode.step(state, action)
+            # Get a rollout using controller for m1
+            sarss, info = get_rollout(mode, automaton.transitions[m1],
+                                      controller, s1, max_timesteps[m1])
 
-                # Check safety
-                if not mode.is_safe(state):
-                    counterexamples.append(CE(m1, s1, 'safety'))
-                    done = True
-
-                # Check guards of transitions out of m1
-                for t in automaton.transitions[m1]:
-                    if t.guard(state):
-                        for m2 in t.targets:
-                            s2 = t.jump(m2, state)
-                            implication_examples.append(IE(m1, m2, s1, s2))
-                        done = True
-                        break
-
-                # Increment step count
-                step += 1
-
-            if not done:
+            # generate counterexamples
+            if not info['safe']:
+                counterexamples.append(CE(m1, s1, 'safety'))
+            if info['jump'] is None:
                 counterexamples.append(CE(m1, s1, 'liveness'))
+            # generate implication examples
+            else:
+                for m2 in info['jump'].targets:
+                    s2 = info['jump'].jump(m2, sarss[-1][-1])
+                    implication_examples.append(IE(m1, m2, s1, s2))
 
     return implication_examples, counterexamples
