@@ -1,8 +1,9 @@
 '''
-Utility functions.
+Utility functions for testing/simulation.
 '''
-from hybrid_gym.model import Mode, Transition, Controller
-from typing import List, Any, Dict
+from hybrid_gym.model import Mode, Transition, Controller, ModeSelector
+from hybrid_gym.hybrid_env import HybridAutomaton
+from typing import List, Any, Dict, Union
 
 
 def get_rollout(mode: Mode, transitions: List[Transition], controller: Controller,
@@ -28,15 +29,67 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
             break
 
         # Check guards of transitions out of mode
-        jumped = False
         for t in transitions:
             if t.guard(state):
-                jumped = True
                 info['jump'] = t
-        if jumped:
+        if info['jump'] is not None:
             break
 
         # Increment step count
         step += 1
 
     return sass, info
+
+
+def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
+                    controllers: Union[Controller, Dict[str, Controller]],
+                    max_timesteps: Dict[str, int], num_rollouts: int = 100,
+                    max_jumps: int = 100, print_debug: bool = False):
+    '''
+    Measure success of trained controllers w.r.t. a given mode selector.
+    Success only when selector signals completion (returns done).
+
+    controllers: Can be a single controller (also handles mode detection) OR
+                 one controller per mode (assumes full observability)
+
+    Returns: float (the probability of success)
+    '''
+    num_success = 0
+    if isinstance(controllers, Controller):
+        controller_dict = {name: controllers for name in automaton.modes}
+        controllers = controller_dict
+
+    for _ in range(num_rollouts):
+        steps = 0
+        mname = selector.reset()
+        state = automaton.modes[mname].end_to_end_reset()
+
+        for j in range(max_jumps):
+            sarss, info = get_rollout(automaton.modes[mname], automaton.transitions[mname],
+                                      controllers[mname], state, max_timesteps[mname])
+            steps += len(sarss)
+
+            # terminate rollout if unsafe
+            if info['jump'] is None or not info['safe']:
+                if print_debug:
+                    if info['safe']:
+                        print('Failed to make progress in mode {} after {} jumps'.format(
+                            mname, j))
+                    else:
+                        print('Unsafe state reached in mode {} after {} steps'.format(
+                            mname, steps))
+                break
+
+            # select next mode
+            mname, done = selector.next_mode(info['jump'], sarss[-1][-1])
+
+            # update start state
+            if not done:
+                state = info['jump'].jump(mname, sarss[-1][-1])
+
+            # count success
+            else:
+                num_success += 1
+                break
+
+    return num_success / num_rollouts
