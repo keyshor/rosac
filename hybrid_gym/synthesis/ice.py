@@ -28,7 +28,7 @@ class CE:
 
 
 def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
-               pre: Dict[str, AbstractState], max_timesteps: Dict[str, int],
+               pre: Dict[str, AbstractState], time_limits: Dict[str, int],
                num_iter: int, n_samples: int, abstract_samples: int = 0,
                print_debug: bool = False) -> List[CE]:
     all_states: Dict[str, List] = {}
@@ -54,7 +54,7 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                     start_states[m].append(s)
 
         # Simulate and generate examples
-        ies, ces = generate_examples(automaton, controllers, max_timesteps, start_states)
+        ies, ces = generate_examples(automaton, controllers, time_limits, start_states)
         counterexamples.extend(ces)
         for ie in ies:
             if not pre[ie.m2].contains(ie.s2):
@@ -93,7 +93,7 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
 
 
 def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Controller],
-                      max_timesteps: Dict[str, int], start_states: Dict[str, List]
+                      time_limits: Dict[str, int], start_states: Dict[str, List]
                       ) -> Tuple[List[IE], List[CE]]:
     implication_examples = []
     counterexamples = []
@@ -108,7 +108,7 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
 
             # Get a rollout using controller for m1
             sarss, info = get_rollout(mode, automaton.transitions[m1],
-                                      controller, s1, max_timesteps[m1])
+                                      controller, s1, time_limits[m1])
 
             # generate counterexamples
             if not info['safe']:

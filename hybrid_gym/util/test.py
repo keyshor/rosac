@@ -7,9 +7,10 @@ from typing import List, Any, Dict, Union
 
 
 def get_rollout(mode: Mode, transitions: List[Transition], controller: Controller,
-                state: Any = None, max_timesteps=10000):
+                state: Any = None, max_timesteps=10000, reset_controller: bool = True):
     step = 0
-    controller.reset()
+    if reset_controller:
+        controller.reset()
     if state is None:
         state = mode.reset()
 
@@ -42,31 +43,38 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
 
 
 def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
-                    controllers: Union[Controller, Dict[str, Controller]],
-                    max_timesteps: Dict[str, int], num_rollouts: int = 100,
+                    controller: Union[Controller, Dict[str, Controller]],
+                    time_limits: Dict[str, int], num_rollouts: int = 100,
                     max_jumps: int = 100, print_debug: bool = False):
     '''
     Measure success of trained controllers w.r.t. a given mode selector.
     Success only when selector signals completion (returns done).
 
-    controllers: Can be a single controller (also handles mode detection) OR
-                 one controller per mode (assumes full observability)
+    controller: Can be a single controller (also handles mode detection) OR
+                one controller per mode (assumes full observability)
 
     Returns: float (the probability of success)
     '''
     num_success = 0
-    if isinstance(controllers, Controller):
-        controller_dict = {name: controllers for name in automaton.modes}
-        controllers = controller_dict
 
     for _ in range(num_rollouts):
         steps = 0
         mname = selector.reset()
         state = automaton.modes[mname].end_to_end_reset()
+        if isinstance(controller, Controller):
+            controller.reset()
 
         for j in range(max_jumps):
+
+            # pick the current controller
+            if isinstance(controller, Controller):
+                cur_controller = controller
+            else:
+                cur_controller = controller[mname]
+
             sarss, info = get_rollout(automaton.modes[mname], automaton.transitions[mname],
-                                      controllers[mname], state, max_timesteps[mname])
+                                      cur_controller, state, time_limits[mname],
+                                      reset_controller=(not isinstance(controller, Controller)))
             steps += len(sarss)
 
             # terminate rollout if unsafe

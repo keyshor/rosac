@@ -36,7 +36,7 @@ class ResetFunc:
 
 def cegrl(automaton: HybridAutomaton,
           pre: Dict[str, AbstractState],
-          max_timesteps: Dict[str, int],
+          time_limits: Dict[str, int],
           algo_name: str = 'td3',
           wrapped_algo: str = 'ddpg',  # only relevent to HER
           policy: str = 'MlpPolicy',
@@ -79,7 +79,7 @@ def cegrl(automaton: HybridAutomaton,
 
         # synthesis
         print('\n---- Running synthesis ----')
-        ces = synthesize(automaton, controllers, deepcopy(pre), max_timesteps, num_synth_iter,
+        ces = synthesize(automaton, controllers, deepcopy(pre), time_limits, num_synth_iter,
                          n_samples, abstract_samples, print_debug)
 
         # add counterexamples to reset function
