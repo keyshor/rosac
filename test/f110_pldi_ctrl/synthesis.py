@@ -7,9 +7,11 @@ from test_env import (ComposedSteeringPredictor, ComposedModePredictor,
                       normalize, reverse_lidar, Modes)
 from hybrid_gym import Controller
 from hybrid_gym.envs import make_f110_model
+from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 from hybrid_gym.synthesis.abstractions import AbstractState, Box, StateWrapper
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.falsification.single_mode import falsify, reward_eval_func
+from hybrid_gym.util.test import end_to_end_test
 from copy import deepcopy
 
 import numpy as np
@@ -72,15 +74,23 @@ if __name__ == '__main__':
         action_scale
     )
 
+    selector = MaxJumpWrapper(
+        wrapped_selector=UniformSelector(modes=f110_automaton.modes.values()),
+        max_jumps=5
+    )
+
     controllers = {m: FullController(mode_predictor, steering_ctrl) for m in f110_automaton.modes}
     init_vec = {m: np.array([mode.init_car_dist_s, mode.init_car_dist_f,
                              mode.init_car_heading, mode.init_car_V])
                 for m, mode in f110_automaton.modes.items()}
     pre = {m: F110AbstractState(init_vec[m], init_vec[m], mode)
            for m, mode in f110_automaton.modes.items()}
-    max_timesteps = {m: 100 for m in f110_automaton.modes}
+    time_limits = {m: 100 for m in f110_automaton.modes}
 
-    ces = synthesize(f110_automaton, controllers, pre, max_timesteps, 10, 20, 1, True)
+    end_to_end_test(f110_automaton, selector, FullController(mode_predictor, steering_ctrl),
+                    time_limits, num_rollouts=10, print_debug=True)
+
+    ces = synthesize(f110_automaton, controllers, pre, time_limits, 10, 20, 1, True)
     mname = 'f110_square_right'
     worst_states = falsify(f110_automaton.modes[mname], f110_automaton.transitions[mname],
                            controllers[mname], pre[mname],

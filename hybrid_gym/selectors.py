@@ -37,7 +37,7 @@ class MaxJumpWrapper(ModeSelector):
     def next_mode(self, transition: Transition, state: Any) -> Tuple[str, bool]:
         mode_name, done = self.wrapped_selector.next_mode(transition, state)
         self.num_jumps += 1
-        done = done or (self.num_jumps > self.max_jumps)
+        done = done or (self.num_jumps >= self.max_jumps)
         return mode_name, done
 
     def reset(self) -> str:
