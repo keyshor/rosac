@@ -1,9 +1,10 @@
 import os
 import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
+sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.util.wrappers import BaselineCtrlWrapper
+from hybrid_gym.util.wrappers import BaselineCtrlWrapper, GymEnvWrapper
 from hybrid_gym.train.mode_pred import ScipyModePredictor
 from hybrid_gym.envs import make_f110_model
 from hybrid_gym.util.test import end_to_end_test
@@ -16,8 +17,13 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
 
-    controllers = {name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
-                   for name in automaton.modes}
+    controllers = {
+        name: BaselineCtrlWrapper.load(
+            os.path.join(f'{name}', 'best_model.zip'),
+            algo_name='td3',
+        )
+        for name in automaton.modes
+    }
 
     # controllers['f110_straight_10m'] = controllers['f110_square_right']
     # mode_predictor = ScipyModePredictor.load(

@@ -34,21 +34,32 @@ class PickPlaceTrans(Transition):
         if target_mode_type == ModeType.MOVE_WITH_OBJ:
             goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack-1]}'] \
                 + np.array([0, 0, object_length + pick_height_offset])
-            goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm']
+            goal_dict['finger'] = np.full((2,), object_length / 2.0)
+            goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm'].copy()
         elif target_mode_type == ModeType.MOVE_WITHOUT_OBJ:
             num_stack += 1
-            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}']
-        elif target_mode_type == ModeType.PICK_OBJ:
+            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'] \
+                + np.array([0, 0, pick_height_offset])
+            goal_dict['finger'] = np.full((2,), object_length)
+        elif target_mode_type == ModeType.PICK_OBJ_PT1:
+            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'].copy()
+            goal_dict['finger'] = np.full((2,), object_length)
+        elif target_mode_type == ModeType.PICK_OBJ_PT2:
+            goal_dict['finger'] = np.full((2,), object_length / 2.0)
+        elif target_mode_type == ModeType.PICK_OBJ_PT3:
             goal_dict['arm'] += np.array([0, 0, pick_height_offset])
-            goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm']
+            goal_dict['finger'] = np.full((2,), object_length / 2.0)
+            goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm'].copy()
         elif target_mode_type == ModeType.PLACE_OBJ_PT1:
             goal_dict[f'obj{st.obj_perm[num_stack]}'] = \
                 goal_dict[f'obj{st.obj_perm[num_stack-1]}'] \
                 + np.array([0, 0, object_length])
             goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'].copy()
+            goal_dict['finger'] = np.full((2,), object_length / 2.0)
         else:  # target_mode_type == ModeType.PLACE_OBJ_PT2
             goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'].copy() \
                 + np.array([0, 0, pick_height_offset])
+            goal_dict['finger'] = np.full((2,), object_length)
         return State(
             mujoco_state=st.mujoco_state,
             obj_perm=st.obj_perm,

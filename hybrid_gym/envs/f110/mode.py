@@ -31,13 +31,23 @@ CONST_THROTTLE: float = 16
 MAX_THROTTLE: float = 50  # just used to compute maximum possible velocity
 
 # training parameters
-STEP_REWARD_GAIN: float = 5
+#STEP_REWARD_GAIN: float = 1
+#INPUT_REWARD_GAIN: float = 0
+#CRASH_REWARD: float = -100
+#MIDDLE_REWARD_GAIN: float = -10
+#HEADING_GAIN: float = -100
+#MOVE_FORWARD_GAIN: float = 30
+#REGION3_ENTER_GAIN: float = 0  # 100
+#REGION2_EXTENSION: float = 2
+SPEED_GAIN: float = 3
+STEP_REWARD_GAIN: float = -10
 INPUT_REWARD_GAIN: float = 0
 CRASH_REWARD: float = -100
 MIDDLE_REWARD_GAIN: float = -3
 HEADING_GAIN: float = -3
 MOVE_FORWARD_GAIN: float = 10
 REGION3_ENTER_GAIN: float = 0  # 100
+REGION2_EXTENSION: float = 0
 
 # direction parameters
 
@@ -215,8 +225,8 @@ class F110Mode(Mode[State]):
 
         super().__init__(
             name=name,
-            action_space=spaces.Box(low=-MAX_TURNING_INPUT,
-                                    high=MAX_TURNING_INPUT, shape=(1,), dtype=np.float32),
+            action_space=spaces.Box(low=-1.0, high=1.0,
+                                    shape=(2,), dtype=np.float32),
             observation_space=spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
         )
 
@@ -413,7 +423,7 @@ class F110Mode(Mode[State]):
 
     # NB: Mode switches are handled in the step function
     # x := [s, f, V, theta_local, x, y, theta_global]
-    def bicycle_dynamics(self, x, t, u, delta, turn):
+    def bicycle_dynamics_ode(self, x, t, u, delta, turn):
 
         if turn < 0:  # right turn
             # -V * sin(theta_local + beta)
@@ -451,7 +461,7 @@ class F110Mode(Mode[State]):
 
     # NB: Mode switches are handled in the step function
     # x := [s, f, V, theta_local, x, y, theta_global]
-    def bicycle_dynamics_no_beta(self, x, t, u, delta, turn):
+    def bicycle_dynamics_ode_no_beta(self, x, t, u, delta, turn):
 
         if turn < 0:  # right turn
             # -V * sin(theta_local)
@@ -486,13 +496,53 @@ class F110Mode(Mode[State]):
 
         return dXdt
 
+    def bicycle_dynamics_clf(self,
+                             st: State,
+                             delta: float,
+                             throttle: float,
+                             is_right_turn: bool,
+                             use_beta: bool,
+                             ) -> np.ndarray:
+        ekat = np.exp(-CAR_ACCEL_CONST * self.time_step)
+        beta = np.arctan(CAR_CENTER_OF_MASS * np.tan(delta) / CAR_LENGTH) if use_beta else 0.0
+        equilibrium_speed = CAR_MOTOR_CONST * np.maximum(throttle - HYSTERESIS_CONSTANT, 0)
+        deviation_div_accel = (equilibrium_speed - st.car_V) / CAR_ACCEL_CONST
+        car_V = (st.car_V - equilibrium_speed) * ekat + equilibrium_speed
+        d = deviation_div_accel * ekat + equilibrium_speed * self.time_step - deviation_div_accel
+        if np.abs(delta) > 1e-5:
+            dth_dd = np.cos(beta) * np.tan(delta) / CAR_LENGTH
+            car_heading = dth_dd * d + st.car_heading
+            change_s = (np.cos(st.car_heading + beta) - np.cos(car_heading + beta)) / dth_dd
+            if is_right_turn:
+                change_s *= -1
+            car_dist_s = change_s + st.car_dist_s
+            car_dist_f = (np.sin(st.car_heading + beta) - np.sin(car_heading + beta)) / dth_dd + st.car_dist_f
+            car_global_heading = dth_dd * d + st.car_global_heading
+            car_global_x = (np.sin(car_global_heading + beta) - np.sin(st.car_global_heading + beta)) / dth_dd + st.car_global_x
+            car_global_y = (np.cos(st.car_global_heading + beta) - np.cos(car_global_heading + beta)) / dth_dd + st.car_global_y
+        else:
+            car_heading = st.car_heading
+            change_s = np.sin(car_heading) * d
+            if is_right_turn:
+                change_s *= -1
+            car_dist_s = change_s + st.car_dist_s
+            car_dist_f = -np.cos(car_heading) * d + st.car_dist_f
+            car_global_heading = st.car_global_heading
+            car_global_x = np.cos(car_global_heading) * d + st.car_global_x
+            car_global_y = np.sin(car_global_heading) * d + st.car_global_y
+        return np.array([car_dist_s, car_dist_f, car_V, car_heading,
+                         car_global_x, car_global_y, car_global_heading])
+
     def _step_fn(self, st: State, action: np.ndarray) -> State:
-        return self.helper_step(st, action[0])
+        delta = action[0]
+        throttle = 0.5 * (action[1] + 1.0) * MAX_THROTTLE
+        #throttle = CONST_THROTTLE
+        return self.helper_step(st, delta, throttle)
 
     def helper_step(self,
                     st: State,
                     delta: float,
-                    throttle: float = CONST_THROTTLE,
+                    throttle: float,
                     x_noise: float = 0,
                     y_noise: float = 0,
                     v_noise: float = 0,
@@ -510,14 +560,18 @@ class F110Mode(Mode[State]):
         # simulate dynamics
         x0 = [st.car_dist_s, st.car_dist_f, st.car_V, st.car_heading,
               st.car_global_x, st.car_global_y, st.car_global_heading]
-        t = [0, self.time_step]
+        #t = [0, self.time_step]
 
         # new_x = odeint(self.bicycle_dynamics, x0, t, args=(throttle, delta * np.pi / 180,
         #       self.turns[st.curHall],))
-        new_x = odeint(self.bicycle_dynamics_no_beta, x0, t, args=(
-            throttle, delta * np.pi / 180, self.turns[st.curHall],))
+        #new_x = odeint(self.bicycle_dynamics_no_beta, x0, t, args=(
+        #    throttle, delta * np.pi / 180, self.turns[st.curHall],))
 
-        new_x = new_x[1]
+        #new_x = new_x[1]
+        new_x = self.bicycle_dynamics_clf(
+            st=st, delta=np.float(np.radians(delta)), throttle=throttle,
+            is_right_turn=(self.turns[st.curHall] < 0), use_beta=False,
+        )
 
         # add noise
         x_added_noise = x_noise * (2 * np.random.random() - 1)
@@ -797,20 +851,24 @@ class F110Mode(Mode[State]):
         wall_dist = np.sqrt(corner_dist ** 2 -
                             self.hallWidths[(st1.curHall+1) % self.numHalls] ** 2)
 
+        reward += SPEED_GAIN * st1.car_V
+
         # Region 1
         if st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
            st1.car_dist_f > wall_dist:
+
+            #reward += MOVE_FORWARD_GAIN * (st0.car_dist_f - st1.car_dist_f)
 
             # only apply these rules if not too close to a turn
             if st1.car_dist_f > LIDAR_RANGE:
 
                 reward += INPUT_REWARD_GAIN * delta * delta
-                reward += MIDDLE_REWARD_GAIN * \
-                    abs(st1.car_dist_s - self.hallWidths[st1.curHall] / 2.0)
+                #reward += MIDDLE_REWARD_GAIN * \
+                #    abs(st1.car_dist_s - self.hallWidths[st1.curHall] / 2.0)
 
         # Region 2
         elif st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
-                st1.car_dist_f <= wall_dist:
+                st1.car_dist_f <= wall_dist + REGION2_EXTENSION:
 
             reward += HEADING_GAIN * (np.abs(st1.car_heading - self.turns[st1.curHall]))
             if not np.sign(st1.car_heading) == np.sign(self.turns[st1.curHall]):

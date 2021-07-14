@@ -1,0 +1,3 @@
+[submodule "spectrl_hierarchy"]
+	path = spectrl_hierarchy
+	url = git@github.com:keyshor/spectrl_hierarchy.git

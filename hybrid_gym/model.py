@@ -14,18 +14,15 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
     name: str
     action_space: gym.Space
     observation_space: gym.Space
-    goal_space: gym.Space  # for compatibility with HER
 
     def __init__(self,
                  name: str,
                  action_space: gym.Space,
                  observation_space: gym.Space,
-                 goal_space: gym.Space = gym.Space(),
                  ) -> None:
         self.name = name
         self.action_space = action_space
         self.observation_space = observation_space
-        self.goal_space = goal_space
 
     def clip_action(self, action: np.ndarray) -> np.ndarray:
         if isinstance(self.action_space, gym.spaces.Box):
@@ -37,7 +34,7 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         new_state = self._step_fn(state, self.clip_action(action))
         return new_state
 
-    def observe(self, state: StateType) -> np.ndarray:
+    def observe(self, state: StateType) -> Any:
         obs = self._observation_fn(state)
         assert self.observation_space.contains(obs)
         return obs
@@ -74,7 +71,7 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def _observation_fn(self, state: StateType) -> np.ndarray:
+    def _observation_fn(self, state: StateType) -> Any:
         '''
         Returns the observation at the given state.
         '''
@@ -87,29 +84,27 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         '''
         pass
 
+    @abstractmethod
     def vectorize_state(self, state: StateType) -> np.ndarray:
         '''
         Returns a vector representation of the given state.
         '''
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def state_from_vector(self, vec: np.ndarray) -> StateType:
         '''
         Returns state from a given vector.
         '''
-        raise NotImplementedError
+        pass
 
-    def achieved_goal(self, state: StateType) -> np.ndarray:
+    def compute_reward(self,
+                       achieved_goal: np.ndarray,
+                       desired_goal: np.ndarray,
+                       info: Any,
+                       ) -> float:
         '''
-        Goal achieved in the current state.
-        (For learning using HER)
-        '''
-        raise NotImplementedError
-
-    def desired_goal(self, state: StateType) -> np.ndarray:
-        '''
-        Desired goal of the mode w.r.t. the current state.
-        (For learning using HER)
+        for compatibility with GoalEnv
         '''
         raise NotImplementedError
 

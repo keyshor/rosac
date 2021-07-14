@@ -34,52 +34,26 @@ env = HybridGoalEnv(
 )
 controllers = {}
 
-trials_per_mode = 100
+num_trials = 5
 steps_per_trial = 100
-end_to_end_trials = 100
-steps_per_mode = 100
 
-def eval_single(name):
+def visualize_mode(name):
     mode = automaton.modes[name]
     #mode_env = GymEnvWrapper(mode, automaton.transitions[name], flatten_obs=True)
     mode_env = GymGoalEnvWrapper(mode, automaton.transitions[name])
     ctrl = controllers[name]
     num_successes = 0
-    for _ in range(trials_per_mode):
+    for _ in range(num_trials):
         obs = mode_env.reset()
         done = False
         for _ in range(steps_per_trial):
-            if not done:
-                action = ctrl.get_action(obs)
-                obs, _, done, _ = mode_env.step(action)
-            #mode_env.render()
+            #if not done:
+            #    action = ctrl.get_action(obs)
+            #    obs, _, done, _ = mode_env.step(action)
+            mode_env.render()
         if mode.is_success(mode_env.state):
             num_successes += 1
-    print(f'success rate for mode {name} is {num_successes}/{trials_per_mode}')
-
-def eval_end_to_end():
-    num_successes = 0
-    for _ in range(end_to_end_trials):
-        observation = env.reset()
-        steps_in_cur_mode = 0
-        mode = ''
-        done = False
-        while not done:
-            if mode != env.mode.name:
-                mode = env.mode.name
-                steps_in_cur_mode = 0
-                #print(f'switched to {mode}')
-            delta = controllers[mode].get_action(observation)
-            observation, reward, done, info = env.step(delta)
-            #env.render()
-            steps_in_cur_mode += 1
-            if steps_in_cur_mode > steps_per_mode:
-                #print(f'stuck in mode {mode} for {steps_per_mode} steps')
-                break
-        if env.selector.index == len(env.selector.mode_list) - 1 \
-                and env.mode.is_success(env.state):
-            num_successes += 1
-    print(f'end-to-end success rate is {num_successes}/{end_to_end_trials}')
+    #print(f'success rate for mode {name} is {num_successes}/{num_trials}')
 
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
@@ -93,6 +67,4 @@ if __name__ == '__main__':
             env=env,
         )
         #controllers[name] = SpectrlCtrlWrapper.load(f'{name}.spectrl')
-        eval_single(name)
-    if len(sys.argv) <= 1:
-        eval_end_to_end()
+        visualize_mode(name)
