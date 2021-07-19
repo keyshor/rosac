@@ -2,6 +2,8 @@ import os
 import sys
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
+
+# flake8: noqa
 import numpy as np
 import gym
 import joblib
@@ -10,6 +12,7 @@ from hybrid_gym.train.single_mode import make_spectrl_model, train_spectrl
 from hybrid_gym.envs import make_pick_place_model
 
 automaton = make_pick_place_model(num_objects=3, reward_type='dense')
+
 
 def train_single(name, num_episodes):
     mode = automaton.modes[name]
@@ -27,7 +30,8 @@ def train_single(name, num_episodes):
     train_spectrl(model, mode, automaton.transitions[name])
     joblib.dump(model, f'{name}.spectrl')
 
+
 if __name__ == '__main__':
     train_single(sys.argv[1], int(sys.argv[2]))
-    #for name in automaton.modes:
+    # for name in automaton.modes:
     #    train_single(name, 4000)

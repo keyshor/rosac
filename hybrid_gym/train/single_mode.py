@@ -13,13 +13,15 @@ from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 from hybrid_gym.model import Mode, Transition, StateType
 from hybrid_gym.util.wrappers import GymEnvWrapper, GymGoalEnvWrapper, DoneOnSuccessWrapper
 
+
 def make_spectrl_model(mode: Mode,
                        transitions: Iterable[Transition],
                        max_episode_steps: int = 50,
                        **kwargs,
                        ) -> SpectrlDdpg:
     transition_list = list(transitions)
-    env = TimeLimit(GymEnvWrapper(mode, transition_list, flatten_obs=True), max_episode_steps=max_episode_steps)
+    env = TimeLimit(GymEnvWrapper(mode, transition_list, flatten_obs=True),
+                    max_episode_steps=max_episode_steps)
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     action_bound = env.action_space.high
@@ -27,21 +29,24 @@ def make_spectrl_model(mode: Mode,
     model = SpectrlDdpg(params)
     return model
 
+
 def train_spectrl(model, mode: Mode, transitions: Iterable[Transition],
                   init_states: Optional[Callable[[], StateType]] = None,
                   reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
                   max_episode_steps: int = 50,
                   ) -> None:
     transition_list = list(transitions)
-    env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states, reward_fn, flatten_obs=True), max_episode_steps=max_episode_steps)
+    env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states, reward_fn,
+                    flatten_obs=True), max_episode_steps=max_episode_steps)
     model.train(env)
+
 
 def make_sb_model(mode: Mode,
                   transitions: Iterable[Transition],
                   algo_name: str = 'td3',
                   wrapped_algo: str = 'ddpg',  # only relevent to HER
                   action_noise_scale: float = 0.1,
-                  custom_policy = None,
+                  custom_policy=None,
                   max_episode_steps: int = 50,
                   **kwargs
                   ) -> BaseRLModel:
@@ -84,7 +89,7 @@ def make_sb_model(mode: Mode,
     elif algo_name == 'sac':
         model = SAC(policy, env, **kwargs)
     elif algo_name == 'td3':
-        #env = GymEnvWrapper(mode, transition_list, flatten_obs=True)
+        # env = GymEnvWrapper(mode, transition_list, flatten_obs=True)
         model = TD3(policy, env, action_noise=ddpg_action_noise, **kwargs)
     elif algo_name == 'trpo':
         model = TRPO(policy, env, **kwargs)
@@ -101,17 +106,19 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
                  ) -> None:
     transition_list = list(transitions)
     if algo_name == 'td3':
-        env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states, reward_fn, flatten_obs=True), max_episode_steps=max_episode_steps)
+        env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states, reward_fn,
+                        flatten_obs=True), max_episode_steps=max_episode_steps)
     elif algo_name == 'her':
         env = HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
             GymGoalEnvWrapper(mode, transition_list, init_states, reward_fn),
             max_episode_steps=max_episode_steps,
         )))
     else:
-        env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states, reward_fn), max_episode_steps=max_episode_steps)
+        env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states,
+                        reward_fn), max_episode_steps=max_episode_steps)
     model.set_env(env)
     callback = EvalCallback(
         eval_env=env, n_eval_episodes=100, eval_freq=10000,
-        #log_path=f'{mode.name}', best_model_save_path=f'{mode.name}',
+        # log_path=f'{mode.name}', best_model_save_path=f'{mode.name}',
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)

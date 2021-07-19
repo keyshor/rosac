@@ -38,16 +38,13 @@ def cegrl(automaton: HybridAutomaton,
           pre: Dict[str, AbstractState],
           time_limits: Dict[str, int],
           algo_name: str = 'td3',
-          wrapped_algo: str = 'ddpg',  # only relevent to HER
-          policy: str = 'MlpPolicy',
           steps_per_iter: int = 10000,
           num_iter: int = 20,
-          action_noise_scale: float = 0.1,
-          verbose: int = 0,
           num_synth_iter: int = 10,
           n_samples: int = 20,
           abstract_samples: int = 0,
-          print_debug: bool = False
+          print_debug: bool = False,
+          **kwargs
           ) -> Dict[str, Controller]:
     '''
     Train policies for all modes
@@ -59,10 +56,8 @@ def cegrl(automaton: HybridAutomaton,
         mode,
         automaton.transitions[name],
         algo_name=algo_name,
-        wrapped_algo=wrapped_algo,
-        policy=policy,
-        action_noise_scale=action_noise_scale,
-        verbose=verbose)
+        max_episode_steps=time_limits[name],
+        **kwargs)
         for (name, mode) in automaton.modes.items()}
     controllers: Dict[str, Controller] = {
         name: BaselineCtrlWrapper(model) for (name, model) in models.items()}
@@ -75,7 +70,7 @@ def cegrl(automaton: HybridAutomaton,
             print('\n---- Training controller for mode {} ----'.format(name))
             train_stable(models[name], mode, automaton.transitions[name],
                          total_timesteps=steps_per_iter, init_states=reset_funcs[name],
-                         algo_name=algo_name)
+                         algo_name=algo_name, max_episode_steps=time_limits[name])
 
         # synthesis
         print('\n---- Running synthesis ----')

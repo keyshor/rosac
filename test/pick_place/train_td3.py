@@ -17,6 +17,7 @@ from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.envs.pick_place.mode import PickPlaceMode
 from hybrid_gym.train.rlbl_zoo_utils.wrappers import DoneOnSuccessWrapper
 
+
 class CustomTd3Policy(FeedForwardPolicy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args,
@@ -24,6 +25,7 @@ class CustomTd3Policy(FeedForwardPolicy):
                          layers=[256],
                          layer_norm=False,
                          feature_extraction='mlp')
+
 
 if __name__ == '__main__':
     automaton = make_pick_place_model(num_objects=3, reward_type='dense')

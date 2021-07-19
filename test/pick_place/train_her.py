@@ -19,6 +19,7 @@ from hybrid_gym.envs.pick_place.mode import PickPlaceMode
 
 automaton = make_pick_place_model(num_objects=3)
 
+
 def train_single(name, total_timesteps):
     mode = automaton.modes[name]
     model = make_sb_model(
@@ -34,6 +35,7 @@ def train_single(name, total_timesteps):
     train_stable(model, mode, automaton.transitions[name],
                  total_timesteps=total_timesteps, algo_name='her')
     ctrl = BaselineCtrlWrapper(model)
+
 
 if __name__ == '__main__':
     train_single(sys.argv[1], int(sys.argv[2]))

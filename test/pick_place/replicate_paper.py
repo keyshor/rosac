@@ -16,6 +16,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 from hybrid_gym.train.single_mode import make_sb_model, train_stable
 from hybrid_gym.util.wrappers import BaselineCtrlWrapper, DoneOnSuccessWrapper
 
+
 def train_model(total_timesteps):
     env = HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
         FetchPickAndPlaceEnv(),
@@ -34,6 +35,7 @@ def train_model(total_timesteps):
         best_model_save_path=f'replicate_paper',
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)
+
 
 if __name__ == '__main__':
     train_model(int(sys.argv[1]))

@@ -16,7 +16,7 @@ automaton = make_pick_place_model(num_objects=num_objects,
                                   reward_type='sparse',
                                   distance_threshold=0.015)
 
-#env = HybridEnv(
+# env = HybridEnv(
 env = HybridGoalEnv(
     automaton=automaton,
     selector=FixedSequenceSelector(
@@ -30,12 +30,13 @@ env = HybridGoalEnv(
             automaton.modes['ModeType.PLACE_OBJ_PT2'],
         ] * num_objects
     ),
-    #flatten_obs=True
+    # flatten_obs=True
 )
-controllers = {}
+controllers: dict = {}
 
 num_trials = 5
 steps_per_trial = 100
+
 
 def visualize_mode(name):
     mode = automaton.modes[name]
@@ -47,13 +48,14 @@ def visualize_mode(name):
         obs = mode_env.reset()
         done = False
         for _ in range(steps_per_trial):
-            #if not done:
+            # if not done:
             #    action = ctrl.get_action(obs)
             #    obs, _, done, _ = mode_env.step(action)
             mode_env.render()
         if mode.is_success(mode_env.state):
             num_successes += 1
     #print(f'success rate for mode {name} is {num_successes}/{num_trials}')
+
 
 if __name__ == '__main__':
     if len(sys.argv) >= 2:

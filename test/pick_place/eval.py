@@ -16,7 +16,7 @@ automaton = make_pick_place_model(num_objects=num_objects,
                                   reward_type='sparse',
                                   distance_threshold=0.015)
 
-#env = HybridEnv(
+# env = HybridEnv(
 env = HybridGoalEnv(
     automaton=automaton,
     selector=FixedSequenceSelector(
@@ -30,14 +30,15 @@ env = HybridGoalEnv(
             automaton.modes['ModeType.PLACE_OBJ_PT2'],
         ] * num_objects
     ),
-    #flatten_obs=True
+    # flatten_obs=True
 )
-controllers = {}
+controllers: dict = {}
 
 trials_per_mode = 100
 steps_per_trial = 100
 end_to_end_trials = 100
 steps_per_mode = 100
+
 
 def eval_single(name):
     mode = automaton.modes[name]
@@ -52,10 +53,11 @@ def eval_single(name):
             if not done:
                 action = ctrl.get_action(obs)
                 obs, _, done, _ = mode_env.step(action)
-            #mode_env.render()
+            # mode_env.render()
         if mode.is_success(mode_env.state):
             num_successes += 1
     print(f'success rate for mode {name} is {num_successes}/{trials_per_mode}')
+
 
 def eval_end_to_end():
     num_successes = 0
@@ -71,7 +73,7 @@ def eval_end_to_end():
                 #print(f'switched to {mode}')
             delta = controllers[mode].get_action(observation)
             observation, reward, done, info = env.step(delta)
-            #env.render()
+            # env.render()
             steps_in_cur_mode += 1
             if steps_in_cur_mode > steps_per_mode:
                 #print(f'stuck in mode {mode} for {steps_per_mode} steps')
@@ -80,6 +82,7 @@ def eval_end_to_end():
                 and env.mode.is_success(env.state):
             num_successes += 1
     print(f'end-to-end success rate is {num_successes}/{end_to_end_trials}')
+
 
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
