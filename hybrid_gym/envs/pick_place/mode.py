@@ -328,6 +328,13 @@ class MultiObjectEnv(robot_env.RobotEnv):
              for i in range(self.num_objects)]
         )
 
+    def unvectorize_goal(self, vec: np.ndarray) -> Dict[str, np.ndarray]:
+        return dict(
+            [('arm', vec[0:3]), ('finger', vec[3:5])] +
+            [(f'obj{i}', vec[5 + 3*i : 8 + 3*i])
+             for i in range(self.num_objects)],
+        )
+
     def _sample_goal(self) -> np.ndarray:
         self.goal_dict = self.make_goal_dict()
         return self.goal_vector(self.goal_dict)
@@ -430,9 +437,7 @@ class PickPlaceMode(Mode[State]):
     multi_obj: MultiObjectEnv
     obj_perm_index: int
     num_stack_index: int
-    goal_arm_index: int
-    goal_finger_index: int
-    goal_obj_index: int
+    goal_index: int
 
     def __init__(self,
                  mode_type: ModeType,
@@ -459,9 +464,7 @@ class PickPlaceMode(Mode[State]):
         )
         self.obj_perm_index = -4 * num_objects - 6
         self.num_stack_index = -3 * num_objects - 6
-        # goal_arm_index = -3 * num_objects - 5
-        # goal_finger_index = -3 * num_objects - 2
-        # goal_obj_index = -3 * num_objects
+        self.goal_index = -3 * num_objects - 5
         super().__init__(
             name=str(mode_type),
             action_space=self.multi_obj.action_space,
@@ -568,10 +571,5 @@ class PickPlaceMode(Mode[State]):
             ),
             obj_perm=vec[self.obj_perm_index: self.num_stack_index],
             num_stack=vec[self.num_stack_index],
-            goal_dict=dict(
-                [('arm', vec[self.goal_arm_index: self.goal_finger_index])] +
-                [('finger', vec[self.goal_finger_index: self.goal_obj_index])] +
-                [(f'obj{i}', vec[self.goal_obj_index + 3*i: self.goal_obj_index + 3*i + 3])
-                 for i in range(self.multi_obj.num_objects)]
-            ),
+            goal_dict=self.multi_obj.unvectorize_goal(vec[self.goal_index:]),
         )
