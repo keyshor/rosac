@@ -6,7 +6,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
 from hybrid_gym.envs import make_pick_place_model
-from hybrid_gym.synthesis.abstractions import Box
+from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
 
 
@@ -15,10 +15,9 @@ if __name__ == '__main__':
 
     pre = {}
     for m in automaton.modes:
-        pre[m] = Box()
+        pre[m] = StateWrapper(automaton.modes[m], Box())
         for _ in range(100):
-            state = automaton.modes[m].reset()
-            pre[m].extend(automaton.modes[m].vectorize_state(state))
+            pre[m].extend(automaton.modes[m].reset())
 
     time_limits = {m: 50 for m in automaton.modes}
 
