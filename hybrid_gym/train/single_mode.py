@@ -52,10 +52,6 @@ def make_sb_model(mode: Mode,
                   ) -> BaseRLModel:
     transition_list = list(transitions)
     env = TimeLimit(GymEnvWrapper(mode, transition_list), max_episode_steps=max_episode_steps)
-    goal_env = HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
-        GymGoalEnvWrapper(mode, transition_list),
-        max_episode_steps=max_episode_steps,
-    )))
     action_shape = mode.action_space.shape
     ddpg_action_noise = NormalActionNoise(
         mean=np.zeros(action_shape),
@@ -74,14 +70,21 @@ def make_sb_model(mode: Mode,
         model = DQN(policy, env, **kwargs)
     elif algo_name == 'gail':
         model = GAIL(policy, env, **kwargs)
-    elif algo_name == 'her' and wrapped_algo == 'ddpg':
-        model = HER(policy, goal_env, DDPG, action_noise=ddpg_action_noise, **kwargs)
-    elif algo_name == 'her' and wrapped_algo == 'dqn':
-        model = HER(policy, goal_env, DQN, **kwargs)
-    elif algo_name == 'her' and wrapped_algo == 'sac':
-        model = HER(policy, goal_env, SAC, **kwargs)
-    elif algo_name == 'her' and wrapped_algo == 'td3':
-        model = HER(policy, goal_env, TD3, action_noise=ddpg_action_noise, **kwargs)
+    elif algo_name == 'her':
+        goal_env = HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
+            GymGoalEnvWrapper(mode, transition_list),
+            max_episode_steps=max_episode_steps,
+        )))
+        if wrapped_algo == 'ddpg':
+            model = HER(policy, goal_env, DDPG, action_noise=ddpg_action_noise, **kwargs)
+        elif wrapped_algo == 'dqn':
+            model = HER(policy, goal_env, DQN, **kwargs)
+        elif wrapped_algo == 'sac':
+            model = HER(policy, goal_env, SAC, **kwargs)
+        elif wrapped_algo == 'td3':
+            model = HER(policy, goal_env, TD3, action_noise=ddpg_action_noise, **kwargs)
+        else:
+            raise ValueError
     elif algo_name == 'ppo1':
         model = PPO1(policy, env, **kwargs)
     elif algo_name == 'ppo2':
@@ -119,6 +122,6 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
     model.set_env(env)
     callback = EvalCallback(
         eval_env=env, n_eval_episodes=100, eval_freq=10000,
-        # log_path=f'{mode.name}', best_model_save_path=f'{mode.name}',
+        log_path=f'{mode.name}', best_model_save_path=f'{mode.name}',
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)

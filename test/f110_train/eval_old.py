@@ -12,8 +12,10 @@ from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 
 import matplotlib.pyplot as plt
 
+
+automaton = make_f110_model(straight_lengths=[10])
+
 def eval_end_to_end():
-    automaton = make_f110_model(straight_lengths=[10])
     controllers = {name: BaselineCtrlWrapper.load(
         os.path.join(f'{name}', 'best_model.zip'),
         algo_name='td3',
@@ -66,7 +68,6 @@ def eval_end_to_end():
         fig.savefig(f'trajectories_{m.name}.png')
 
 def eval_single(name):
-    automaton = make_f110_model(straight_lengths=[10])
     controller = BaselineCtrlWrapper.load(
         os.path.join(f'{name}', 'best_model.zip'),
         algo_name='td3',
@@ -105,14 +106,18 @@ def eval_single(name):
     ax.scatter(x_hist, y_hist, s=1)
     ax.set_title(name)
     fig.savefig(f'trajectories_{name}.png')
-    print(f'nonterm = {nonterm}, normal = {normal}, crash = {crash}')
+    print(f'{name}: nonterm = {nonterm}, normal = {normal}, crash = {crash}')
 
 def plot_lidar(name):
-    automaton = make_f110_model(straight_lengths=[10])
     controller = BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
     mode = automaton.modes[name]
     st = mode.reset()
     mode.render(st)
 
 if __name__ == '__main__':
-    eval_single(sys.argv[1])
+    if len(sys.argv) >= 2:
+        mode_list = sys.argv[1:]
+    else:
+        mode_list = list(automaton.modes)
+    for name in mode_list:
+        eval_single(name)

@@ -10,8 +10,9 @@ from hybrid_gym.util.wrappers import BaselineCtrlWrapper
 from hybrid_gym.envs import make_f110_model
 
 
+automaton = make_f110_model(straight_lengths=[10])
+
 def train_single(name, total_timesteps):
-    automaton = make_f110_model(straight_lengths=[10])
     mode = automaton.modes[name]
     model = make_sb_model(
         mode,
@@ -19,7 +20,7 @@ def train_single(name, total_timesteps):
         algo_name='td3',
         action_noise_scale=4.0,
         verbose=0,
-        max_episode_steps=50,
+        max_episode_steps=100,
     )
     train_stable(model, mode, automaton.transitions[name],
                  total_timesteps=total_timesteps, algo_name='td3',
@@ -32,20 +33,17 @@ def train_all_modes():
             mode,
             automaton.transitions[name],
             algo_name='td3',
-            action_noise_scale=8.0,
-            verbose=2
+            action_noise_scale=4.0,
+            verbose=0,
+            max_episode_steps=100,
         )
         for (name, mode) in automaton.modes.items()
     }
     for (name, mode) in automaton.modes.items():
         train_stable(models[name], mode, automaton.transitions[name],
-                     total_timesteps=200000, algo_name='td3')
-    controller = {name: BaselineCtrlWrapper(model) for (name, model) in models.items()}
-    for (mode_name, ctrl) in controller.items():
-        ctrl.save(f'{mode_name}.td3')
+                     total_timesteps=20000, algo_name='td3')
 
 def train_mode_pred():
-    automaton = make_f110_model(straight_lengths=[10])
     controller = {
         name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
         for name in automaton.modes
@@ -57,4 +55,10 @@ def train_mode_pred():
     mode_pred.save('mode_predictor.mlp')
 
 if __name__ == '__main__':
-    train_single(sys.argv[1], int(sys.argv[2]))
+    if len(sys.argv) >= 2:
+        mode_list = sys.argv[1:]
+    else:
+        mode_list = list(automaton.modes)
+    for name in mode_list:
+        print(f'training mode {name}')
+        train_single(name, 200000)
