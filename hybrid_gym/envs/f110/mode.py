@@ -31,23 +31,16 @@ CONST_THROTTLE: float = 16
 MAX_THROTTLE: float = 50  # just used to compute maximum possible velocity
 
 # training parameters
-#STEP_REWARD_GAIN: float = 1
-#INPUT_REWARD_GAIN: float = 0
-#CRASH_REWARD: float = -100
-#MIDDLE_REWARD_GAIN: float = -10
-#HEADING_GAIN: float = -100
-#MOVE_FORWARD_GAIN: float = 30
-#REGION3_ENTER_GAIN: float = 0  # 100
-#REGION2_EXTENSION: float = 2
-SPEED_GAIN: float = 3
-STEP_REWARD_GAIN: float = -10
+MINIMUM_ACCEPTABLE_SPEED: float = 1.5
+LOW_SPEED_REWARD: float = -20
+SPEED_GAIN: float = 0
+STEP_REWARD_GAIN: float = 5
 INPUT_REWARD_GAIN: float = 0
 CRASH_REWARD: float = -100
 MIDDLE_REWARD_GAIN: float = -3
 HEADING_GAIN: float = -3
 MOVE_FORWARD_GAIN: float = 10
 REGION3_ENTER_GAIN: float = 0  # 100
-REGION2_EXTENSION: float = 0
 
 # direction parameters
 
@@ -534,7 +527,7 @@ class F110Mode(Mode[State]):
                          car_global_x, car_global_y, car_global_heading])
 
     def _step_fn(self, st: State, action: np.ndarray) -> State:
-        delta = action[0]
+        delta = MAX_TURNING_INPUT * action[0]
         throttle = 0.5 * (action[1] + 1.0) * MAX_THROTTLE
         #throttle = CONST_THROTTLE
         return self.helper_step(st, delta, throttle)
@@ -852,6 +845,8 @@ class F110Mode(Mode[State]):
                             self.hallWidths[(st1.curHall+1) % self.numHalls] ** 2)
 
         reward += SPEED_GAIN * st1.car_V
+        if st1.car_V < MINIMUM_ACCEPTABLE_SPEED:
+            reward += LOW_SPEED_REWARD
 
         # Region 1
         if st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
@@ -863,14 +858,14 @@ class F110Mode(Mode[State]):
             if st1.car_dist_f > LIDAR_RANGE:
 
                 reward += INPUT_REWARD_GAIN * delta * delta
-                #reward += MIDDLE_REWARD_GAIN * \
-                #    abs(st1.car_dist_s - self.hallWidths[st1.curHall] / 2.0)
+                reward += MIDDLE_REWARD_GAIN * \
+                    abs(st1.car_dist_s - self.hallWidths[st1.curHall] / 2.0)
 
         # Region 2
         elif st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
-                st1.car_dist_f <= wall_dist + REGION2_EXTENSION:
+                st1.car_dist_f <= wall_dist:
 
-            reward += HEADING_GAIN * (np.abs(st1.car_heading - self.turns[st1.curHall]))
+            reward += HEADING_GAIN * np.abs(st1.car_heading - self.turns[st1.curHall])
             if not np.sign(st1.car_heading) == np.sign(self.turns[st1.curHall]):
                 reward -= 10 * STEP_REWARD_GAIN
 
