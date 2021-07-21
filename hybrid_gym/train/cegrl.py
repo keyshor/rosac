@@ -8,7 +8,6 @@ from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import BaselineCtrlWrapper
 from typing import List, Dict, Any
-from copy import deepcopy
 
 import numpy as np
 import random
@@ -74,7 +73,7 @@ def cegrl(automaton: HybridAutomaton,
 
         # synthesis
         print('\n---- Running synthesis ----')
-        ces = synthesize(automaton, controllers, deepcopy(pre), time_limits, num_synth_iter,
+        ces = synthesize(automaton, controllers, pre.copy(), time_limits, num_synth_iter,
                          n_samples, abstract_samples, print_debug)
 
         # add counterexamples to reset function

@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from typing import Any, Optional
+from copy import deepcopy
 
 import numpy as np
 
@@ -22,6 +23,9 @@ class AbstractState(metaclass=ABCMeta):
         Sampling is optional
         '''
         return NotImplementedError
+
+    def copy(self):
+        return deepcopy(self)
 
 
 class Box(AbstractState):
@@ -77,6 +81,9 @@ class VectorizeWrapper(AbstractState):
             state = self.mode.vectorize_state(state)
         return state
 
+    def copy(self):
+        return StateWrapper(self.mode, self.abstract_state.copy())
+
 
 class StateWrapper(AbstractState):
     '''
@@ -99,3 +106,6 @@ class StateWrapper(AbstractState):
         if state is not None:
             state = self.mode.state_from_vector(state)
         return state
+
+    def copy(self):
+        return StateWrapper(self.mode, self.abstract_state.copy())
