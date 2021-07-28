@@ -569,7 +569,7 @@ class PickPlaceMode(Mode[State]):
                 vec[0: self.obj_perm_index],
                 self.multi_obj.sim,
             ),
-            obj_perm=vec[self.obj_perm_index: self.num_stack_index],
-            num_stack=vec[self.num_stack_index],
+            obj_perm=vec[self.obj_perm_index: self.num_stack_index].astype(np.int),
+            num_stack=int(vec[self.num_stack_index]),
             goal_dict=self.multi_obj.unvectorize_goal(vec[self.goal_index:]),
         )
