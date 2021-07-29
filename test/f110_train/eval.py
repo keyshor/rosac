@@ -10,7 +10,7 @@ from hybrid_gym.envs import make_f110_model
 from hybrid_gym.util.test import end_to_end_test
 from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
-from hybrid_gym.falsification.rl_based import learn_adversary
+from hybrid_gym.falsification.rl_based import dqn_adversary, mcts_adversary
 
 import matplotlib.pyplot as plt
 
@@ -19,20 +19,22 @@ if __name__ == '__main__':
 
     controllers = {
         name: BaselineCtrlWrapper.load(
-            os.path.join(f'{name}', 'best_model.zip'),
+            name + '.td3',
             algo_name='td3',
         )
         for name in automaton.modes
     }
 
-    # controllers['f110_straight_10m'] = controllers['f110_square_right']
     # mode_predictor = ScipyModePredictor.load(
     #     'mode_predictor.mlp', automaton.observation_space, 'mlp')
 
     time_limits = {m: 100 for m in automaton.modes}
 
-    selector = learn_adversary(automaton, controllers, time_limits, max_jumps=10,
-                               learning_timesteps=500, policy_kwargs={'layers': [16, 16]})
+    # selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
+    #                           learning_timesteps=500, policy_kwargs={'layers': [16, 16]})
+
+    selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
+                              num_rollouts=50)
 
     print('Probability of successful completion: {}'.format(
         end_to_end_test(automaton, selector, controllers, time_limits,

@@ -26,7 +26,8 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
                  mode: Mode[StateType],
                  transitions: Iterable[Transition],
                  custom_reset: Optional[Callable[[], StateType]] = None,
-                 custom_reward: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
+                 custom_reward: Optional[Callable[
+                     [StateType, np.ndarray, StateType], float]] = None,
                  flatten_obs: bool = False
                  ) -> None:
         self.mode = mode

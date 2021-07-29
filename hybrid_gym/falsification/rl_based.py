@@ -189,14 +189,97 @@ class RLSelector(ModeSelector):
         return self.env.init_transition.targets[mode_idx]
 
 
-def learn_adversary(automaton: HybridAutomaton,
-                    controller: Union[Dict[str, Controller], Controller],
-                    time_limits: Dict[str, int],
-                    max_jumps: int = 100,
-                    observation_type: str = 'full',
-                    learning_timesteps: int = 1000,
-                    policy_kwargs: Optional[Dict] = None,
-                    dqn_kwargs: Dict = {}) -> ModeSelector:
+class MCTS_Node:
+
+    def __init__(self, num_branches, parent=None, children=None):
+        self.num_branches = num_branches
+        self.parent = parent
+        self.children = children
+        self.q_val = 0.
+        self.num_visits = 0
+
+    def get_ucb_action(self, exploration_constant):
+        if self.children is not None:
+            max_children = []
+            max_val = -np.inf
+            for c in range(self.num_branches):
+                ucb_val = self.children[c]._get_ucb_val(exploration_constant)
+                if ucb_val > max_val:
+                    max_val = ucb_val
+                    max_children = [c]
+                elif ucb_val == max_val:
+                    max_children.append(c)
+            return random.choice(max_children)
+        else:
+            return random.choice(range(self.num_branches))
+
+    def get_child(self, action, num_branches):
+        if self.num_visits == 0:
+            return None
+        if self.children is None:
+            self.children = [MCTS_Node(self.num_branches, parent=self)
+                             for _ in range(self.num_branches)]
+        return self.children[action]
+
+    def backpropagate(self, reward):
+        self.q_val += reward
+        self.num_visits += 1
+        if self.parent is not None:
+            self.parent.backpropagate(reward)
+
+    def get_best_child(self):
+        if self.children is not None:
+            qvals = [child.q_val for child in self.children]
+            return np.argmax(qvals)
+        else:
+            return -1
+
+    def _get_ucb_val(self, C):
+        try:
+            exploit_val = (self.q_val / self.num_visits)
+            explore_val = C * np.sqrt(np.log(self.parent.num_visits) / self.num_visits)
+            return exploit_val + explore_val
+        except ZeroDivisionError:
+            return np.inf
+
+
+class MCTS_Selector(ModeSelector):
+    '''
+    Mode Selector corresponding to a MCTS tree.
+    '''
+    root: MCTS_Node
+    node: MCTS_Node
+    env: SelectorEnv
+    mname: str
+
+    def __init__(self, root: MCTS_Node, env: SelectorEnv):
+        self.root = root
+        self.env = env
+
+    def next_mode(self, transition: Transition, state: Any) -> Tuple[str, bool]:
+        if self.node.children is None:
+            return self.mname, True
+        mode_idx = self.node.get_best_child()
+        self.node = self.node.children[mode_idx]
+        mode_idx = mode_idx % len(transition.targets)
+        self.mname = transition.targets[mode_idx]
+        return self.mname, False
+
+    def reset(self) -> str:
+        mode_idx = self.root.get_best_child()
+        self.mname = self.env.init_transition.targets[mode_idx]
+        self.node = self.root.children[mode_idx]
+        return self.mname
+
+
+def dqn_adversary(automaton: HybridAutomaton,
+                  controller: Union[Dict[str, Controller], Controller],
+                  time_limits: Dict[str, int],
+                  max_jumps: int = 100,
+                  observation_type: str = 'full',
+                  learning_timesteps: int = 1000,
+                  policy_kwargs: Optional[Dict] = None,
+                  dqn_kwargs: Dict = {}) -> ModeSelector:
     '''
     Learns an adversary to pick the next mode during each mode transition.
 
@@ -211,3 +294,50 @@ def learn_adversary(automaton: HybridAutomaton,
     model = DQN('MlpPolicy', adversary_env, policy_kwargs=policy_kwargs, **dqn_kwargs)
     model.learn(learning_timesteps)
     return MaxJumpWrapper(RLSelector(model, adversary_env), max_jumps)
+
+
+def mcts_adversary(automaton: HybridAutomaton,
+                   controller: Union[Dict[str, Controller], Controller],
+                   time_limits: Dict[str, int],
+                   max_jumps: int = 100,
+                   exploration_constant: float = 1.414,
+                   num_rollouts: int = 1000):
+
+    # Create adversary env
+    env = SelectorEnv(automaton, controller, time_limits, max_timesteps=max_jumps)
+
+    # Create empty tree
+    num_branches = env.action_space.n
+    root = MCTS_Node(num_branches, children=[MCTS_Node(num_branches)
+                                             for _ in range(num_branches)])
+
+    # Perform rollouts and extend tree
+    for _ in range(num_rollouts):
+
+        reward = 0.
+        done = False
+        node = root
+        leaf = node
+        env.reset()
+
+        while not done:
+
+            # select action and update node
+            if node is not None:
+                action = node.get_ucb_action(exploration_constant)
+                node = node.get_child(action, num_branches)
+                if node is not None:
+                    leaf = node
+            else:
+                action = random.choice(range(num_branches))
+
+            # Step environment
+            _, r, done, _ = env.step(action)
+
+            # update reward
+            reward += float(r > 0)
+
+        leaf.backpropagate(reward)
+
+    # return mcts based selector
+    return MCTS_Selector(root, env)
