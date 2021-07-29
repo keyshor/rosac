@@ -12,6 +12,7 @@ from hybrid_gym.envs import make_f110_model
 
 automaton = make_f110_model(straight_lengths=[10])
 
+
 def train_single(name, total_timesteps):
     mode = automaton.modes[name]
     model = make_sb_model(
@@ -25,6 +26,8 @@ def train_single(name, total_timesteps):
     train_stable(model, mode, automaton.transitions[name],
                  total_timesteps=total_timesteps, algo_name='td3',
                  max_episode_steps=100)
+    model.save(name + '.td3')
+
 
 def train_all_modes():
     automaton = make_f110_model(straight_lengths=[10])
@@ -43,6 +46,7 @@ def train_all_modes():
         train_stable(models[name], mode, automaton.transitions[name],
                      total_timesteps=20000, algo_name='td3')
 
+
 def train_mode_pred():
     controller = {
         name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
@@ -53,6 +57,7 @@ def train_mode_pred():
         # hidden_layer_sizes=(192,32), activation='tanh'
     )
     mode_pred.save('mode_predictor.mlp')
+
 
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
