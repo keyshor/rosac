@@ -14,7 +14,7 @@ from hybrid_gym.envs import make_pick_place_model
 automaton = make_pick_place_model(num_objects=3, reward_type='dense')
 
 
-def train_single(name, num_episodes):
+def train_single(name, num_episodes, save_path):
     mode = automaton.modes[name]
     model = make_spectrl_model(
         mode,
@@ -28,10 +28,10 @@ def train_single(name, num_episodes):
         target_clip=0.003, warmup=1000,
     )
     train_spectrl(model, mode, automaton.transitions[name])
-    joblib.dump(model, f'{name}.spectrl')
+    joblib.dump(model, os.path.join(save_path, mode.name + '.spectrl'))
 
 
 if __name__ == '__main__':
-    train_single(sys.argv[1], int(sys.argv[2]))
+    train_single(sys.argv[2], int(sys.argv[3]), sys.argv[1])
     # for name in automaton.modes:
     #    train_single(name, 4000)

@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     time_limits = {m: 50 for m in automaton.modes}
 
-    controllers = cegrl(automaton, pre, time_limits, algo_name='her', steps_per_iter=100000,
+    controllers = cegrl(automaton, pre, time_limits, algo_name='her', steps_per_iter=10,
                         num_iter=10, num_synth_iter=10, abstract_samples=0, print_debug=True,
                         wrapped_algo='sac', verbose=2, gamma=0.95, buffer_size=1000000,
                         ent_coef='auto', goal_selection_strategy='future',

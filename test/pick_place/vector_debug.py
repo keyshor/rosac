@@ -1,3 +1,4 @@
+# flake8: noqa
 import os
 import sys
 import numpy as np
@@ -14,6 +15,7 @@ from hybrid_gym.envs import make_pick_place_model
 
 automaton = make_pick_place_model(num_objects=3)
 
+
 def test_vector(mode, num_samples):
     for _ in range(num_samples):
         st0 = mode.reset()
@@ -23,6 +25,7 @@ def test_vector(mode, num_samples):
         if not np.allclose(vec0, vec1):
             print(np.abs(vec0 - vec1))
             raise Exception
+
 
 if __name__ == '__main__':
     for (name, mode) in automaton.modes.items():

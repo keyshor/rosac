@@ -29,8 +29,11 @@ class CustomTd3Policy(FeedForwardPolicy):
 
 if __name__ == '__main__':
     automaton = make_pick_place_model(num_objects=3, reward_type='dense')
+    save_path = '.'
     if len(sys.argv) >= 2:
-        mode_list = [(name, automaton.modes[name]) for name in sys.argv[1:]]
+        save_path = sys.argv[1]
+    if len(sys.argv) >= 3:
+        mode_list = [(name, automaton.modes[name]) for name in sys.argv[2:]]
     else:
         mode_list = list(automaton.modes.items())
     for (name, mode) in mode_list:
@@ -45,6 +48,4 @@ if __name__ == '__main__':
             verbose=2
         )
         train_stable(model, mode, automaton.transitions[name],
-                     total_timesteps=50000, algo_name='td3')
-        ctrl = BaselineCtrlWrapper(model)
-        ctrl.save(f'{name}.td3')
+                     total_timesteps=50000, algo_name='td3', save_path=save_path)
