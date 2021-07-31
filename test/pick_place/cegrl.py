@@ -16,9 +16,9 @@ if __name__ == '__main__':
     use_best_model = 0
     save_path = '.'
     if len(sys.argv) > 1:
-        use_best_model = int(sys.argv[1])
+        save_path = sys.argv[1]
     if len(sys.argv) > 2:
-        save_path = sys.argv[2]
+        use_best_model = int(sys.argv[2])
 
     pre = {}
     for m in automaton.modes:
