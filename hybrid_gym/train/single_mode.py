@@ -124,7 +124,7 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
     model.set_env(env)
     callback = EvalCallback(
         eval_env=env, n_eval_episodes=100, eval_freq=10000,
-        log_path=os.path.join(save_path, model.name),
-        best_model_save_path=os.path.join(save_path, model.name),
+        log_path=os.path.join(save_path, mode.name),
+        best_model_save_path=os.path.join(save_path, mode.name),
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)
