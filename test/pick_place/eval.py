@@ -88,6 +88,7 @@ if __name__ == '__main__':
     save_path = '.'
     if len(sys.argv) >= 2:
         save_path = sys.argv[1]
+    if len(sys.argv) >= 3:
         mode_list = sys.argv[2:]
     else:
         mode_list = list(automaton.modes)
