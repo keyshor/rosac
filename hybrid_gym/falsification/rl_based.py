@@ -3,6 +3,7 @@ Falsification using RL
 '''
 
 import gym
+import time
 import random
 import numpy as np
 
@@ -191,10 +192,10 @@ class RLSelector(ModeSelector):
 
 class MCTS_Node:
 
-    def __init__(self, num_branches, parent=None, children=None):
+    def __init__(self, num_branches, parent=None):
         self.num_branches = num_branches
         self.parent = parent
-        self.children = children
+        self.children = None
         self.q_val = 0.
         self.num_visits = 0
 
@@ -213,12 +214,11 @@ class MCTS_Node:
         else:
             return random.choice(range(self.num_branches))
 
-    def get_child(self, action, num_branches):
+    def get_child(self, action):
         if self.num_visits == 0:
             return None
         if self.children is None:
-            self.children = [MCTS_Node(self.num_branches, parent=self)
-                             for _ in range(self.num_branches)]
+            self.create_children()
         return self.children[action]
 
     def backpropagate(self, reward):
@@ -233,6 +233,10 @@ class MCTS_Node:
             return np.argmax(qvals)
         else:
             return -1
+
+    def create_children(self):
+        self.children = [MCTS_Node(self.num_branches, parent=self)
+                         for _ in range(self.num_branches)]
 
     def _get_ucb_val(self, C):
         try:
@@ -301,17 +305,20 @@ def mcts_adversary(automaton: HybridAutomaton,
                    time_limits: Dict[str, int],
                    max_jumps: int = 100,
                    exploration_constant: float = 1.414,
-                   num_rollouts: int = 1000):
+                   num_rollouts: int = 1000,
+                   print_debug=False):
 
     # Create adversary env
     env = SelectorEnv(automaton, controller, time_limits, max_timesteps=max_jumps)
 
     # Create empty tree
     num_branches = env.action_space.n
-    root = MCTS_Node(num_branches, children=[MCTS_Node(num_branches)
-                                             for _ in range(num_branches)])
+    root = MCTS_Node(num_branches)
+    root.create_children()
 
     # Perform rollouts and extend tree
+    print('Performing MCTS...')
+    start_time = time.time()
     for _ in range(num_rollouts):
 
         reward = 0.
@@ -319,13 +326,14 @@ def mcts_adversary(automaton: HybridAutomaton,
         node = root
         leaf = node
         env.reset()
+        path = 'root'
 
         while not done:
 
             # select action and update node
             if node is not None:
                 action = node.get_ucb_action(exploration_constant)
-                node = node.get_child(action, num_branches)
+                node = node.get_child(action)
                 if node is not None:
                     leaf = node
             else:
@@ -333,11 +341,15 @@ def mcts_adversary(automaton: HybridAutomaton,
 
             # Step environment
             _, r, done, _ = env.step(action)
+            path += ' -> {}'.format(env.mname)
 
             # update reward
             reward += float(r > 0)
 
+        if print_debug:
+            print(path)
         leaf.backpropagate(reward)
 
+    print('Completed MCTS in {} secs'.format(time.time() - start_time))
     # return mcts based selector
     return MCTS_Selector(root, env)

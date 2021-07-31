@@ -13,7 +13,7 @@ from hybrid_gym.envs import make_f110_model
 automaton = make_f110_model(straight_lengths=[10])
 
 
-def train_single(name, total_timesteps):
+def train_single(name, total_timesteps, save_path):
     mode = automaton.modes[name]
     model = make_sb_model(
         mode,
@@ -25,11 +25,10 @@ def train_single(name, total_timesteps):
     )
     train_stable(model, mode, automaton.transitions[name],
                  total_timesteps=total_timesteps, algo_name='td3',
-                 max_episode_steps=100)
-    model.save(name + '.td3')
+                 max_episode_steps=100, save_path=save_path)
 
 
-def train_all_modes():
+def train_all_modes(save_path):
     automaton = make_f110_model(straight_lengths=[10])
     models = {
         name: make_sb_model(
@@ -44,26 +43,29 @@ def train_all_modes():
     }
     for (name, mode) in automaton.modes.items():
         train_stable(models[name], mode, automaton.transitions[name],
-                     total_timesteps=20000, algo_name='td3')
+                     total_timesteps=20000, algo_name='td3', save_path=save_path)
 
 
-def train_mode_pred():
+def train_mode_pred(save_path):
     controller = {
-        name: BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
+        name: BaselineCtrlWrapper.load(os.path.join(
+            save_path, name, 'best_model.zip'), algo_name='td3')
         for name in automaton.modes
     }
     mode_pred = train_mode_predictor(
         automaton, {}, controller, 'mlp', num_iters=10,
         # hidden_layer_sizes=(192,32), activation='tanh'
     )
-    mode_pred.save('mode_predictor.mlp')
+    mode_pred.save(os.path.join(save_path, 'mode_predictor.mlp'))
 
 
 if __name__ == '__main__':
+    save_path = '.'
     if len(sys.argv) >= 2:
-        mode_list = sys.argv[1:]
+        save_path = sys.argv[1]
+        mode_list = sys.argv[2:]
     else:
         mode_list = list(automaton.modes)
     for name in mode_list:
         print(f'training mode {name}')
-        train_single(name, 200000)
+        train_single(name, 200000, save_path)

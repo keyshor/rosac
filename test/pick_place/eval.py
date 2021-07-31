@@ -85,13 +85,15 @@ def eval_end_to_end():
 
 
 if __name__ == '__main__':
+    save_path = '.'
     if len(sys.argv) >= 2:
-        mode_list = sys.argv[1:]
+        save_path = sys.argv[1]
+        mode_list = sys.argv[2:]
     else:
         mode_list = list(automaton.modes)
     for name in mode_list:
         controllers[name] = BaselineCtrlWrapper.load(
-            os.path.join(name, 'best_model.zip'),
+            os.path.join(save_path, name, 'best_model.zip'),
             algo_name='her',
             env=env,
         )

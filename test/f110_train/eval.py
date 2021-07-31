@@ -17,9 +17,13 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
 
+    save_path = '.'
+    if len(sys.argv) > 1:
+        save_path = sys.argv[1]
+
     controllers = {
         name: BaselineCtrlWrapper.load(
-            name + '.td3',
+            os.path.join(save_path, name, 'best_model.zip'),
             algo_name='td3',
         )
         for name in automaton.modes
@@ -30,12 +34,13 @@ if __name__ == '__main__':
 
     time_limits = {m: 100 for m in automaton.modes}
 
-    # selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
+    # selector = dqn_adversary(automaton, controllers, time_limits, max_jumps=10,
     #                           learning_timesteps=500, policy_kwargs={'layers': [16, 16]})
 
     selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
-                              num_rollouts=50)
+                              num_rollouts=150, print_debug=True)
 
+    print('\nEvaluating with MCTS adversary')
     print('Probability of successful completion: {}'.format(
         end_to_end_test(automaton, selector, controllers, time_limits,
                         num_rollouts=10, max_jumps=10, print_debug=True)))

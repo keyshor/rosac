@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 sys.path.append(os.path.join('..', '..'))  # nopep8
+sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa
 from hybrid_gym import Controller
@@ -29,6 +30,13 @@ class F110AbstractState(StateWrapper):
 
 if __name__ == '__main__':
 
+    use_best_model = 0
+    save_path = '.'
+    if len(sys.argv) > 1:
+        use_best_model = int(sys.argv[1])
+    if len(sys.argv) > 2:
+        save_path = sys.argv[2]
+
     f110_automaton = make_f110_model(straight_lengths=[10])
 
     init_vec = {m: np.array([mode.init_car_dist_s, mode.init_car_dist_f,
@@ -38,10 +46,11 @@ if __name__ == '__main__':
            for m, mode in f110_automaton.modes.items()}
     time_limits = {m: 100 for m in f110_automaton.modes}
 
-    controllers = cegrl(f110_automaton, pre, time_limits, steps_per_iter=20000,
-                        num_iter=20, num_synth_iter=10, abstract_samples=1, print_debug=True,
-                        action_noise_scale=4.0, verbose=1)
+    controllers = cegrl(f110_automaton, pre, time_limits, steps_per_iter=50000,
+                        num_iter=20, num_synth_iter=10, abstract_samples=10, print_debug=True,
+                        action_noise_scale=4.0, verbose=1, use_best_model=use_best_model,
+                        save_path=save_path)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
-        ctrl.save(f'{mode_name}.td3')
+        ctrl.save(os.path.join(save_path, mode_name + '.td3'))

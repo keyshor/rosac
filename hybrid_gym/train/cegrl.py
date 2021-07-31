@@ -11,6 +11,7 @@ from typing import List, Dict, Any
 
 import numpy as np
 import random
+import os
 
 
 class ResetFunc:
@@ -43,6 +44,8 @@ def cegrl(automaton: HybridAutomaton,
           n_samples: int = 20,
           abstract_samples: int = 0,
           print_debug: bool = False,
+          use_best_model: bool = False,
+          save_path: str = '.',
           **kwargs
           ) -> Dict[str, Controller]:
     '''
@@ -69,7 +72,14 @@ def cegrl(automaton: HybridAutomaton,
             print('\n---- Training controller for mode {} ----'.format(name))
             train_stable(models[name], mode, automaton.transitions[name],
                          total_timesteps=steps_per_iter, init_states=reset_funcs[name],
-                         algo_name=algo_name, max_episode_steps=time_limits[name])
+                         algo_name=algo_name, max_episode_steps=time_limits[name],
+                         save_path=save_path)
+            if use_best_model:
+                ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, name, 'best_model.zip'),
+                                                algo_name=algo_name)
+                if isinstance(ctrl, BaselineCtrlWrapper):
+                    models[name] = ctrl.model
+                    controllers[name] = ctrl
 
         # synthesis
         print('\n---- Running synthesis ----')

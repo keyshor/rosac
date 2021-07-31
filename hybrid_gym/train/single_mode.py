@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2, SAC, TD3, TRPO
 from stable_baselines.common.base_class import BaseRLModel
@@ -104,8 +105,9 @@ def make_sb_model(mode: Mode,
 def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_timesteps=1000,
                  init_states: Optional[Callable[[], StateType]] = None,
                  reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
-                 algo_name='td3',
+                 algo_name: str = 'td3',
                  max_episode_steps: int = 50,
+                 save_path: str = '.'
                  ) -> None:
     transition_list = list(transitions)
     if algo_name == 'td3':
@@ -122,6 +124,7 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
     model.set_env(env)
     callback = EvalCallback(
         eval_env=env, n_eval_episodes=100, eval_freq=10000,
-        log_path=f'{mode.name}', best_model_save_path=f'{mode.name}',
+        log_path=os.path.join(save_path, model.name),
+        best_model_save_path=os.path.join(save_path, model.name),
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)

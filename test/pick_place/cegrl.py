@@ -13,6 +13,13 @@ from hybrid_gym.train.cegrl import cegrl
 if __name__ == '__main__':
     automaton = make_pick_place_model(num_objects=3)
 
+    use_best_model = 0
+    save_path = '.'
+    if len(sys.argv) > 1:
+        use_best_model = int(sys.argv[1])
+    if len(sys.argv) > 2:
+        save_path = sys.argv[2]
+
     pre = {}
     for m in automaton.modes:
         pre[m] = StateWrapper(automaton.modes[m], Box())
@@ -25,8 +32,9 @@ if __name__ == '__main__':
                         num_iter=10, num_synth_iter=10, abstract_samples=0, print_debug=True,
                         wrapped_algo='sac', verbose=2, gamma=0.95, buffer_size=1000000,
                         ent_coef='auto', goal_selection_strategy='future',
-                        n_sampled_goal=4, train_freq=1, learning_starts=1000)
+                        n_sampled_goal=4, train_freq=1, learning_starts=1000,
+                        use_best_model=use_best_model, save_path=save_path)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
-        ctrl.save(f'{mode_name}.her')
+        ctrl.save(os.path.join(save_path, mode_name + '.her'))
