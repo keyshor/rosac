@@ -4,9 +4,10 @@ import os
 from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2, SAC, TD3, TRPO
 from stable_baselines.common.base_class import BaseRLModel
 from stable_baselines.common.callbacks import EvalCallback
+from stable_baselines.common.policies import BasePolicy
 from stable_baselines.her import HERGoalEnvWrapper
 from gym.wrappers import TimeLimit
-from typing import Iterable, Optional, Callable, Any
+from typing import Iterable, Optional, Union, Callable, TypeVar, Type, Any
 from stable_baselines.ddpg.noise import NormalActionNoise
 
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
@@ -14,6 +15,8 @@ from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 from hybrid_gym.model import Mode, Transition, StateType
 from hybrid_gym.util.wrappers import GymEnvWrapper, GymGoalEnvWrapper, DoneOnSuccessWrapper
 
+
+BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
 
 def make_spectrl_model(mode: Mode,
                        transitions: Iterable[Transition],
@@ -47,7 +50,7 @@ def make_sb_model(mode: Mode,
                   algo_name: str = 'td3',
                   wrapped_algo: str = 'ddpg',  # only relevent to HER
                   action_noise_scale: float = 0.1,
-                  custom_policy=None,
+                  policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
                   max_episode_steps: int = 50,
                   **kwargs
                   ) -> BaseRLModel:
@@ -58,7 +61,6 @@ def make_sb_model(mode: Mode,
         mean=np.zeros(action_shape),
         sigma=action_noise_scale * np.ones(action_shape)
     )
-    policy: Any = custom_policy or 'MlpPolicy'
     if algo_name == 'a2c':
         model: BaseRLModel = A2C(policy, env, **kwargs)
     elif algo_name == 'acer':

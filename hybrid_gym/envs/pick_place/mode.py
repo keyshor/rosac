@@ -486,6 +486,8 @@ class PickPlaceMode(Mode[State]):
         self.multi_obj.num_stack = state.num_stack
         self.multi_obj.goal_dict = dict(state.goal_dict)
         self.multi_obj.goal = self.multi_obj.goal_vector(state.goal_dict)
+        #for _ in range(10):
+        #    self.multi_obj.sim.step()
         self.multi_obj.sim.forward()
 
     def get_state(self) -> State:
@@ -569,7 +571,7 @@ class PickPlaceMode(Mode[State]):
                 vec[0: self.obj_perm_index],
                 self.multi_obj.sim,
             ),
-            obj_perm=vec[self.obj_perm_index: self.num_stack_index].astype(np.int),
-            num_stack=int(vec[self.num_stack_index]),
+            obj_perm=np.rint(vec[self.obj_perm_index: self.num_stack_index]).astype(np.int),
+            num_stack=int(np.rint(vec[self.num_stack_index])),
             goal_dict=self.multi_obj.unvectorize_goal(vec[self.goal_index:]),
         )

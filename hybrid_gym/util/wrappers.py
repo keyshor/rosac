@@ -128,33 +128,34 @@ class BaselineCtrlWrapper(Controller):
     @classmethod
     def load(cls,
              path: str,
+             env: gym.Env,
              algo_name: str = 'td3',
              **kwargs: Dict,
              ) -> Controller:
         if algo_name == 'a2c':
-            model: BaseRLModel = A2C.load(path, **kwargs)
+            model: BaseRLModel = A2C.load(path, env=env, **kwargs)
         elif algo_name == 'acer':
-            model = ACER.load(path, **kwargs)
+            model = ACER.load(path, env=env, **kwargs)
         elif algo_name == 'acktr':
-            model = ACKTR.load(path, **kwargs)
+            model = ACKTR.load(path, env=env, **kwargs)
         elif algo_name == 'ddpg':
-            model = DDPG.load(path, **kwargs)
+            model = DDPG.load(path, env=env, **kwargs)
         elif algo_name == 'dqn':
-            model = DQN.load(path, **kwargs)
+            model = DQN.load(path, env=env, **kwargs)
         elif algo_name == 'gail':
-            model = GAIL.load(path, **kwargs)
+            model = GAIL.load(path, env=env, **kwargs)
         elif algo_name == 'her':
-            model = HER.load(path, **kwargs)
+            model = HER.load(path, env=env, **kwargs)
         elif algo_name == 'ppo1':
-            model = PPO1.load(path, **kwargs)
+            model = PPO1.load(path, env=env, **kwargs)
         elif algo_name == 'ppo2':
-            model = PPO2.load(path, **kwargs)
+            model = PPO2.load(path, env=env, **kwargs)
         elif algo_name == 'sac':
-            model = SAC.load(path, **kwargs)
+            model = SAC.load(path, env=env, **kwargs)
         elif algo_name == 'td3':
-            model = TD3.load(path, **kwargs)
+            model = TD3.load(path, env=env, **kwargs)
         elif algo_name == 'trpo':
-            model = TRPO.load(path, **kwargs)
+            model = TRPO.load(path, env=env, **kwargs)
         else:
             raise ValueError
         return cls(model)

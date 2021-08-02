@@ -171,6 +171,10 @@ class Controller(metaclass=ABCMeta):
     def reset(self) -> None:
         pass
 
+    @abstractmethod
+    def save(self, path: str) -> None:
+        pass
+
 
 class ModePredictor(metaclass=ABCMeta):
     '''

@@ -12,6 +12,7 @@ from typing import List, Dict, Any
 import numpy as np
 import random
 import os
+import gym
 
 
 class ResetFunc:
@@ -29,6 +30,7 @@ class ResetFunc:
             return random.choice(self.states)
         else:
             return self.mode.reset()
+        #return self.mode.reset()
 
     def add_state(self, state: Any) -> None:
         self.states.append(state)
@@ -37,6 +39,7 @@ class ResetFunc:
 def cegrl(automaton: HybridAutomaton,
           pre: Dict[str, AbstractState],
           time_limits: Dict[str, int],
+          reload_env: gym.Env,
           algo_name: str = 'td3',
           steps_per_iter: int = 10000,
           num_iter: int = 20,
@@ -52,7 +55,6 @@ def cegrl(automaton: HybridAutomaton,
     Train policies for all modes
     '''
 
-    # initialize reset functions and RL agents
     reset_funcs = {name: ResetFunc(mode) for (name, mode) in automaton.modes.items()}
     models = {name: make_sb_model(
         mode,
@@ -67,6 +69,7 @@ def cegrl(automaton: HybridAutomaton,
     for i in range(num_iter):
         print('\n**** Iteration {} ****'.format(i))
 
+
         # train agents
         for (name, mode) in automaton.modes.items():
             print('\n---- Training controller for mode {} ----'.format(name))
@@ -76,10 +79,14 @@ def cegrl(automaton: HybridAutomaton,
                          save_path=save_path)
             if use_best_model:
                 ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, name, 'best_model.zip'),
-                                                algo_name=algo_name)
-                if isinstance(ctrl, BaselineCtrlWrapper):
-                    models[name] = ctrl.model
-                    controllers[name] = ctrl
+                                                algo_name=algo_name, env=reload_env)
+            else:
+                controllers[name].save(os.path.join(save_path, name + '.her'))
+                ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, name + '.her'),
+                                                algo_name=algo_name, env=reload_env)
+            if isinstance(ctrl, BaselineCtrlWrapper):
+                models[name] = ctrl.model
+                controllers[name] = ctrl
 
         # synthesis
         print('\n---- Running synthesis ----')
