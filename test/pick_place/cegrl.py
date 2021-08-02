@@ -15,20 +15,6 @@ from hybrid_gym.selectors import FixedSequenceSelector
 if __name__ == '__main__':
     num_objects = 3
     automaton = make_pick_place_model(num_objects=num_objects)
-    reload_env = HybridGoalEnv(
-        automaton=automaton,
-        selector=FixedSequenceSelector(
-            mode_list=[
-                automaton.modes['ModeType.MOVE_WITHOUT_OBJ'],
-                automaton.modes['ModeType.PICK_OBJ_PT1'],
-                automaton.modes['ModeType.PICK_OBJ_PT2'],
-                automaton.modes['ModeType.PICK_OBJ_PT3'],
-                automaton.modes['ModeType.MOVE_WITH_OBJ'],
-                automaton.modes['ModeType.PLACE_OBJ_PT1'],
-                automaton.modes['ModeType.PLACE_OBJ_PT2'],
-            ] * num_objects
-        ),
-    )
 
     use_best_model = 0
     save_path = '.'
@@ -45,7 +31,7 @@ if __name__ == '__main__':
 
     time_limits = {m: 50 for m in automaton.modes}
 
-    controllers = cegrl(automaton, pre, time_limits, reload_env, algo_name='her', steps_per_iter=10,
+    controllers = cegrl(automaton, pre, time_limits, algo_name='her', steps_per_iter=200000,
                         num_iter=10, num_synth_iter=10, abstract_samples=0, print_debug=True,
                         wrapped_algo='sac', verbose=2, gamma=0.95, buffer_size=1000000,
                         ent_coef='auto', goal_selection_strategy='future',

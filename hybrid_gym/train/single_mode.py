@@ -18,6 +18,7 @@ from hybrid_gym.util.wrappers import GymEnvWrapper, GymGoalEnvWrapper, DoneOnSuc
 
 BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
 
+
 def make_spectrl_model(mode: Mode,
                        transitions: Iterable[Transition],
                        max_episode_steps: int = 50,
@@ -110,7 +111,7 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
                  algo_name: str = 'td3',
                  max_episode_steps: int = 50,
                  save_path: str = '.'
-                 ) -> None:
+                 ) -> Any:
     transition_list = list(transitions)
     if algo_name == 'td3':
         env = TimeLimit(GymEnvWrapper(mode, transition_list, init_states, reward_fn,
@@ -130,3 +131,4 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
         best_model_save_path=os.path.join(save_path, mode.name),
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)
+    return env
