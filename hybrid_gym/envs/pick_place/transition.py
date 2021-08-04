@@ -38,6 +38,8 @@ class PickPlaceTrans(Transition):
             goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm'].copy()
         elif target_mode_type == ModeType.MOVE_WITHOUT_OBJ:
             num_stack += 1
+            if num_stack >= self.target_mode.multi_obj.num_objects:
+                return self.target_mode.end_to_end_reset()
             goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'] \
                 + np.array([0, 0, pick_height_offset])
             goal_dict['finger'] = np.full((2,), object_length)

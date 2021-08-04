@@ -41,4 +41,4 @@ def train_single(name, total_timesteps, save_path):
 if __name__ == '__main__':
 
     for mname in automaton.modes:
-        train_single(mname, 1000000, sys.argv[1])
+        train_single(mname, 20000, sys.argv[1])

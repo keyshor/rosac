@@ -85,14 +85,8 @@ def eval_end_to_end():
 
 
 if __name__ == '__main__':
-    save_path = '.'
-    if len(sys.argv) >= 2:
-        save_path = sys.argv[1]
-    if len(sys.argv) >= 3:
-        mode_list = sys.argv[2:]
-    else:
-        mode_list = list(automaton.modes)
-    for name in mode_list:
+    save_path = sys.argv[1]
+    for name in automaton.modes:
         controllers[name] = BaselineCtrlWrapper.load(
             os.path.join(save_path, name, 'best_model.zip'),
             algo_name='her',
@@ -100,5 +94,4 @@ if __name__ == '__main__':
         )
         #controllers[name] = SpectrlCtrlWrapper.load(f'{name}.spectrl')
         eval_single(name)
-    if len(sys.argv) <= 1:
-        eval_end_to_end()
+    eval_end_to_end()
