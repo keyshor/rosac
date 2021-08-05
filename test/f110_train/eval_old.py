@@ -13,17 +13,9 @@ from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 import matplotlib.pyplot as plt
 
 
-automaton = make_f110_model(straight_lengths=[10])
+automaton = make_f110_model(straight_lengths=[10], use_throttle=False)
 
-def eval_end_to_end():
-    controllers = {name: BaselineCtrlWrapper.load(
-        os.path.join(f'{name}', 'best_model.zip'),
-        algo_name='td3',
-    )
-                   for name in automaton.modes}
-    controllers['f110_straight_10m'] = controllers['f110_square_right']
-    # mode_predictor = ScipyModePredictor.load(
-    #     'mode_predictor.mlp', automaton.observation_space, 'mlp')
+def eval_end_to_end(max_steps_in_mode, save_path):
 
     env = HybridEnv(
         automaton=automaton,
@@ -33,6 +25,19 @@ def eval_end_to_end():
         )
     )
 
+    controllers = {
+        name: BaselineCtrlWrapper.load(
+            os.path.join(save_path, name, 'best_model.zip'),
+            algo_name='td3',
+            env=env,
+        )
+        for name in automaton.modes
+    }
+    #mode_predictor = ScipyModePredictor.load(
+    #    os.path.join(save_path, 'mode_predictor.mlp'),
+    #    automaton.observation_space, 'mlp',
+    #)
+
     state_history: dict = {
         (m_name, pred_mode): []
         for m_name in automaton.modes
@@ -41,39 +46,49 @@ def eval_end_to_end():
 
     for _ in range(20):
         observation = env.reset()
+        mode = env.mode.name
         e = 0
+        e_in_mode = 0
         done = False
-        while not done:
+        while not done and e_in_mode < max_steps_in_mode:
             e += 1
-            # mode = mode_predictor.get_mode(observation)
-            mode = env.mode.name
+            e_in_mode += 1
+            #new_mode = mode_predictor.get_mode(observation)
+            new_mode = env.mode.name
+            if mode != new_mode:
+                e_in_mode = 0
+                mode = new_mode
             delta = controllers[mode].get_action(observation)
             state_history[env.mode.name, mode].append(env.state)
             observation, reward, done, info = env.step(delta)
-        if env.mode.is_safe(env.state):
+        if e_in_mode >= max_steps_in_mode:
+            print(f'stuck in mode {mode} after {e} steps')
+        elif env.mode.is_safe(env.state):
             print(f'terminated normally after {e} steps')
         else:
-            print(f'crash after {e} steps')
+            print(f'crash after {e} steps in mode {mode}')
 
     for (m_name, m) in automaton.modes.items():
         fig, ax = plt.subplots(figsize=(12, 10))
         m.plotHalls(ax=ax)
-        colors = ['r', 'g', 'b', 'm', 'c']
+        colors = ['r', 'g', 'b', 'm', 'c', 'y']
         for (pred_mode, c) in zip(list(automaton.modes), colors):
             x_hist = [s.car_global_x for s in state_history[m_name, pred_mode]]
             y_hist = [s.car_global_y for s in state_history[m_name, pred_mode]]
             ax.scatter(x_hist, y_hist, s=1, c=c, label=pred_mode)
         ax.legend(markerscale=10)
         ax.set_title(m_name)
+        ax.set_aspect('equal')
         fig.savefig(f'trajectories_{m.name}.png')
 
-def eval_single(name):
-    controller = BaselineCtrlWrapper.load(
-        os.path.join(f'{name}', 'best_model.zip'),
-        algo_name='td3',
-    )
+def eval_single(name, save_path):
     mode = automaton.modes[name]
     env = GymEnvWrapper(mode, automaton.transitions[name])
+    controller = BaselineCtrlWrapper.load(
+        os.path.join(save_path, name, 'best_model.zip'),
+        algo_name='td3',
+        env=env,
+    )
     state_history = []
     nonterm = 0
     normal = 0
@@ -90,7 +105,7 @@ def eval_single(name):
             state_history.append(env.state)
             observation, reward, done, info = env.step(delta)
             #print(reward)
-        if e > 50:
+        if e > 100:
             #print('spent more than 50 steps in the mode')
             nonterm += 1
         elif env.mode.is_safe(env.state):
@@ -99,12 +114,13 @@ def eval_single(name):
         else:
             #print(f'crash after {e} steps')
             crash += 1
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots()
     mode.plotHalls(ax=ax)
     x_hist = [s.car_global_x for s in state_history]
     y_hist = [s.car_global_y for s in state_history]
     ax.scatter(x_hist, y_hist, s=1)
     ax.set_title(name)
+    ax.set_aspect('equal')
     fig.savefig(f'trajectories_{name}.png')
     print(f'{name}: nonterm = {nonterm}, normal = {normal}, crash = {crash}')
 
@@ -115,9 +131,13 @@ def plot_lidar(name):
     mode.render(st)
 
 if __name__ == '__main__':
+    save_path = '.'
     if len(sys.argv) >= 2:
-        mode_list = sys.argv[1:]
+        save_path = sys.argv[1]
+    if len(sys.argv) >= 3:
+        mode_list = sys.argv[2:]
     else:
         mode_list = list(automaton.modes)
-    for name in mode_list:
-        eval_single(name)
+    #for name in mode_list:
+    #    eval_single(name, save_path)
+    eval_end_to_end(100, save_path)

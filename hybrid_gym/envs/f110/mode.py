@@ -81,8 +81,8 @@ class F110Mode(Mode[State]):
     init_car_heading: float
     init_car_V: float
     time_step: float
-    # episode_length: int
     lidar_field_of_view: float
+    use_throttle: bool
     lidar_num_rays: int
     lidar_noise: float
     lidar_missing_in_turn_only: bool
@@ -101,9 +101,9 @@ class F110Mode(Mode[State]):
                  init_car_dist_f: float,
                  init_car_heading: float,
                  init_car_V: float,
-                 # episode_length: int,
                  time_step: float,
                  lidar_field_of_view: float,
+                 use_throttle: bool,
                  lidar_num_rays: int,
                  lidar_noise: float = 0,
                  lidar_missing_rays: int = 0,
@@ -148,14 +148,14 @@ class F110Mode(Mode[State]):
 
         # step parameters
         self.time_step = time_step
-        # self.cur_step = 0
-        # self.episode_length = episode_length
 
         # storage
         # self.allX = []
         # self.allY = []
         # self.allX.append(self.car_global_x)
         # self.allY.append(self.car_global_y)
+
+        self.use_throttle = use_throttle
 
         # lidar setup
         self.lidar_field_of_view = lidar_field_of_view
@@ -216,10 +216,12 @@ class F110Mode(Mode[State]):
             obs_low = np.zeros(self.lidar_num_rays, )
             obs_high = LIDAR_RANGE * np.ones(self.lidar_num_rays, )
 
+        num_actions = 2 if self.use_throttle else 1
+
         super().__init__(
             name=name,
             action_space=spaces.Box(low=-1.0, high=1.0,
-                                    shape=(2,), dtype=np.float32),
+                                    shape=(num_actions,), dtype=np.float32),
             observation_space=spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
         )
 
@@ -528,8 +530,8 @@ class F110Mode(Mode[State]):
 
     def _step_fn(self, st: State, action: np.ndarray) -> State:
         delta = MAX_TURNING_INPUT * action[0]
-        throttle = 0.5 * (action[1] + 1.0) * MAX_THROTTLE
-        #throttle = CONST_THROTTLE
+        throttle = 0.5 * (action[1] + 1.0) * MAX_THROTTLE \
+            if self.use_throttle else CONST_THROTTLE
         return self.helper_step(st, delta, throttle)
 
     def helper_step(self,
@@ -1660,8 +1662,9 @@ def complex_track(width=DEFAULT_HALL_WIDTH):
 
 
 def make_straight(length: float,
+                  use_throttle: bool = True,
                   lidar_num_rays: int = 1081,
-                  width=DEFAULT_HALL_WIDTH,
+                  width: float = DEFAULT_HALL_WIDTH,
                   ) -> F110Mode:
     hallWidths, hallLengths, turns = long_square_hall_right(length, width=width)
     return F110Mode(
@@ -1674,13 +1677,15 @@ def make_straight(length: float,
         init_car_heading=0,
         init_car_V=2.4,
         time_step=0.1,
+        use_throttle=use_throttle,
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
 
 
-def make_square_right(lidar_num_rays: int = 1081,
-                      width=DEFAULT_HALL_WIDTH,
+def make_square_right(use_throttle: bool = True,
+                      lidar_num_rays: int = 1081,
+                      width: float = DEFAULT_HALL_WIDTH,
                       ) -> F110Mode:
     hallWidths, hallLengths, turns = square_hall_right(width=width)
     return F110Mode(
@@ -1693,13 +1698,15 @@ def make_square_right(lidar_num_rays: int = 1081,
         init_car_heading=0,
         init_car_V=2.4,
         time_step=0.1,
+        use_throttle=use_throttle,
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
 
 
-def make_square_left(lidar_num_rays: int = 1081,
-                     width=DEFAULT_HALL_WIDTH,
+def make_square_left(use_throttle: bool = True,
+                     lidar_num_rays: int = 1081,
+                     width: float = DEFAULT_HALL_WIDTH,
                      ) -> F110Mode:
     hallWidths, hallLengths, turns = square_hall_left(width=width)
     return F110Mode(
@@ -1712,13 +1719,15 @@ def make_square_left(lidar_num_rays: int = 1081,
         init_car_heading=0,
         init_car_V=2.4,
         time_step=0.1,
+        use_throttle=use_throttle,
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
 
 
-def make_sharp_right(lidar_num_rays: int = 1081,
-                     width=DEFAULT_HALL_WIDTH,
+def make_sharp_right(use_throttle: bool = True,
+                     lidar_num_rays: int = 1081,
+                     width: float = DEFAULT_HALL_WIDTH,
                      ) -> F110Mode:
     hallWidths, hallLengths, turns = triangle_hall_equilateral_right(width=width)
     return F110Mode(
@@ -1731,13 +1740,15 @@ def make_sharp_right(lidar_num_rays: int = 1081,
         init_car_heading=0,
         init_car_V=2.4,
         time_step=0.1,
+        use_throttle=use_throttle,
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
 
 
-def make_sharp_left(lidar_num_rays: int = 1081,
-                    width=DEFAULT_HALL_WIDTH,
+def make_sharp_left(use_throttle: bool = True,
+                    lidar_num_rays: int = 1081,
+                    width: float = DEFAULT_HALL_WIDTH,
                     ) -> F110Mode:
     hallWidths, hallLengths, turns = triangle_hall_equilateral_left(width=width)
     return F110Mode(
@@ -1750,6 +1761,7 @@ def make_sharp_left(lidar_num_rays: int = 1081,
         init_car_heading=0,
         init_car_V=2.4,
         time_step=0.1,
+        use_throttle=use_throttle,
         lidar_field_of_view=115,
         lidar_num_rays=lidar_num_rays,
     )
