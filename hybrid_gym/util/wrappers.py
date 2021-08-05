@@ -128,7 +128,7 @@ class BaselineCtrlWrapper(Controller):
     @classmethod
     def load(cls,
              path: str,
-             env: gym.Env,
+             env: gym.Env = None,
              algo_name: str = 'td3',
              **kwargs: Dict,
              ) -> Controller:
