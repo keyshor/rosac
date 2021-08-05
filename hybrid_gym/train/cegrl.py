@@ -7,7 +7,8 @@ from hybrid_gym.train.single_mode import make_sb_model, train_stable
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import BaselineCtrlWrapper
-from typing import List, Dict, Any
+from hybrid_gym.falsification.single_mode import falsify
+from typing import List, Dict, Any, Iterable, Callable, Optional
 
 import numpy as np
 import random
@@ -19,7 +20,7 @@ class ResetFunc:
     Reset function used to sample start states in training
     '''
 
-    def __init__(self, mode: Mode, states: List = [], prob: float = 0.5) -> None:
+    def __init__(self, mode: Mode, states: List = [], prob: float = 0.75) -> None:
         self.mode = mode
         self.states = states
         self.prob = prob
@@ -30,8 +31,8 @@ class ResetFunc:
         else:
             return self.mode.reset()
 
-    def add_state(self, state: Any) -> None:
-        self.states.append(state)
+    def add_states(self, states: Iterable[Any]) -> None:
+        self.states.extend(states)
 
 
 def cegrl(automaton: HybridAutomaton,
@@ -46,6 +47,11 @@ def cegrl(automaton: HybridAutomaton,
           print_debug: bool = False,
           use_best_model: bool = False,
           save_path: str = '.',
+          use_falsification: bool = False,
+          num_falsification_iter: int = 100,
+          num_falsification_samples: int = 20,
+          num_falsification_top_samples: int = 10,
+          falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
           **kwargs
           ) -> Dict[str, Controller]:
     '''
@@ -86,11 +92,21 @@ def cegrl(automaton: HybridAutomaton,
 
         # synthesis
         print('\n---- Running synthesis ----')
-        ces = synthesize(automaton, controllers, pre.copy(), time_limits, num_synth_iter,
+        pre_copy = pre.copy()
+        ces = synthesize(automaton, controllers, pre_copy, time_limits, num_synth_iter,
                          n_samples, abstract_samples, print_debug)
 
-        # add counterexamples to reset function
-        for ce in ces:
-            reset_funcs[ce.m].add_state(ce.s)
+        if falsify_func is None:
+            # add counterexamples to reset function
+            for ce in ces:
+                reset_funcs[ce.m].add_states([ce.s])
+        else:
+            # use falsification to identify bad states
+            for (m, pre_m) in pre_copy.items():
+                bad_states = falsify(automaton.modes[m], automaton.transitions[m],
+                                     controllers[m], pre_copy[m], falsify_func[m], time_limits[m],
+                                     num_falsification_iter, num_falsification_samples,
+                                     num_falsification_top_samples)
+                reset_funcs[m].add_states(bad_states)
 
     return controllers

@@ -9,6 +9,8 @@ from hybrid_gym import Controller
 from hybrid_gym.envs import make_f110_model
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
+from hybrid_gym.util.io import parse_command_line_options
+from typing import List, Any
 
 
 class F110AbstractState(StateWrapper):
@@ -28,29 +30,44 @@ class F110AbstractState(StateWrapper):
             'v in [{}, {}]'.format(low[3], high[3])
 
 
+class FalsifyFunc:
+    '''
+    Evaluation function used by the falsification algorithm.
+    '''
+
+    def __init__(self, mode):
+        self.mode = mode
+
+    def __call__(self, sass: List[Any]) -> float:
+        rewards = [self.mode.reward(*sas) for sas in sass]
+        return sum(rewards)
+
+
 if __name__ == '__main__':
 
-    use_best_model = 0
-    save_path = '.'
-    if len(sys.argv) > 1:
-        save_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        use_best_model = int(sys.argv[2])
+    flags = parse_command_line_options()
+    if not os.path.exists(flags['path']):
+        os.makedirs(flags['path'])
 
-    f110_automaton = make_f110_model(straight_lengths=[10])
+    f110_automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'])
 
     init_vec = {m: np.array([mode.init_car_dist_s, mode.init_car_dist_f,
                              mode.init_car_heading, mode.init_car_V])
                 for m, mode in f110_automaton.modes.items()}
-    pre = {m: F110AbstractState(init_vec[m], init_vec[m], mode)
+    delta = np.array([0.05, 0.05, 0.001, 0.1])
+    pre = {m: F110AbstractState(init_vec[m] - delta, init_vec[m] + delta, mode)
            for m, mode in f110_automaton.modes.items()}
     time_limits = {m: 100 for m in f110_automaton.modes}
 
-    controllers = cegrl(f110_automaton, pre, time_limits, steps_per_iter=50000,
-                        num_iter=20, num_synth_iter=10, abstract_samples=10, print_debug=True,
-                        action_noise_scale=4.0, verbose=1, use_best_model=use_best_model,
-                        save_path=save_path)
+    falsify_func = None
+    if flags['falsify']:
+        falsify_func = {name: FalsifyFunc(mode) for name, mode in f110_automaton.modes.items()}
+
+    controllers = cegrl(f110_automaton, pre, time_limits, steps_per_iter=100000,
+                        num_iter=10, num_synth_iter=10, abstract_samples=20, print_debug=True,
+                        action_noise_scale=4.0, verbose=1, use_best_model=flags['use_best'],
+                        falsify_func=falsify_func, save_path=flags['path'])
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
-        ctrl.save(os.path.join(save_path, mode_name + '.td3'))
+        ctrl.save(os.path.join(flags['path'], mode_name + '.td3'))

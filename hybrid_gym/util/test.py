@@ -84,8 +84,8 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                         print('Failed to make progress in mode {} after {} jumps'.format(
                             mname, j))
                     else:
-                        print('Unsafe state reached in mode {} after {} steps'.format(
-                            mname, steps))
+                        print('Unsafe state reached in mode {} after {} jumps'.format(
+                            mname, j))
                 break
 
             # select next mode

@@ -11,19 +11,18 @@ from hybrid_gym.util.test import end_to_end_test
 from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 from hybrid_gym.falsification.rl_based import dqn_adversary, mcts_adversary
+from hybrid_gym.util.io import parse_command_line_options
 
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    automaton = make_f110_model(straight_lengths=[10])
 
-    save_path = '.'
-    if len(sys.argv) > 1:
-        save_path = sys.argv[1]
+    flags = parse_command_line_options()
+    automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'])
 
     controllers = {
         name: BaselineCtrlWrapper.load(
-            os.path.join(save_path, name, 'best_model.zip'),
+            os.path.join(flags['path'], name, 'best_model.zip'),
             algo_name='td3',
         )
         for name in automaton.modes
