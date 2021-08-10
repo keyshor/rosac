@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 
 automaton = make_f110_model(straight_lengths=[10], use_throttle=False)
 
+
 def eval_end_to_end(max_steps_in_mode, save_path):
 
     env = HybridEnv(
@@ -33,10 +34,10 @@ def eval_end_to_end(max_steps_in_mode, save_path):
         )
         for name in automaton.modes
     }
-    #mode_predictor = ScipyModePredictor.load(
+    # mode_predictor = ScipyModePredictor.load(
     #    os.path.join(save_path, 'mode_predictor.mlp'),
     #    automaton.observation_space, 'mlp',
-    #)
+    # )
 
     state_history: dict = {
         (m_name, pred_mode): []
@@ -81,6 +82,7 @@ def eval_end_to_end(max_steps_in_mode, save_path):
         ax.set_aspect('equal')
         fig.savefig(f'trajectories_{m.name}.png')
 
+
 def eval_single(name, save_path):
     mode = automaton.modes[name]
     env = GymEnvWrapper(mode, automaton.transitions[name])
@@ -104,7 +106,7 @@ def eval_single(name, save_path):
             delta = controller.get_action(observation)
             state_history.append(env.state)
             observation, reward, done, info = env.step(delta)
-            #print(reward)
+            # print(reward)
         if e > 100:
             #print('spent more than 50 steps in the mode')
             nonterm += 1
@@ -124,11 +126,13 @@ def eval_single(name, save_path):
     fig.savefig(f'trajectories_{name}.png')
     print(f'{name}: nonterm = {nonterm}, normal = {normal}, crash = {crash}')
 
+
 def plot_lidar(name):
     controller = BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
     mode = automaton.modes[name]
     st = mode.reset()
     mode.render(st)
+
 
 if __name__ == '__main__':
     save_path = '.'
@@ -138,6 +142,6 @@ if __name__ == '__main__':
         mode_list = sys.argv[2:]
     else:
         mode_list = list(automaton.modes)
-    #for name in mode_list:
+    # for name in mode_list:
     #    eval_single(name, save_path)
     eval_end_to_end(100, save_path)

@@ -18,7 +18,8 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
 
     flags = parse_command_line_options()
-    automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'])
+    automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'],
+                                use_throttle=(not flags['no_throttle']))
 
     controllers = {
         name: BaselineCtrlWrapper.load(

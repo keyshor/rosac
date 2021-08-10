@@ -49,7 +49,8 @@ if __name__ == '__main__':
     if not os.path.exists(flags['path']):
         os.makedirs(flags['path'])
 
-    f110_automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'])
+    f110_automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'],
+                                     use_throttle=(not flags['no_throttle']))
 
     init_vec = {m: np.array([mode.init_car_dist_s, mode.init_car_dist_f,
                              mode.init_car_heading, mode.init_car_V])
@@ -65,7 +66,7 @@ if __name__ == '__main__':
 
     controllers = cegrl(f110_automaton, pre, time_limits, steps_per_iter=100000,
                         num_iter=10, num_synth_iter=10, abstract_samples=20, print_debug=True,
-                        action_noise_scale=4.0, verbose=1, use_best_model=flags['use_best'],
+                        action_noise_scale=4.0, verbose=1, use_best_model=(not flags['no_best']),
                         falsify_func=falsify_func, save_path=flags['path'])
 
     # save the controllers

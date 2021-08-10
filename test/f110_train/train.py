@@ -58,7 +58,7 @@ def train_mode_pred(automaton, save_path):
     }
     mode_pred = train_mode_predictor(
         automaton, {}, controller, 'mlp', num_iters=num_iters,
-        hidden_layer_sizes=(200,50), activation='tanh'
+        hidden_layer_sizes=(200, 50), activation='tanh'
     )
     mode_pred.save(os.path.join(save_path, 'mode_predictor.mlp'))
 
@@ -66,7 +66,8 @@ def train_mode_pred(automaton, save_path):
 if __name__ == '__main__':
 
     flags = parse_command_line_options()
-    automaton = make_f110_model(straight_lengths=[10], use_throttle=False, simple=flags['simple'])
+    automaton = make_f110_model(straight_lengths=[10], simple=flags['simple'],
+                                use_throttle=(not flags['no_throttle']))
     mode_list = list(automaton.modes)
 
     if not os.path.exists(flags['path']):

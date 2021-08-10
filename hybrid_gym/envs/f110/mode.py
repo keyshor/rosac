@@ -4,7 +4,6 @@ import math
 import enum
 
 from gym import spaces
-from scipy.integrate import odeint
 from hybrid_gym.model import Mode
 from typing import List, Iterable, Tuple, Optional, NamedTuple
 
@@ -511,10 +510,13 @@ class F110Mode(Mode[State]):
             if is_right_turn:
                 change_s *= -1
             car_dist_s = change_s + st.car_dist_s
-            car_dist_f = (np.sin(st.car_heading + beta) - np.sin(car_heading + beta)) / dth_dd + st.car_dist_f
+            car_dist_f = (np.sin(st.car_heading + beta) -
+                          np.sin(car_heading + beta)) / dth_dd + st.car_dist_f
             car_global_heading = dth_dd * d + st.car_global_heading
-            car_global_x = (np.sin(car_global_heading + beta) - np.sin(st.car_global_heading + beta)) / dth_dd + st.car_global_x
-            car_global_y = (np.cos(st.car_global_heading + beta) - np.cos(car_global_heading + beta)) / dth_dd + st.car_global_y
+            car_global_x = (np.sin(car_global_heading + beta) -
+                            np.sin(st.car_global_heading + beta)) / dth_dd + st.car_global_x
+            car_global_y = (np.cos(st.car_global_heading + beta) -
+                            np.cos(car_global_heading + beta)) / dth_dd + st.car_global_y
         else:
             car_heading = st.car_heading
             change_s = np.sin(car_heading) * d
@@ -555,14 +557,14 @@ class F110Mode(Mode[State]):
         # simulate dynamics
         x0 = [st.car_dist_s, st.car_dist_f, st.car_V, st.car_heading,
               st.car_global_x, st.car_global_y, st.car_global_heading]
-        #t = [0, self.time_step]
+        # t = [0, self.time_step]
 
         # new_x = odeint(self.bicycle_dynamics, x0, t, args=(throttle, delta * np.pi / 180,
         #       self.turns[st.curHall],))
-        #new_x = odeint(self.bicycle_dynamics_no_beta, x0, t, args=(
+        # new_x = odeint(self.bicycle_dynamics_no_beta, x0, t, args=(
         #    throttle, delta * np.pi / 180, self.turns[st.curHall],))
 
-        #new_x = new_x[1]
+        # new_x = new_x[1]
         new_x = self.bicycle_dynamics_clf(
             st=st, delta=np.float(np.radians(delta)), throttle=throttle,
             is_right_turn=(self.turns[st.curHall] < 0), use_beta=False,
@@ -854,7 +856,7 @@ class F110Mode(Mode[State]):
         if st1.car_dist_s > 0 and st1.car_dist_s < self.hallWidths[st1.curHall] and\
            st1.car_dist_f > wall_dist:
 
-            #reward += MOVE_FORWARD_GAIN * (st0.car_dist_f - st1.car_dist_f)
+            # reward += MOVE_FORWARD_GAIN * (st0.car_dist_f - st1.car_dist_f)
 
             # only apply these rules if not too close to a turn
             if st1.car_dist_f > LIDAR_RANGE:
