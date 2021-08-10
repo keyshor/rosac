@@ -110,6 +110,8 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
                  reward_fn: Optional[Callable[[StateType, np.ndarray, StateType], float]] = None,
                  algo_name: str = 'td3',
                  max_episode_steps: int = 50,
+                 eval_freq: int = 10000,
+                 n_eval_episodes: int = 100,
                  save_path: str = '.'
                  ) -> Any:
     transition_list = list(transitions)
@@ -126,7 +128,7 @@ def train_stable(model, mode: Mode, transitions: Iterable[Transition], total_tim
                         reward_fn), max_episode_steps=max_episode_steps)
     model.set_env(env)
     callback = EvalCallback(
-        eval_env=env, n_eval_episodes=100, eval_freq=10000,
+        eval_env=env, n_eval_episodes=n_eval_episodes, eval_freq=eval_freq,
         log_path=os.path.join(save_path, mode.name),
         best_model_save_path=os.path.join(save_path, mode.name),
     )
