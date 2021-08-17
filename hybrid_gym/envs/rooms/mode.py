@@ -1,147 +1,188 @@
 import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
+import gym
+import math
 
-from gym import spaces
 from hybrid_gym.model import Mode
-import enum
-from typing import NamedTuple, List, Dict, Tuple
+from typing import Tuple
 
-CRASH_REWARD: float = -10
-PROGRESS_GAIN: float = 10
 
-FloatPair = Tuple[float, float]
-FloatQuad = Tuple[float, float, float, float]
+class GridParams:
+    '''
+    Parameters for defining the rooms environment.
+    '''
 
-class State(NamedTuple):
-    x: float
-    y: float
+    def __init__(self, room_size, wall_size, horizontal_door, vertical_door):
+        '''
+        room_size: (b:int, l:int) size of a single room
+        wall_size: (tx:int, ty:int) thickness of walls (thickness of vertical wall first)
+        vertical_door, horizontal_door: relative coordinates for door, specifies min and max
+                                        coordinates for door space
+        '''
+        self.room_size = np.array(room_size)
+        self.wall_size = np.array(wall_size)
+        self.partition_size = self.room_size + self.wall_size
+        self.full_size = self.partition_size + self.wall_size
+        self.vdoor = np.array(vertical_door) + self.wall_size[1]
+        self.hdoor = np.array(horizontal_door) + self.wall_size[0]
 
-class Direction(enum.Enum):
-    UP = enum.auto()
-    RIGHT = enum.auto()
-    DOWN = enum.auto()
-    LEFT = enum.auto()
+    def sample_full(self):
+        return (np.random.random_sample(2) * self.room_size) - (self.room_size / 2)
 
-def make_goal(d: Direction, r: float) -> FloatPair:
-    return (0, 1.1*r) if d == Direction.UP \
-    else (1.1*r, 0) if d == Direction.RIGHT \
-    else (0, -1.1*r) if d == Direction.DOWN \
-    else (-1.1*r, 0) # if d == Direction.LEFT
+    def sample_center(self):
+        return (np.random.random_sample(2) * self.wall_size) - (self.wall_size / 2)
 
-def make_goal_region(d: Direction, rr: float, dr: float) -> FloatQuad:
-    return (-dr, dr, rr, 2*rr) if d == Direction.UP \
-    else (rr, 2*rr, -dr, dr) if d == Direction.RIGHT \
-    else (-dr, dr, -2*rr, -rr) if d == Direction.DOWN \
-    else (-2*rr, -rr, -dr, dr) # if d == Direction.LEFT
 
-def make_start_box(d: Direction, rr: float, dr: float) -> FloatQuad:
-    return (-dr, dr, 0.8*rr, rr) if d == Direction.UP \
-    else (0.8*rr, rr, -dr, dr) if d == Direction.RIGHT \
-    else (-dr, dr, -rr, -0.8*rr) if d == Direction.DOWN \
-    else (-rr, -0.8*rr, -dr, dr) # if d == Direction.LEFT
+class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
-class RoomsMode(Mode[State]):
-    room_radius: float
-    door_radius: float
-    action_scale: float
-    direction: Direction
-    goal_x: float
-    goal_y: float
-    start_boxes: List[FloatQuad]
-    goal_region: FloatQuad
-    rng: np.random.Generator
+    def __init__(self, grid_params: GridParams, name: str):
+        self.grid_params = grid_params
+        self._goal = self._get_goal(name)
 
-    def __init__(self,
-                 name: str,
-                 direction: Direction,
-                 room_radius: float,
-                 door_radius: float,
-                 action_scale: float,
-                 rng: np.random.Generator = np.random.default_rng(),
-                 ) -> None:
-        assert door_radius <= room_radius, \
-            f'door radius {door_radius} is larger than room radius {room_radius}'
-        self.room_radius = room_radius
-        self.door_radius = door_radius
-        self.direction = direction
-        self.goal_x, self.goal_y = make_goal(direction, room_radius)
-        self.start_boxes = [
-            make_start_box(d, room_radius, door_radius)
-            for d in Direction if d != direction
-        ]
-        self.goal_region = make_goal_region(direction, room_radius, door_radius)
-        self.action_scale = action_scale
-        self.rng = rng
-        super().__init__(
-            name=name,
-            action_space=spaces.Box(low=-1.0, high=1.0,
-                                    shape=(2,), dtype=np.float32),
-            observation_space=spaces.Box(low=-2*room_radius, high=2*room_radius,
-                                         shape=(4,), dtype=np.float32),
-        )
+        # Compute scaling of action for normalization
+        max_vel = np.amin(self.grid_params.wall_size) / 2
+        self.action_scale = np.array([max_vel, np.pi/2])
 
-    def reset(self) -> State:
-        x_low, x_high, y_low, y_high = self.rng.choice(self.start_boxes)
-        return State(
-            x = self.rng.uniform(x_low, x_high),
-            y = self.rng.uniform(y_low, y_high),
-        )
+        # Define action space
+        high = np.array([1., 1.])
+        low = -high
+        action_space = gym.spaces.Box(low, high, dtype=np.float32)
 
-    def is_safe(self, st: State) -> bool:
-        goal_x_low, goal_x_high, goal_y_low, goal_y_high = self.goal_region
-        return np.all(np.array([np.abs(st.x), np.abs(st.y)]) <= self.room_radius) \
-            or (goal_x_low <= st.x <= goal_x_high and goal_y_low <= st.y <= goal_y_high)
+        # Define observation space
+        observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2,))
 
-    def render(self, st: State) -> None:
-        fig, ax = plt.subplots()
-        self.plot_walls(ax)
-        ax.plot([self.goal_x], [self.goal_y], color='g', marker='o')
-        ax.plot([st.x], [st.y], color='r', marker='x')
-        plt.show()
+        # Initialize super
+        super().__init__(name, action_space, observation_space)
 
-    def _step_fn(self, st: State, action: np.ndarray) -> State:
-        scaled_action = self.action_scale * action
-        return State(
-            x = st.x + scaled_action[0],
-            y = st.y + scaled_action[1],
-        )
+    def reset(self):
+        pos = tuple(self.grid_params.sample_full())
+        return (pos, pos)
 
-    def _observation_fn(self, st: State) -> np.ndarray:
-        return np.array([st.x, st.y, self.goal_x, self.goal_y])
+    def end_to_end_reset(self):
+        pos = tuple(self.grid_params.sample_center())
+        return (pos, pos)
 
-    def _reward_fn(self, st0: State, action: np.ndarray, st1: State) -> float:
-        if not self.is_safe(st1):
-            return CRASH_REWARD
-        return PROGRESS_GAIN * (self.goal_dist(st0) - self.goal_dist(st1))
+    def render(self, state):
+        print(state[1])
 
-    def vectorize_state(self, st: State) -> np.ndarray:
-        return np.array([st.x, st.y])
+    def _step_fn(self, state, action):
+        action = self.action_scale * action
+        action = np.array([action[0] * math.cos(action[1]),
+                           action[0] * math.sin(action[1])])
+        next_state = tuple(np.array(state[1]) + action)
+        return (state[1], next_state)
 
-    def state_from_vector(self, vec: np.ndarray) -> State:
-        return State(x=vec[0], y=vec[1])
+    def _observation_fn(self, state):
+        return np.array(state[1])
 
-    def goal_dist(self, st: State) -> float:
-        return np.abs(st.x - self.goal_x) + np.abs(st.y - self.goal_y)
+    def _reward_fn(self, state, action, next_state):
+        reach_reward = -np.linalg.norm(self._goal - np.array(next_state[1])) \
+            / np.mean(self.grid_params.partition_size)
+        safety_reward = 0.
+        if not self.is_safe(next_state):
+            safety_reward = -5.
+        return reach_reward + safety_reward
 
-    def plot_walls(self, ax: mpl.axes.Axes) -> None:
-        # top left corner
-        ax.add_line(mpl.lines.Line2D(
-            xdata=[-self.room_radius, -self.room_radius, -self.door_radius],
-            ydata=[self.door_radius, self.room_radius, self.room_radius],
-        ))
-        # top right corner
-        ax.add_line(mpl.lines.Line2D(
-            xdata=[self.door_radius, self.room_radius, self.room_radius],
-            ydata=[self.room_radius, self.room_radius, self.door_radius],
-        ))
-        # bottom left corner
-        ax.add_line(mpl.lines.Line2D(
-            xdata=[-self.room_radius, -self.room_radius, -self.door_radius],
-            ydata=[-self.door_radius, -self.room_radius, -self.room_radius],
-        ))
-        # bottom right corner
-        ax.add_line(mpl.lines.Line2D(
-            xdata=[self.door_radius, self.room_radius, self.room_radius],
-            ydata=[-self.room_radius, -self.room_radius, -self.door_radius],
-        ))
+    def vectorize_state(self, state):
+        return np.concatenate(list(state))
+
+    def state_from_vector(self, vec):
+        return (tuple(vec[:2]), tuple(vec[2:]))
+
+    def is_safe(self, state):
+        s1, s2 = state
+        s1 = np.array(s1)
+        s2 = np.array(s2)
+        params = self.grid_params
+
+        # Change of coordiates
+        p1 = s1 + (params.full_size / 2)
+        p2 = s2 + (params.full_size / 2)
+
+        if not self.is_state_legal(p2):
+            return False
+
+        # both states are inside the same room (not in the door area)
+        if np.all(p1 <= params.partition_size) and np.all(p1 >= params.wall_size) and \
+                np.all(p2 <= params.partition_size) and np.all(p2 >= params.wall_size):
+            return True
+        # both states outside the interior room area
+        if (np.any(p1 >= params.partition_size) or np.any(p1 <= params.wall_size)) \
+                and (np.any(p2 >= params.partition_size) or np.any(p2 <= params.wall_size)):
+            # p2 outside the room
+            if np.any(p2 <= 0.) or np.any(p2 >= params.full_size):
+                direction = self.compute_direction(s2)
+                return self.is_safe((self.change_of_coordinates(s1, direction),
+                                     self.change_of_coordinates(s2, direction)))
+            # both states in door area
+            else:
+                return True
+
+        # swap p1 and p2 if p1 is in the doorway
+        if (np.any(p1 >= params.partition_size) or np.any(p1 <= params.wall_size)):
+            p1, p2 = p2, p1
+
+        # four cases to consider
+        if p2[0] > params.partition_size[0]:
+            return self.check_horizontal_intersect(p1, p2, params.partition_size[0])
+        elif p2[0] < params.wall_size[0]:
+            return self.check_horizontal_intersect(p2, p1, params.wall_size[0])
+        elif p2[1] > params.partition_size[1]:
+            return self.check_vertical_intersect(p1, p2, params.partition_size[1])
+        else:
+            return self.check_vertical_intersect(p2, p1, params.wall_size[1])
+
+    def is_state_legal(self, p):
+        params = self.grid_params
+
+        # legal if outside the room
+        if np.any(p <= 0.) or np.any(p >= params.full_size):
+            return True
+        # legal if completely inside the room
+        if np.all(p <= params.partition_size) and np.all(p >= params.wall_size):
+            return True
+
+        # reject positions within walls
+        if p[0] > params.partition_size[0] or p[0] < params.wall_size[0]:
+            return (p[1] >= params.vdoor[0] and p[1] <= params.vdoor[1])
+        elif p[1] > params.partition_size[1] or p[1] < params.wall_size[1]:
+            return (p[0] >= params.hdoor[0] and p[0] <= params.hdoor[1])
+
+    # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
+    # horizontal coordinates should be relative positions within rooms
+    def check_horizontal_intersect(self, s1, s2, x):
+        y = ((s2[1] - s1[1]) * (x - s1[0]) / (s2[0] - s1[0])) + s1[1]
+        return (self.grid_params.vdoor[0] <= y and y <= self.grid_params.vdoor[1])
+
+    # check if line from s1 to s2 intersects the vertical axis at a point inside door region
+    # vertical coordinates should be relative positions within rooms
+    def check_vertical_intersect(self, s1, s2, y):
+        x = ((s2[0] - s1[0]) * (y - s1[1]) / (s2[1] - s1[1])) + s1[0]
+        return (self.grid_params.hdoor[0] <= x and x <= self.grid_params.hdoor[1])
+
+    def compute_direction(self, s):
+        p = s + (self.grid_params.full_size / 2)
+        if p[0] <= 0.:
+            return 'left'
+        if p[0] >= self.grid_params.full_size[0]:
+            return 'right'
+        if p[1] <= 0.:
+            return 'down'
+        if p[1] >= self.grid_params.full_size[1]:
+            return 'up'
+        return None
+
+    def change_of_coordinates(self, s, direction):
+        return s - self._get_goal(direction)
+
+    def _get_goal(self, name):
+        if name == 'left':
+            goal = [-1, 0]
+        elif name == 'right':
+            goal = [1, 0]
+        elif name == 'up':
+            goal = [0, 1]
+        elif name == 'down':
+            goal = [0, -1]
+        else:
+            raise ValueError('Invalid mode name/direction!')
+        return np.array(goal) * self.grid_params.partition_size

@@ -43,7 +43,7 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
             # Initial set of start states sampled randomly
             if m not in all_states:
                 mode = automaton.modes[m]
-                all_states[m] = [mode.reset() for _ in range(n_samples)]
+                all_states[m] = [mode.end_to_end_reset() for _ in range(n_samples)]
 
             # Sample from current estimate of pre
             start_states[m] = random.sample(all_states[m], min(n_samples, len(all_states[m])))

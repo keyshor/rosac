@@ -29,7 +29,7 @@ class ResetFunc:
         if np.random.binomial(1, self.prob) and len(self.states) > 0:
             return random.choice(self.states)
         else:
-            return self.mode.reset()
+            return self.mode.end_to_end_reset()
 
     def add_states(self, states: Iterable[Any]) -> None:
         self.states.extend(states)
@@ -52,6 +52,7 @@ def cegrl(automaton: HybridAutomaton,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
+          train_kwargs: Dict[str, Any] = {},
           **kwargs
           ) -> Dict[str, Controller]:
     '''
@@ -78,7 +79,7 @@ def cegrl(automaton: HybridAutomaton,
             reload_env = train_stable(models[name], mode, automaton.transitions[name],
                                       total_timesteps=steps_per_iter, init_states=reset_funcs[name],
                                       algo_name=algo_name, max_episode_steps=time_limits[name],
-                                      save_path=save_path)
+                                      save_path=save_path, **train_kwargs)
             if use_best_model:
                 ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, name, 'best_model.zip'),
                                                 algo_name=algo_name, env=reload_env)
