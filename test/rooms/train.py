@@ -17,8 +17,7 @@ from hybrid_gym.envs import make_rooms_model
 def train_single(automaton, name, total_timesteps, save_path):
     mode = automaton.modes[name]
     model = make_sb_model(
-        mode,
-        automaton.transitions[name],
+        [mode],
         algo_name='td3',
         batch_size=256,
         policy_kwargs={'layers': [32, 32]},
@@ -26,7 +25,7 @@ def train_single(automaton, name, total_timesteps, save_path):
         verbose=0,
         max_episode_steps=25,
     )
-    train_stable(model, mode, automaton.transitions[name],
+    train_stable(model, [(mode, automaton.transitions[name], None, None)],
                  total_timesteps=total_timesteps, algo_name='td3',
                  max_episode_steps=25, eval_freq=1000,
                  n_eval_episodes=10, save_path=save_path)

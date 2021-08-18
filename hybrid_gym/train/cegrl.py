@@ -42,7 +42,7 @@ def cegrl(automaton: HybridAutomaton,
           steps_per_iter: int = 10000,
           num_iter: int = 20,
           num_synth_iter: int = 10,
-          n_samples: int = 20,
+          n_samples: int = 50,
           abstract_samples: int = 0,
           print_debug: bool = False,
           use_best_model: bool = False,
@@ -52,6 +52,7 @@ def cegrl(automaton: HybridAutomaton,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
+          mode_groups: List[List[Mode]] = [],
           train_kwargs: Dict[str, Any] = {},
           **kwargs
           ) -> Dict[str, Controller]:
@@ -60,41 +61,59 @@ def cegrl(automaton: HybridAutomaton,
     '''
 
     reset_funcs = {name: ResetFunc(mode) for (name, mode) in automaton.modes.items()}
-    models = {name: make_sb_model(
-        mode,
-        automaton.transitions[name],
+
+    # Add each mode into its own group if no grouping is given
+    if len(mode_groups) == 0:
+        mode_groups = [[mode] for _, mode in automaton.modes.items()]
+    group_names = [[mode.name for mode in modes] for modes in mode_groups]
+
+    # map modes to their group numbers
+    group_map = {}
+    for g in range(len(mode_groups)):
+        for name in group_names[g]:
+            group_map[name] = g
+
+    # create one model for each group
+    models = [make_sb_model(
+        modes,
         algo_name=algo_name,
-        max_episode_steps=time_limits[name],
+        max_episode_steps=time_limits[modes[0].name],
         **kwargs)
-        for (name, mode) in automaton.modes.items()}
-    controllers: Dict[str, Controller] = {
-        name: BaselineCtrlWrapper(model) for (name, model) in models.items()}
+        for modes in mode_groups]
+
+    # create one controller object for each mode
+    controllers: List[Controller] = [BaselineCtrlWrapper(model) for model in models]
 
     for i in range(num_iter):
         print('\n**** Iteration {} ****'.format(i))
 
         # train agents
-        for (name, mode) in automaton.modes.items():
-            print('\n---- Training controller for mode {} ----'.format(name))
-            reload_env = train_stable(models[name], mode, automaton.transitions[name],
-                                      total_timesteps=steps_per_iter, init_states=reset_funcs[name],
-                                      algo_name=algo_name, max_episode_steps=time_limits[name],
-                                      save_path=save_path, **train_kwargs)
+        for g in range(len(mode_groups)):
+            print('\n---- Training controller for modes {} ----'.format(group_names[g]))
+            group_info = [(mode, automaton.transitions[mode.name], reset_funcs[mode.name], None)
+                          for mode in mode_groups[g]]
+            reload_env = train_stable(models[g], group_info, total_timesteps=steps_per_iter,
+                                      algo_name=algo_name, save_path=save_path,
+                                      max_episode_steps=time_limits[mode_groups[g][0].name],
+                                      **train_kwargs)
             if use_best_model:
-                ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, name, 'best_model.zip'),
-                                                algo_name=algo_name, env=reload_env)
+                ctrl = BaselineCtrlWrapper.load(
+                    os.path.join(save_path, group_names[g][0], 'best_model.zip'),
+                    algo_name=algo_name, env=reload_env)
             else:
-                controllers[name].save(os.path.join(save_path, name + '.her'))
-                ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, name + '.her'),
-                                                algo_name=algo_name, env=reload_env)
+                controllers[g].save(os.path.join(save_path, group_names[g][0] + '.' + algo_name))
+                ctrl = BaselineCtrlWrapper.load(
+                    os.path.join(save_path, group_names[g][0] + '.' + algo_name),
+                    algo_name=algo_name, env=reload_env)
             if isinstance(ctrl, BaselineCtrlWrapper):
-                models[name] = ctrl.model
-                controllers[name] = ctrl
+                models[g] = ctrl.model
+                controllers[g] = ctrl
 
         # synthesis
         print('\n---- Running synthesis ----')
         pre_copy = pre.copy()
-        ces = synthesize(automaton, controllers, pre_copy, time_limits, num_synth_iter,
+        mode_controllers = {name: controllers[g] for name, g in group_map.items()}
+        ces = synthesize(automaton, mode_controllers, pre_copy, time_limits, num_synth_iter,
                          n_samples, abstract_samples, print_debug)
 
         if falsify_func is None:
@@ -105,9 +124,10 @@ def cegrl(automaton: HybridAutomaton,
             # use falsification to identify bad states
             for (m, pre_m) in pre_copy.items():
                 bad_states = falsify(automaton.modes[m], automaton.transitions[m],
-                                     controllers[m], pre_copy[m], falsify_func[m], time_limits[m],
-                                     num_falsification_iter, num_falsification_samples,
+                                     mode_controllers[m], pre_copy[m], falsify_func[m],
+                                     time_limits[m], num_falsification_iter,
+                                     num_falsification_samples,
                                      num_falsification_top_samples)
                 reset_funcs[m].add_states(bad_states)
 
-    return controllers
+    return mode_controllers

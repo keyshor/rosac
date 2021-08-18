@@ -79,7 +79,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             / np.mean(self.grid_params.partition_size)
         safety_reward = 0.
         if not self.is_safe(next_state):
-            safety_reward = -5.
+            safety_reward = -50.
         return reach_reward + safety_reward
 
     def vectorize_state(self, state):

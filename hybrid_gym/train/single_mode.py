@@ -13,7 +13,8 @@ from stable_baselines.ddpg.noise import NormalActionNoise
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 
 from hybrid_gym.model import Mode, Transition, StateType
-from hybrid_gym.util.wrappers import GymMultiEnvWrapper, GymMultiGoalEnvWrapper, DoneOnSuccessWrapper
+from hybrid_gym.util.wrappers import (
+    GymMultiEnvWrapper, GymMultiGoalEnvWrapper, DoneOnSuccessWrapper)
 
 
 BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)

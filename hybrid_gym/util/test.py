@@ -25,6 +25,10 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
         sass.append((state, action, next_state))
         state = next_state
 
+        # Render
+        if render:
+            mode.render(state)
+
         # Check safety
         if not mode.is_safe(state):
             info['safe'] = False
@@ -39,10 +43,6 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
 
         # Increment step count
         step += 1
-
-        # Render
-        if render:
-            mode.render(state)
 
     return sass, info
 
