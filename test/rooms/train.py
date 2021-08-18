@@ -43,4 +43,4 @@ if __name__ == '__main__':
 
     for name in mode_list:
         print(f'training mode {name}')
-        train_single(automaton, name, 80000, flags['path'])
+        train_single(automaton, name, 400000, flags['path'])

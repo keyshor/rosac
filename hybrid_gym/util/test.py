@@ -7,7 +7,8 @@ from typing import List, Any, Dict, Union
 
 
 def get_rollout(mode: Mode, transitions: List[Transition], controller: Controller,
-                state: Any = None, max_timesteps=10000, reset_controller: bool = True):
+                state: Any = None, max_timesteps=10000, reset_controller: bool = True,
+                render: bool = False):
     step = 0
     if reset_controller:
         controller.reset()
@@ -39,13 +40,18 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
         # Increment step count
         step += 1
 
+        # Render
+        if render:
+            mode.render(state)
+
     return sass, info
 
 
 def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                     controller: Union[Controller, Dict[str, Controller]],
                     time_limits: Dict[str, int], num_rollouts: int = 100,
-                    max_jumps: int = 100, print_debug: bool = False):
+                    max_jumps: int = 100, print_debug: bool = False,
+                    render: bool = False):
     '''
     Measure success of trained controllers w.r.t. a given mode selector.
     Success only when selector signals completion (returns done).
@@ -63,6 +69,8 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
         state = automaton.modes[mname].end_to_end_reset()
         if isinstance(controller, Controller):
             controller.reset()
+        if render:
+            print('\n**** New rollout ****')
 
         for j in range(max_jumps):
 
@@ -72,9 +80,12 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
             else:
                 cur_controller = controller[mname]
 
+            if render:
+                print('Rollout in mode {}'.format(mname))
             sarss, info = get_rollout(automaton.modes[mname], automaton.transitions[mname],
                                       cur_controller, state, time_limits[mname],
-                                      reset_controller=(not isinstance(controller, Controller)))
+                                      reset_controller=(not isinstance(controller, Controller)),
+                                      render=render)
             steps += len(sarss)
 
             # terminate rollout if unsafe

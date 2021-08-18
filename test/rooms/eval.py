@@ -28,18 +28,20 @@ if __name__ == '__main__':
         for name in automaton.modes
     }
 
-    # mode_predictor = ScipyModePredictor.load(
-    #     'mode_predictor.mlp', automaton.observation_space, 'mlp')
-
     time_limits = {m: 25 for m in automaton.modes}
 
-    # selector = dqn_adversary(automaton, controllers, time_limits, max_jumps=10,
-    #                           learning_timesteps=500, policy_kwargs={'layers': [16, 16]})
+    if flags['falsify']:
+        selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
+                                  num_rollouts=500, print_debug=True)
+    else:
+        selector = MaxJumpWrapper(UniformSelector(
+            [mode for m, mode in automaton.modes.items()]), 10)
 
-    selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
-                              num_rollouts=150, print_debug=True)
+    # selector = dqn_adversary(automaton, controllers, time_limits, max_jumps=10,
+    #                          learning_timesteps=500, policy_kwargs={'layers': [16, 16]})
 
     print('\nEvaluating with MCTS adversary')
     print('Probability of successful completion: {}'.format(
         end_to_end_test(automaton, selector, controllers, time_limits,
-                        num_rollouts=100, max_jumps=10, print_debug=True)))
+                        num_rollouts=100, max_jumps=10, print_debug=True,
+                        render=flags['render'])))
