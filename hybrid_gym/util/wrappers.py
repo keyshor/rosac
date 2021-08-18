@@ -5,7 +5,7 @@ from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2,
 from stable_baselines.common.base_class import BaseRLModel
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg
 from typing import (Iterable, List, Tuple, Dict, Optional,
-                    Callable, Generic, NoReturn, TypeVar, Union, Any)
+                    Callable, Generic, NoReturn, Type, TypeVar, Union, Any)
 from hybrid_gym.model import Mode, Transition, Controller, StateType
 
 T = TypeVar('T')
@@ -244,6 +244,8 @@ class GymMultiGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
         return mode.compute_reward(achieved_goal, desired_goal, info)
 
 
+BaselineCtrlWrapperType = TypeVar('BaselineCtrlWrapperType', bound='BaselineCtrlWrapper')
+
 class BaselineCtrlWrapper(Controller):
     model: BaseRLModel
 
@@ -258,12 +260,12 @@ class BaselineCtrlWrapper(Controller):
         self.model.save(path)
 
     @classmethod
-    def load(cls,
+    def load(cls: Type[BaselineCtrlWrapperType],
              path: str,
              env: gym.Env = None,
              algo_name: str = 'td3',
              **kwargs: Dict,
-             ) -> Controller:
+             ) -> BaselineCtrlWrapperType:
         if algo_name == 'a2c':
             model: BaseRLModel = A2C.load(path, env=env, **kwargs)
         elif algo_name == 'acer':
@@ -293,6 +295,8 @@ class BaselineCtrlWrapper(Controller):
         return cls(model)
 
 
+SpectrlCtrlWrapperType = TypeVar('SpectrlCtrlWrapperType', bound='SpectrlCtrlWrapper')
+
 class SpectrlCtrlWrapper(Controller):
     model: SpectrlDdpg
 
@@ -306,11 +310,11 @@ class SpectrlCtrlWrapper(Controller):
         self.model.save(path)
 
     @classmethod
-    def load(cls,
+    def load(cls: Type[SpectrlCtrlWrapperType],
              path: str,
              algo_name: str = 'td3',
              **kwargs: Dict,
-             ) -> Controller:
+             ) -> SpectrlCtrlWrapperType:
         return cls(joblib.load(path))
 
 
