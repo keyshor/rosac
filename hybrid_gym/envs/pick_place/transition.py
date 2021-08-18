@@ -22,49 +22,21 @@ class PickPlaceTrans(Transition):
 
     def guard(self, st: State) -> bool:
         self.source_mode.set_state(st)
+        multi_obj = self.source_mode.multi_obj
+        if multi_obj.in_tower[multi_obj.next_obj_index]:
+            return True
         obs_dict = self.source_mode.multi_obj._get_obs()
         return self.source_mode.multi_obj._is_success(
             obs_dict['achieved_goal'], obs_dict['desired_goal']
         )
 
     def jump(self, target: str, st: State) -> State:
-        goal_dict = dict(st.goal_dict)
-        num_stack = st.num_stack
-        target_mode_type = self.target_mode.multi_obj.mode_type
-        if target_mode_type == ModeType.MOVE_WITH_OBJ:
-            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack-1]}'] \
-                + np.array([0, 0, object_length + pick_height_offset])
-            goal_dict['finger'] = np.full((2,), object_length / 2.0)
-            goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm'].copy()
-        elif target_mode_type == ModeType.MOVE_WITHOUT_OBJ:
-            num_stack += 1
-            if num_stack >= self.target_mode.multi_obj.num_objects:
-                return self.target_mode.end_to_end_reset()
-            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'] \
-                + np.array([0, 0, pick_height_offset])
-            goal_dict['finger'] = np.full((2,), object_length)
-        elif target_mode_type == ModeType.PICK_OBJ_PT1:
-            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'].copy()
-            goal_dict['finger'] = np.full((2,), object_length)
-        elif target_mode_type == ModeType.PICK_OBJ_PT2:
-            goal_dict['finger'] = np.full((2,), object_length / 2.0)
-        elif target_mode_type == ModeType.PICK_OBJ_PT3:
-            goal_dict['arm'] += np.array([0, 0, pick_height_offset])
-            goal_dict['finger'] = np.full((2,), object_length / 2.0)
-            goal_dict[f'obj{st.obj_perm[num_stack]}'] = goal_dict['arm'].copy()
-        elif target_mode_type == ModeType.PLACE_OBJ_PT1:
-            goal_dict[f'obj{st.obj_perm[num_stack]}'] = \
-                goal_dict[f'obj{st.obj_perm[num_stack-1]}'] \
-                + np.array([0, 0, object_length])
-            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'].copy()
-            goal_dict['finger'] = np.full((2,), object_length / 2.0)
-        else:  # target_mode_type == ModeType.PLACE_OBJ_PT2
-            goal_dict['arm'] = goal_dict[f'obj{st.obj_perm[num_stack]}'].copy() \
-                + np.array([0, 0, pick_height_offset])
-            goal_dict['finger'] = np.full((2,), object_length)
-        return State(
+        st_inter = State(
             mujoco_state=st.mujoco_state,
-            obj_perm=st.obj_perm,
-            num_stack=num_stack,
-            goal_dict=goal_dict,
+            tower_set=st.tower_set | frozenset([self.source_mode.multi_obj.next_obj_index]),
+            tower_pos=st.tower_pos.copy(),
+            goal_dict=dict(st.goal_dict),
         )
+        self.target_mode.set_state(st)
+        self.target_mode.multi_obj.goal = self.target_mode.multi_obj._sample_goal()
+        return self.target_mode.get_state()

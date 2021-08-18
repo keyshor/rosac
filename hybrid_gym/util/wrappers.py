@@ -112,6 +112,138 @@ class GymGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
         return self.mode.compute_reward(achieved_goal, desired_goal, info)
 
 
+class GymMultiEnvWrapper(gym.Env, Generic[StateType]):
+    mode_index: int
+    state: StateType
+    observation_space: gym.Space
+    action_space: gym.Space
+    mode_info: List[Tuple[
+        Mode[StateType],
+        List[Transition],
+        Callable[[], StateType],
+        Callable[[StateType, np.ndarray, StateType], float],
+    ]]
+    flatten_obs: bool
+    rng: np.random.Generator
+
+    def __init__(self,
+                 mode_info: Iterable[Tuple[
+                     Mode[StateType],
+                     Iterable[Transition],
+                     Optional[Callable[[], StateType]],
+                     Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                 ]],
+                 flatten_obs: bool = False,
+                 rng: np.random.Generator = np.random.default_rng(),
+                 ) -> None:
+        self.rng = rng
+        self.mode_info = [
+            (mode, list(trans), custom_reset or mode.reset, custom_reward or mode.reward)
+            for (mode, trans, custom_reset, custom_reward) in mode_info
+        ]
+        assert all([t.source == mode.name
+                    for (mode, transitions, _, _) in self.mode_info
+                    for t in transitions
+                    ])
+        self.flatten_obs = flatten_obs
+        first_mode, _, _, _ = self.mode_info[0]
+        self.observation_space = gym.spaces.utils.flatten_space(first_mode.observation_space) \
+            if self.flatten_obs else first_mode.observation_space
+        self.action_space = first_mode.action_space
+        super().__init__()
+
+    def observe(self) -> Any:
+        mode, _, _, _ = self.mode_info[self.mode_index]
+        wrapped_obs = mode.observe(self.state)
+        return gym.spaces.utils.flatten(mode.observation_space, wrapped_obs) \
+            if self.flatten_obs else wrapped_obs
+
+    def reset(self) -> np.ndarray:
+        self.mode_index = self.rng.choice(len(self.mode_info))
+        mode, _, reset_fn, _ = self.mode_info[self.mode_index]
+        self.state = reset_fn()
+        return self.observe()
+
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict]:
+        mode, transitions, _, reward_fn = self.mode_info[self.mode_index]
+        next_state = mode.step(self.state, action)
+        reward = reward_fn(self.state, action, next_state)
+        self.state = next_state
+        done = not mode.is_safe(self.state) \
+            or any([t.guard(self.state) for t in transitions])
+        return self.observe(), reward, done, {}
+
+    def render(self) -> None:
+        mode, _, _, _ = self.mode_info[self.mode_index]
+        mode.render(self.state)
+
+
+class GymMultiGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
+    mode_index: int
+    state: StateType
+    observation_space: gym.Space
+    action_space: gym.Space
+    mode_info: List[Tuple[
+        Mode[StateType],
+        List[Transition],
+        Callable[[], StateType],
+        Callable[[StateType, np.ndarray, StateType], float],
+    ]]
+    rng: np.random.Generator
+
+    def __init__(self,
+                 mode_info: Iterable[Tuple[
+                     Mode[StateType],
+                     Iterable[Transition],
+                     Optional[Callable[[], StateType]],
+                     Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                 ]],
+                 rng: np.random.Generator = np.random.default_rng(),
+                 ) -> None:
+        self.rng = rng
+        self.mode_info = [
+            (mode, list(trans), custom_reset or mode.reset, custom_reward or mode.reward)
+            for (mode, trans, custom_reset, custom_reward) in mode_info
+        ]
+        assert all([t.source == mode.name
+                    for (mode, transitions, _, _) in self.mode_info
+                    for t in transitions
+                    ])
+        first_mode, _, _, _ = self.mode_info[0]
+        self.observation_space = first_mode.observation_space
+        self.action_space = first_mode.action_space
+        super().__init__()
+        super().reset()
+        self.reset()
+
+    def reset(self) -> np.ndarray:
+        self.mode_index = self.rng.choice(len(self.mode_info))
+        mode, _, reset_fn, _ = self.mode_info[self.mode_index]
+        self.state = reset_fn()
+        return mode.observe(self.state)
+
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict]:
+        mode, transitions, _, reward_fn = self.mode_info[self.mode_index]
+        next_state = mode.step(self.state, action)
+        reward = reward_fn(self.state, action, next_state)
+        self.state = next_state
+        done = not mode.is_safe(self.state) \
+            or any([t.guard(self.state) for t in transitions])
+        return mode.observe(self.state), reward, done, {}
+
+    def render(self) -> None:
+        mode, _, _, _ = self.mode_info[self.mode_index]
+        mode.render(self.state)
+
+    def compute_reward(self,
+                       achieved_goal: np.ndarray,
+                       desired_goal: np.ndarray,
+                       info: Any,
+                       ) -> float:
+        mode, _, _, _ = self.mode_info[self.mode_index]
+        return mode.compute_reward(achieved_goal, desired_goal, info)
+
+
 class BaselineCtrlWrapper(Controller):
     model: BaseRLModel
 

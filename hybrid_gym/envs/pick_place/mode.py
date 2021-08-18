@@ -6,7 +6,7 @@ import mujoco_py
 from copy import deepcopy
 from hybrid_gym.model import Mode
 from gym.envs.robotics import rotations, robot_env, utils
-from typing import List, Tuple, Dict, Union, NamedTuple, Any
+from typing import List, Tuple, Dict, FrozenSet, Union, NamedTuple, Any
 
 pick_height_offset: float = 0.05
 object_length: float = 0.05  # each object is a object_length x object_length x object_length cube
@@ -49,17 +49,18 @@ class MultiObjectEnv(robot_env.RobotEnv):
     distance_threshold: float
     reward_type: str
     mode_type: ModeType
-    num_stack: int
-    obj_perm: np.ndarray
+    next_obj_index: int
+    tower_pos: np.ndarray
     goal_dict: Dict[str, np.ndarray]
+    tower_set: FrozenSet[int]
 
     def __init__(
         self, model_path: str, n_substeps: int, gripper_extra_height: float,
         block_gripper: bool, num_objects: int,
         target_offset: Union[float, np.ndarray], obj_range: float,
         target_range: float, distance_threshold: float, initial_qpos: Dict,
-        reward_type: str, mode_type: ModeType,
-    ):
+        reward_type: str, mode_type: ModeType, next_obj_index: int,
+    ) -> None:
         """Initializes a new Fetch environment.
 
         Args:
@@ -86,9 +87,10 @@ class MultiObjectEnv(robot_env.RobotEnv):
         self.distance_threshold = distance_threshold
         self.reward_type = reward_type
         self.mode_type = mode_type
-        self.num_stack = 0
-        self.obj_perm = np.array(range(num_objects))
+        self.next_obj_index = next_obj_index
+        self.tower_pos = np.zeros(shape=(2,))
         self.goal_dict = {}
+        self.tower_set = frozenset()
 
         super().__init__(
             model_path=model_path, n_substeps=n_substeps, n_actions=4,
@@ -198,68 +200,78 @@ class MultiObjectEnv(robot_env.RobotEnv):
             self.sim.model.site_pos[site_id] = self.goal[ll:h] - sites_offset[0]
         self.sim.forward()
 
-    def initialize_positions(self) -> None:
+    def initialize_positions(self, tower_height: int) -> None:
         self.sim.set_state(self.initial_state)
+        other_objects = np.array(
+            [i for i in range(self.num_objects) if i != self.next_obj_index],
+            dtype=int,
+        )
 
         # randomize start position of objects
-        self.tower_location = self.initial_gripper_xpos[:2] \
+        self.tower_pos = self.initial_gripper_xpos[:2] \
             + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
-        self.obj_perm = self.np_random.permutation(self.num_objects)
-        # object_xpos[i] is the position of object{self.obj_perm[i]}
-        object_xpos = [self.initial_gripper_xpos[:2] for i in range(self.num_objects)]
-        for i in range(self.num_objects):
-            object_name = f'object{self.obj_perm[i]}:joint'
-            if i < self.num_stack:
-                object_xpos[i] = self.tower_location.copy()
-            else:
-                while np.linalg.norm(object_xpos[i] - self.initial_gripper_xpos[:2]) < 0.1 or \
-                        np.linalg.norm(object_xpos[i] - self.tower_location) < 0.1 or \
-                        (i >= 1 and np.nanmin([np.linalg.norm(object_xpos[i] - object_xpos[j])
-                                               for j in range(i)]) < min_obj_dist):
-                    object_xpos[i] = self.initial_gripper_xpos[:2] + \
-                        self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
-            object_qpos = self.sim.data.get_joint_qpos(object_name)
-            assert object_qpos.shape == (7,)
-            object_qpos[:2] = object_xpos[i]
-            if i < self.num_stack:
-                object_qpos[2] = self.height_offset + i * object_length
-            else:
-                object_qpos[2] = self.height_offset
-            self.sim.data.set_joint_qpos(object_name, object_qpos)
+        obj_perm = self.np_random.permutation(other_objects)
+        tower_blocks = obj_perm[:tower_height]
+        non_tower_blocks = np.array([self.next_obj_index] + list(obj_perm[tower_height:]))
+        self.tower_set = frozenset(tower_blocks)
+        object_xpos = np.empty(shape=(self.num_objects,3))
+        object_xpos[:,0:2] = self.initial_gripper_xpos[:2]
+        object_xpos[:,2] = self.height_offset
+        for i in range(tower_height):
+            obj_index = tower_blocks[i]
+            object_name = f'object{obj_index}:joint'
+            object_xpos[obj_index,0:2] = self.tower_pos \
+                + self.np_random.uniform(-0.1 * object_length, 0.1 * object_length, size=2)
+            object_xpos[obj_index,2] += i * object_length
+        for i in range(self.num_objects - tower_height):
+            obj_index = non_tower_blocks[i]
+            object_name = f'object{obj_index}:joint'
+            while np.linalg.norm(object_xpos[obj_index,0:2] - self.initial_gripper_xpos[:2]) < min_obj_dist or \
+                    np.linalg.norm(object_xpos[obj_index,0:2] - self.tower_pos) < min_obj_dist or \
+                    np.any(np.linalg.norm(
+                        object_xpos[obj_index,0:2] - object_xpos[non_tower_blocks[:i],0:2], axis=1,
+                    ) < min_obj_dist):
+                object_xpos[obj_index,0:2] = self.initial_gripper_xpos[:2] + \
+                    self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
 
         # set gripper location
         if self.mode_type == ModeType.PICK_OBJ_PT1:
-            gripper_target = self.object_position(self.obj_perm[self.num_stack]) \
+            gripper_target = object_xpos[self.next_obj_index] \
                 + np.array([0, 0, pick_height_offset])
         elif self.mode_type == ModeType.PICK_OBJ_PT2 \
                 or self.mode_type == ModeType.PICK_OBJ_PT3:
-            gripper_target = self.object_position(self.obj_perm[self.num_stack])
+            gripper_target = object_xpos[self.next_obj_index]
         elif self.mode_type == ModeType.MOVE_WITH_OBJ:
-            gripper_target = self.object_position(self.obj_perm[self.num_stack])
+            gripper_target = object_xpos[self.next_obj_index]
         elif self.mode_type == ModeType.PLACE_OBJ_PT1 \
                 or self.mode_type == ModeType.MOVE_WITHOUT_OBJ:
-            gripper_target = self.object_position(self.obj_perm[self.num_stack-1]) \
+            gripper_target = self.top_tower_block_pos() \
                 + np.array([0, 0, object_length + pick_height_offset])
         else:  # self.modeType == ModeType.PLACE_OBJ_PT2
-            gripper_target = self.object_position(self.obj_perm[self.num_stack-1]) \
+            gripper_target = self.top_tower_block_pos() \
                 + np.array([0, 0, object_length])
-        gripper_rotation = np.array([1., 0., 1., 0.])
-        self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
-        self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
+        gripper_target[:2] += self.np_random.uniform(
+            low=-2*self.distance_threshold,
+            high=2*self.distance_threshold,
+            size=2,
+        )
+        self.set_gripper_position(gripper_target)
 
-        for _ in range(10):
+        for obj_index in range(self.num_objects):
+            self.set_object_position(obj_index, object_xpos[obj_index])
+
+        for _ in range(5):
             self.sim.step()
         self.sim.forward()
 
         # place object in gripper's grip
-        self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', object_length)
-        self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', object_length)
+        self.set_gripper_fingers(np.full(shape=(2,), fill_value=object_length))
         if self.mode_type == ModeType.PLACE_OBJ_PT1 \
                 or self.mode_type == ModeType.PLACE_OBJ_PT2 \
                 or self.mode_type == ModeType.MOVE_WITH_OBJ \
                 or self.mode_type == ModeType.PICK_OBJ_PT2 \
                 or self.mode_type == ModeType.PICK_OBJ_PT3:
-            object_index = self.obj_perm[self.num_stack]
+            object_index = self.next_obj_index
             object_name = 'object{}:joint'.format(object_index)
             for _ in range(3):
                 object_qpos = self.object_qpos(object_index)
@@ -271,48 +283,66 @@ class MultiObjectEnv(robot_env.RobotEnv):
         if self.mode_type == ModeType.PICK_OBJ_PT2:
             for _ in range(3):
                 self.step(np.array([0, 0, 0, 1]))
-            self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', object_length)
-            self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', object_length)
+            self.set_gripper_fingers(np.full(shape=(2,), fill_value=object_length))
 
         for _ in range(5):
             self.sim.step()
         self.sim.forward()
 
+    def set_gripper_position(self, raw_gripper_target: np.ndarray) -> None:
+        gripper_target = raw_gripper_target + np.array([-0.0001, 0.0000, 0.0203])
+        gripper_rotation = np.array([1., 0., 1., 0.])
+        self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
+        self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
+        for _ in range(10):
+            self.sim.step()
+        self.sim.forward()
+
+    def set_gripper_fingers(self, fingers: np.ndarray) -> None:
+        self.sim.data.set_joint_qpos('robot0:l_gripper_finger_joint', fingers[0])
+        self.sim.data.set_joint_qpos('robot0:r_gripper_finger_joint', fingers[1])
+
+    def set_object_position(self, obj_index: int, xpos: np.ndarray) -> None:
+        object_name = f'object{obj_index}:joint'
+        object_qpos = self.sim.data.get_joint_qpos(object_name)
+        assert object_qpos.shape == (7,)
+        object_qpos[:3] = xpos
+        self.sim.data.set_joint_qpos(object_name, object_qpos)
+
     def _reset_sim(self) -> bool:
-        self.num_stack = self.np_random.randint(self.num_objects)
-        self.initialize_positions()
+        tower_height = self.np_random.randint(self.num_objects)
+        self.initialize_positions(tower_height=tower_height)
         return True
 
     def make_goal_dict(self) -> Dict[str, np.ndarray]:
         desired_object_pos = [self.object_position(i) for i in range(self.num_objects)]
         if self.mode_type == ModeType.MOVE_WITH_OBJ:
-            desired_arm_position = self.object_position(self.obj_perm[self.num_stack-1]) \
+            desired_arm_position = self.top_tower_block_pos() \
                 + np.array([0, 0, object_length + pick_height_offset])
             desired_finger_pos = np.full((2,), object_length / 2.0)
-            desired_object_pos[self.obj_perm[self.num_stack]] = desired_arm_position
+            desired_object_pos[self.next_obj_index] = desired_arm_position
         elif self.mode_type == ModeType.MOVE_WITHOUT_OBJ:
-            desired_arm_position = self.object_position(self.obj_perm[self.num_stack]) \
+            desired_arm_position = self.object_position(self.next_obj_index) \
                 + np.array([0, 0, pick_height_offset])
             desired_finger_pos = np.full((2,), object_length)
         elif self.mode_type == ModeType.PICK_OBJ_PT1:
-            desired_arm_position = self.object_position(self.obj_perm[self.num_stack])
+            desired_arm_position = self.object_position(self.next_obj_index)
             desired_finger_pos = np.full((2,), object_length)
         elif self.mode_type == ModeType.PICK_OBJ_PT2:
-            desired_arm_position = self.object_position(self.obj_perm[self.num_stack])
+            desired_arm_position = self.object_position(self.next_obj_index)
             desired_finger_pos = np.full((2,), object_length / 2.0)
         elif self.mode_type == ModeType.PICK_OBJ_PT3:
             desired_arm_position = self.arm_position() \
                 + np.array([0, 0, pick_height_offset])
             desired_finger_pos = np.full((2,), object_length / 2.0)
-            desired_object_pos[self.obj_perm[self.num_stack]] = desired_arm_position
+            desired_object_pos[self.next_obj_index] = desired_arm_position
         elif self.mode_type == ModeType.PLACE_OBJ_PT1:
-            desired_object_pos[self.obj_perm[self.num_stack]
-                               ] = desired_object_pos[self.obj_perm[self.num_stack-1]] \
+            desired_object_pos[self.next_obj_index] = self.top_tower_block_pos() \
                 + np.array([0, 0, object_length])
-            desired_arm_position = desired_object_pos[self.obj_perm[self.num_stack]].copy()
+            desired_arm_position = desired_object_pos[self.next_obj_index].copy()
             desired_finger_pos = np.full((2,), object_length / 2.0)
         else:  # self.mode_type == ModeType.PLACE_OBJ_PT2
-            desired_arm_position = desired_object_pos[self.obj_perm[self.num_stack]] \
+            desired_arm_position = desired_object_pos[self.next_obj_index] \
                 + np.array([0, 0, pick_height_offset])
             desired_finger_pos = np.full((2,), object_length)
         return dict(
@@ -384,6 +414,13 @@ class MultiObjectEnv(robot_env.RobotEnv):
         reward = self.compute_reward(obs['achieved_goal'], self.goal, info)
         return obs, reward, done, info
 
+    def top_tower_block_pos(self) -> np.ndarray:
+        tower_height = len(self.tower_set)
+        pos = np.empty(shape=(3,))
+        pos[0:2] = self.tower_pos
+        pos[2] = self.height_offset + tower_height * object_length
+        return pos
+
     def object_qpos(self, object_index: int) -> np.ndarray:
         if object_index < 0 or object_index >= self.num_objects:
             raise KeyError('valid object indices i satisfy 0 <= i < {}'.format(self.num_objects))
@@ -418,9 +455,10 @@ class MultiObjectEnv(robot_env.RobotEnv):
             and gripper_l + gripper_r < 1.01 * object_length
 
     def is_safe(self) -> bool:
-        for i in range(self.num_stack):
-            if np.linalg.norm(self.object_position(self.obj_perm[i]) -
-                              self.goal_dict[f'obj{self.obj_perm[i]}']) \
+        for i in range(self.num_objects):
+            if i in self.tower_set \
+                    and np.linalg.norm(self.object_position(i) -
+                                       self.goal_dict[f'obj{i}']) \
                     >= obj_pos_tolerance:
                 return False
         return True
@@ -428,19 +466,17 @@ class MultiObjectEnv(robot_env.RobotEnv):
 
 class State(NamedTuple):
     mujoco_state: mujoco_py.MjSimState
-    obj_perm: np.ndarray
-    num_stack: int
+    tower_set: FrozenSet[int]
+    tower_pos: np.ndarray
     goal_dict: Dict[str, np.ndarray]
 
 
 class PickPlaceMode(Mode[State]):
     multi_obj: MultiObjectEnv
-    obj_perm_index: int
-    num_stack_index: int
-    goal_index: int
 
     def __init__(self,
                  mode_type: ModeType,
+                 next_obj_index: int,
                  num_objects: int = 3,
                  reward_type: str = 'sparse',
                  distance_threshold: float = 0.005):
@@ -461,40 +497,33 @@ class PickPlaceMode(Mode[State]):
             gripper_extra_height=0.2, target_offset=0.0,
             obj_range=0.15, target_range=0.15, distance_threshold=distance_threshold,
             initial_qpos=initial_qpos, reward_type=reward_type, mode_type=mode_type,
+            next_obj_index=next_obj_index,
         )
-        self.obj_perm_index = -4 * num_objects - 6
-        self.num_stack_index = -3 * num_objects - 6
-        self.goal_index = -3 * num_objects - 5
         super().__init__(
-            name=str(mode_type),
+            name=f'{mode_type.name}_{next_obj_index}',
             action_space=self.multi_obj.action_space,
             observation_space=self.multi_obj.observation_space,
         )
 
     def set_state(self, state: State) -> None:
-        # self.multi_obj.sim.reset()
-        # old_mujoco_state = self.multi_obj.sim.get_state()
         self.multi_obj.sim.set_state(mujoco_py.MjSimState(
-            # old_mujoco_state.time,
             state.mujoco_state.time,
             state.mujoco_state.qpos,
             state.mujoco_state.qvel,
             state.mujoco_state.act,
             state.mujoco_state.udd_state
         ))
-        self.multi_obj.obj_perm = state.obj_perm.copy()
-        self.multi_obj.num_stack = state.num_stack
+        self.multi_obj.tower_set = state.tower_set
+        self.multi_obj.tower_pos = state.tower_pos.copy()
         self.multi_obj.goal_dict = dict(state.goal_dict)
         self.multi_obj.goal = self.multi_obj.goal_vector(state.goal_dict)
-        #for _ in range(10):
-        #    self.multi_obj.sim.step()
         self.multi_obj.sim.forward()
 
     def get_state(self) -> State:
         return State(
             mujoco_state=deepcopy(self.multi_obj.sim.get_state()),
-            obj_perm=self.multi_obj.obj_perm.copy(),
-            num_stack=self.multi_obj.num_stack,
+            tower_set=self.multi_obj.tower_set,
+            tower_pos=self.multi_obj.tower_pos.copy(),
             goal_dict=dict(self.multi_obj.goal_dict),
         )
 
@@ -504,18 +533,13 @@ class PickPlaceMode(Mode[State]):
 
     def end_to_end_reset(self) -> State:
         assert self.multi_obj.mode_type == ModeType.MOVE_WITHOUT_OBJ
-        self.multi_obj.num_stack = 0
-        self.multi_obj.initialize_positions()
+        self.multi_obj.initialize_positions(tower_height=0)
         self.multi_obj._sample_goal()
         return self.get_state()
 
     def is_safe(self, state: State) -> bool:
-        for i in range(self.multi_obj.num_stack):
-            if np.linalg.norm(self.multi_obj.object_position(self.multi_obj.obj_perm[i]) -
-                              self.multi_obj.goal_dict[f'obj{self.multi_obj.obj_perm[i]}']) \
-                    >= obj_pos_tolerance:
-                return False
-        return True
+        self.set_state(state)
+        return self.multi_obj.is_safe()
 
     def is_success(self, state: State) -> bool:
         self.set_state(state)
@@ -556,22 +580,53 @@ class PickPlaceMode(Mode[State]):
         )
 
     def vectorize_state(self, state: State) -> np.ndarray:
-        flattened_mujoco_state = state.mujoco_state.flatten()
-        flattened_goal_dict = self.multi_obj.goal_vector(state.goal_dict)
+        self.set_state(state)
         return np.concatenate([
-            flattened_mujoco_state,
-            state.obj_perm,
-            [state.num_stack],
-            flattened_goal_dict,
+            [len(self.multi_obj.tower_set)],
+            self.multi_obj.tower_pos.copy(),
+            self.multi_obj.arm_position(),
+            self.multi_obj.gripper_fingers(),
+        ] + [
+            self.multi_obj.object_position(i)
+            for i in range(self.multi_obj.num_objects)
         ])
 
     def state_from_vector(self, vec: np.ndarray) -> State:
-        return State(
-            mujoco_state=mujoco_py.MjSimState.from_flattened(
-                vec[0: self.obj_perm_index],
-                self.multi_obj.sim,
-            ),
-            obj_perm=np.rint(vec[self.obj_perm_index: self.num_stack_index]).astype(np.int),
-            num_stack=int(np.rint(vec[self.num_stack_index])),
-            goal_dict=self.multi_obj.unvectorize_goal(vec[self.goal_index:]),
+        tower_height = int(vec[0])
+        tower_pos = vec[1:3]
+        arm_position = vec[3:6]
+        gripper_fingers = vec[6:8]
+        object_position = np.reshape(
+            vec[8:],
+            newshape=(self.multi_obj.num_objects,3),
+            order='C',
         )
+
+        # compute which objects should be in the tower
+        tower_distances = np.linalg.norm(object_position[:,0:2] - tower_pos, axis=1)
+        tower_set = frozenset(np.argsort(tower_distances)[:tower_height])
+        tower_order = np.argsort(object_position[:,2])
+        j = 0
+        for i in range(self.multi_obj.num_objects):
+            obj_index = tower_order[i]
+            if obj_index not in tower_set:
+                continue
+            object_position[obj_index,2] = self.multi_obj.height_offset + j * object_length
+            j += 1
+            if np.any(np.abs(object_position[obj_index,0:2] - tower_pos) > 0.1 * object_length):
+                object_position[obj_index,0:2] = tower_pos \
+                    + self.multi_obj.np_random.uniform(
+                        -0.1 * object_length, 0.1 * object_length, size=2
+                    )
+
+        self.multi_obj.set_gripper_position(arm_position)
+        self.multi_obj.set_gripper_fingers(gripper_fingers)
+        for i in range(self.multi_obj.num_objects):
+            self.multi_obj.set_object_position(i, object_position[i])
+        for _ in range(1):
+            self.multi_obj.sim.step()
+        self.multi_obj.sim.forward()
+        self.multi_obj.tower_pos = tower_pos
+        self.multi_obj.tower_set = tower_set
+        self.multi_obj.goal = self.multi_obj._sample_goal()
+        return self.get_state()

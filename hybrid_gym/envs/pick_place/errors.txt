@@ -1,0 +1,30 @@
+/home/steve/code/research/compositional-rl/hybrid_gym/model.py:2: error: Skipping analyzing 'gym': found module but no type hints or library stubs
+/home/steve/code/research/compositional-rl/hybrid_gym/envs/f110/mode.py:2: error: Skipping analyzing 'matplotlib.pyplot': found module but no type hints or library stubs
+/home/steve/code/research/compositional-rl/hybrid_gym/envs/f110/mode.py:2: error: Skipping analyzing 'matplotlib': found module but no type hints or library stubs
+/home/steve/code/research/compositional-rl/hybrid_gym/envs/f110/mode.py:6: error: Skipping analyzing 'gym': found module but no type hints or library stubs
+/home/steve/code/research/compositional-rl/hybrid_gym/envs/f110/mode.py:7: error: Skipping analyzing 'scipy.integrate': found module but no type hints or library stubs
+/home/steve/code/research/compositional-rl/hybrid_gym/hybrid_env.py:2: error: Skipping analyzing 'gym': found module but no type hints or library stubs
+mode.py:4: error: Skipping analyzing 'mujoco_py': found module but no type hints or library stubs
+mode.py:4: note: See https://mypy.readthedocs.io/en/latest/running_mypy.html#missing-imports
+mode.py:8: error: Skipping analyzing 'gym.envs.robotics': found module but no type hints or library stubs
+transition.py:32: error: "State" has no attribute "num_stack"
+transition.py:35: error: "State" has no attribute "obj_perm"
+transition.py:38: error: "State" has no attribute "obj_perm"
+transition.py:43: error: "State" has no attribute "obj_perm"
+transition.py:47: error: "State" has no attribute "obj_perm"
+transition.py:54: error: "State" has no attribute "obj_perm"
+transition.py:56: error: "State" has no attribute "obj_perm"
+transition.py:57: error: "State" has no attribute "obj_perm"
+transition.py:59: error: "State" has no attribute "obj_perm"
+transition.py:62: error: "State" has no attribute "obj_perm"
+transition.py:65: error: Unexpected keyword argument "obj_perm" for "State"
+transition.py:65: error: Unexpected keyword argument "num_stack" for "State"
+transition.py:67: error: "State" has no attribute "obj_perm"
+hybrid_env.py:10: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+hybrid_env.py:16: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+hybrid_env.py:22: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+hybrid_env.py:28: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+hybrid_env.py:34: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+hybrid_env.py:40: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+hybrid_env.py:46: error: Missing positional argument "next_obj_index" in call to "PickPlaceMode"
+Found 28 errors in 6 files (checked 1 source file)
