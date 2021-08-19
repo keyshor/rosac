@@ -246,6 +246,7 @@ class GymMultiGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
 
 BaselineCtrlWrapperType = TypeVar('BaselineCtrlWrapperType', bound='BaselineCtrlWrapper')
 
+
 class BaselineCtrlWrapper(Controller):
     model: BaseRLModel
 
@@ -296,6 +297,7 @@ class BaselineCtrlWrapper(Controller):
 
 
 SpectrlCtrlWrapperType = TypeVar('SpectrlCtrlWrapperType', bound='SpectrlCtrlWrapper')
+
 
 class SpectrlCtrlWrapper(Controller):
     model: SpectrlDdpg

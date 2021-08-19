@@ -25,21 +25,21 @@ BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
 
 
 def env_from_mode_info(raw_mode_info: Iterable[Tuple[
-                           Mode[StateType],
-                           Iterable[Transition],
-                           Optional[Callable[[], StateType]],
-                           Optional[Callable[[StateType, np.ndarray, StateType], float]],
-                       ]],
-                       algo_name: str,
-                       max_episode_steps: int,
-                       ) -> gym.Env:
+    Mode[StateType],
+    Iterable[Transition],
+    Optional[Callable[[], StateType]],
+    Optional[Callable[[StateType, np.ndarray, StateType], float]],
+]],
+    algo_name: str,
+    max_episode_steps: int,
+) -> gym.Env:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
     if algo_name == 'td3':
         return TimeLimit(GymMultiEnvWrapper(mode_info, flatten_obs=True),
-                        max_episode_steps=max_episode_steps)
+                         max_episode_steps=max_episode_steps)
     elif algo_name == 'her':
         return HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
             GymMultiGoalEnvWrapper(mode_info),
@@ -47,7 +47,8 @@ def env_from_mode_info(raw_mode_info: Iterable[Tuple[
         )))
     else:
         return TimeLimit(GymMultiEnvWrapper(mode_info),
-                        max_episode_steps=max_episode_steps)
+                         max_episode_steps=max_episode_steps)
+
 
 def make_spectrl_model(modes: Iterable[Mode[StateType]],
                        max_episode_steps: int = 50,
@@ -84,18 +85,18 @@ def train_spectrl(model,
 
 
 def make_sb_model(raw_mode_info: Iterable[Tuple[
-                      Mode[StateType],
-                      Iterable[Transition],
-                      Optional[Callable[[], StateType]],
-                      Optional[Callable[[StateType, np.ndarray, StateType], float]],
-                  ]],
-                  algo_name: str = 'td3',
-                  wrapped_algo: str = 'ddpg',  # only relevent to HER
-                  action_noise_scale: float = 0.1,
-                  policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
-                  max_episode_steps: int = 50,
-                  **kwargs
-                  ) -> BaseRLModel:
+    Mode[StateType],
+    Iterable[Transition],
+    Optional[Callable[[], StateType]],
+    Optional[Callable[[StateType, np.ndarray, StateType], float]],
+]],
+    algo_name: str = 'td3',
+    wrapped_algo: str = 'ddpg',  # only relevent to HER
+    action_noise_scale: float = 0.1,
+    policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
+    max_episode_steps: int = 50,
+    **kwargs
+) -> BaseRLModel:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -144,6 +145,7 @@ def make_sb_model(raw_mode_info: Iterable[Tuple[
         raise ValueError
     return model
 
+
 def check_initialization(model: BaseRLModel,
                          env: gym.Env,
                          n_eval_episodes: int,
@@ -160,25 +162,26 @@ def check_initialization(model: BaseRLModel,
     return np.mean(episode_reward) >= min_reward and \
         np.mean(episode_timesteps) >= min_episode_length
 
+
 def make_sb_model_init_check(raw_mode_info: Iterable[Tuple[
-                                 Mode[StateType],
-                                 Iterable[Transition],
-                                 Optional[Callable[[], StateType]],
-                                 Optional[Callable[[StateType, np.ndarray, StateType], float]],
-                             ]],
-                             save_path: str = '.',
-                             algo_name: str = 'td3',
-                             wrapped_algo: str = 'ddpg',  # only relevent to HER
-                             action_noise_scale: float = 0.1,
-                             policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
-                             max_episode_steps: int = 50,
-                             max_init_retries: int = 10,
-                             n_eval_episodes: int = 100,
-                             num_timesteps: int = 1000,
-                             min_reward: float = -np.inf,
-                             min_episode_length: float = 0.0,
-                             **kwargs,
-                             ) -> BaseRLModel:
+    Mode[StateType],
+    Iterable[Transition],
+    Optional[Callable[[], StateType]],
+    Optional[Callable[[StateType, np.ndarray, StateType], float]],
+]],
+    save_path: str = '.',
+    algo_name: str = 'td3',
+    wrapped_algo: str = 'ddpg',  # only relevent to HER
+    action_noise_scale: float = 0.1,
+    policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
+    max_episode_steps: int = 50,
+    max_init_retries: int = 10,
+    n_eval_episodes: int = 100,
+    num_timesteps: int = 1000,
+    min_reward: float = -np.inf,
+    min_episode_length: float = 0.0,
+    **kwargs,
+) -> BaseRLModel:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -212,6 +215,7 @@ def make_sb_model_init_check(raw_mode_info: Iterable[Tuple[
     ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, first_mode.name + '.td3'),
                                     algo_name='td3', env=env)
     return ctrl.model
+
 
 def train_stable(model,
                  raw_mode_info: Iterable[Tuple[

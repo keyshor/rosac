@@ -11,22 +11,24 @@ from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 from hybrid_gym.util.wrappers import BaselineCtrlWrapper
 from hybrid_gym.util.io import parse_command_line_options
+from hybrid_gym.util.test import get_rollout
 from hybrid_gym.envs import make_rooms_model
 
 
 def train_single(automaton, name, total_timesteps, save_path):
     mode = automaton.modes[name]
+    mode_info = [(mode, automaton.transitions[name], None, None)]
     model = make_sb_model(
-        [mode],
-        algo_name='td3',
+        mode_info,
+        algo_name='ddpg',
         batch_size=256,
         policy_kwargs={'layers': [32, 32]},
-        action_noise_scale=0.15,
-        verbose=0,
+        action_noise_scale=0.2,
+        verbose=1,
         max_episode_steps=25,
     )
-    train_stable(model, [(mode, automaton.transitions[name], None, None)],
-                 total_timesteps=total_timesteps, algo_name='td3',
+    train_stable(model, mode_info,
+                 total_timesteps=total_timesteps, algo_name='ddpg',
                  max_episode_steps=25, eval_freq=1000,
                  n_eval_episodes=10, save_path=save_path)
 
@@ -42,4 +44,15 @@ if __name__ == '__main__':
 
     for name in mode_list:
         print(f'training mode {name}')
-        train_single(automaton, name, 400000, flags['path'])
+        train_single(automaton, name, 500000, flags['path'])
+
+        if flags['render']:
+            print('Rendering learned controller for mode {}'.format(name))
+            controller = BaselineCtrlWrapper.load(
+                os.path.join(flags['path'], name, 'best_model.zip'),
+                algo_name='ddpg',
+            )
+            for i in range(10):
+                print('\n----- Rollout #{} -----'.format(i))
+                get_rollout(automaton.modes[name], automaton.transitions[name], controller,
+                            max_timesteps=25, render=True)

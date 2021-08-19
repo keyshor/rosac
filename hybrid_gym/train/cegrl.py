@@ -42,12 +42,11 @@ def cegrl(automaton: HybridAutomaton,
           steps_per_iter: int = 10000,
           num_iter: int = 20,
           num_synth_iter: int = 10,
-          n_samples: int = 50,
-          abstract_samples: int = 0,
+          n_synth_samples: int = 50,
+          abstract_synth_samples: int = 0,
           print_debug: bool = False,
           use_best_model: bool = False,
           save_path: str = '.',
-          use_falsification: bool = False,
           num_falsification_iter: int = 100,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
@@ -73,13 +72,17 @@ def cegrl(automaton: HybridAutomaton,
         for name in group_names[g]:
             group_map[name] = g
 
+    # all necessary information about all groups
+    group_info = [[(mode, automaton.transitions[mode.name], reset_funcs[mode.name], None)
+                   for mode in modes] for modes in mode_groups]
+
     # create one model for each group
     models = [make_sb_model(
-        modes,
+        group_info[g],
         algo_name=algo_name,
-        max_episode_steps=time_limits[modes[0].name],
+        max_episode_steps=time_limits[group_names[g][0]],
         **kwargs)
-        for modes in mode_groups]
+        for g in range(len(mode_groups))]
 
     # create one controller object for each mode
     controllers: List[Controller] = [BaselineCtrlWrapper(model) for model in models]
@@ -90,11 +93,9 @@ def cegrl(automaton: HybridAutomaton,
         # train agents
         for g in range(len(mode_groups)):
             print('\n---- Training controller for modes {} ----'.format(group_names[g]))
-            group_info = [(mode, automaton.transitions[mode.name], reset_funcs[mode.name], None)
-                          for mode in mode_groups[g]]
-            reload_env = train_stable(models[g], group_info, total_timesteps=steps_per_iter,
+            reload_env = train_stable(models[g], group_info[g], total_timesteps=steps_per_iter,
                                       algo_name=algo_name, save_path=save_path,
-                                      max_episode_steps=time_limits[mode_groups[g][0].name],
+                                      max_episode_steps=time_limits[group_names[g][0]],
                                       **train_kwargs)
             if use_best_model:
                 ctrl = BaselineCtrlWrapper.load(
@@ -105,22 +106,20 @@ def cegrl(automaton: HybridAutomaton,
                 ctrl = BaselineCtrlWrapper.load(
                     os.path.join(save_path, group_names[g][0] + '.' + algo_name),
                     algo_name=algo_name, env=reload_env)
-            if isinstance(ctrl, BaselineCtrlWrapper):
+
+            # set the init model for next iteration
+            if isinstance(ctrl, BaselineCtrlWrapper):  # typing check for mypy compliance
                 models[g] = ctrl.model
                 controllers[g] = ctrl
 
         # synthesis
         print('\n---- Running synthesis ----')
-        pre_copy = pre.copy()
+        pre_copy = {name: astate.copy() for name, astate in pre.items()}
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
         ces = synthesize(automaton, mode_controllers, pre_copy, time_limits, num_synth_iter,
-                         n_samples, abstract_samples, print_debug)
+                         n_synth_samples, abstract_synth_samples, print_debug)
 
-        if falsify_func is None:
-            # add counterexamples to reset function
-            for ce in ces:
-                reset_funcs[ce.m].add_states([ce.s])
-        else:
+        if falsify_func is not None:
             # use falsification to identify bad states
             for (m, pre_m) in pre_copy.items():
                 bad_states = falsify(automaton.modes[m], automaton.transitions[m],
@@ -129,5 +128,9 @@ def cegrl(automaton: HybridAutomaton,
                                      num_falsification_samples,
                                      num_falsification_top_samples)
                 reset_funcs[m].add_states(bad_states)
+        else:
+            # add counterexamples to reset function
+            for ce in ces:
+                reset_funcs[ce.m].add_states([ce.s])
 
     return mode_controllers

@@ -44,12 +44,12 @@ if __name__ == '__main__':
     if flags['falsify']:
         falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()}
 
-    controllers = cegrl(automaton, pre, time_limits, steps_per_iter=10000,
-                        num_iter=20, num_synth_iter=10, abstract_samples=flags['abstract_samples'],
-                        print_debug=True, batch_size=256, action_noise_scale=0.15, verbose=1,
+    controllers = cegrl(automaton, pre, time_limits, steps_per_iter=30000,
+                        num_iter=15, num_synth_iter=10, abstract_synth_samples=flags['abstract_samples'],
+                        print_debug=True, batch_size=256, action_noise_scale=0.2, verbose=1,
                         train_kwargs={'eval_freq': 1000, 'n_eval_episodes': 10},
                         use_best_model=(not flags['no_best']), policy_kwargs={'layers': [32, 32]},
-                        falsify_func=falsify_func, save_path=flags['path'])
+                        falsify_func=falsify_func, save_path=flags['path'], algo_name='ddpg')
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

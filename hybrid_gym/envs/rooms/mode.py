@@ -22,8 +22,8 @@ class GridParams:
         self.wall_size = np.array(wall_size)
         self.partition_size = self.room_size + self.wall_size
         self.full_size = self.partition_size + self.wall_size
-        self.vdoor = np.array(vertical_door) + self.wall_size[1]
         self.hdoor = np.array(horizontal_door) + self.wall_size[0]
+        self.vdoor = np.array(vertical_door) + self.wall_size[1]
 
     def sample_full(self):
         return (np.random.random_sample(2) * self.room_size) - (self.room_size / 2)
@@ -37,6 +37,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
     def __init__(self, grid_params: GridParams, name: str):
         self.grid_params = grid_params
         self._goal = self._get_goal(name)
+        self._reward_scale = np.mean(self.grid_params.partition_size)
 
         # Compute scaling of action for normalization
         max_vel = np.amin(self.grid_params.wall_size) / 2
@@ -76,14 +77,14 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def _reward_fn(self, state, action, next_state):
         reach_reward = -np.linalg.norm(self._goal - np.array(next_state[1])) \
-            / np.mean(self.grid_params.partition_size)
+            / self._reward_scale
         safety_reward = 0.
         if not self.is_safe(next_state):
-            safety_reward = -50.
+            safety_reward = -25.
         return reach_reward + safety_reward
 
     def vectorize_state(self, state):
-        return np.concatenate(list(state))
+        return np.concatenate(state)
 
     def state_from_vector(self, vec):
         return (tuple(vec[:2]), tuple(vec[2:]))
@@ -149,14 +150,14 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
     # horizontal coordinates should be relative positions within rooms
-    def check_horizontal_intersect(self, s1, s2, x):
-        y = ((s2[1] - s1[1]) * (x - s1[0]) / (s2[0] - s1[0])) + s1[1]
+    def check_horizontal_intersect(self, p1, p2, x):
+        y = ((p2[1] - p1[1]) * (x - p1[0]) / (p2[0] - p1[0])) + p1[1]
         return (self.grid_params.vdoor[0] <= y and y <= self.grid_params.vdoor[1])
 
     # check if line from s1 to s2 intersects the vertical axis at a point inside door region
     # vertical coordinates should be relative positions within rooms
-    def check_vertical_intersect(self, s1, s2, y):
-        x = ((s2[0] - s1[0]) * (y - s1[1]) / (s2[1] - s1[1])) + s1[0]
+    def check_vertical_intersect(self, p1, p2, y):
+        x = ((p2[0] - p1[0]) * (y - p1[1]) / (p2[1] - p1[1])) + p1[0]
         return (self.grid_params.hdoor[0] <= x and x <= self.grid_params.hdoor[1])
 
     def compute_direction(self, s):
