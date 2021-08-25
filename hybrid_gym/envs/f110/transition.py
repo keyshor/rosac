@@ -1,6 +1,8 @@
 from hybrid_gym.model import Transition
 from hybrid_gym.envs.f110.mode import LIDAR_RANGE, State, F110Mode
-from typing import Dict
+from hybrid_gym.envs.f110.obstacle_mode import F110ObstacleMode, State as ObstacleState
+from typing import Dict, Union
+import numpy as np
 
 
 def straight_length(mode_name: str) -> float:
@@ -17,20 +19,27 @@ def flip_sides(mode1: str, mode2: str):
     return ('left' in mode1) != ('left' in mode2)
 
 
-class F110Trans(Transition):
-    modes: Dict[str, F110Mode]
+class F110PlainTrans(Transition):
+    plain_modes: Dict[str, F110Mode]
+    obstacle_modes: Dict[str, F110ObstacleMode]
     src_is_turn: bool
     hall_width: float
 
     def __init__(self,
                  source: str,
-                 modes: Dict[str, F110Mode],
+                 plain_modes: Dict[str, F110Mode],
+                 obstacle_modes: Dict[str, F110ObstacleMode],
                  hall_width: float,
                  ) -> None:
-        self.modes = modes
+        self.plain_modes = plain_modes
+        self.obstacle_modes = obstacle_modes
         self.src_is_turn = ('straight' not in source)
         self.hall_width = hall_width
-        super().__init__(source, [m.name for m in modes.values()])
+        super().__init__(
+            source,
+            [m.name for m in plain_modes.values()] +
+            [m.name for m in obstacle_modes.values()],
+        )
 
     def guard(self, st: State) -> bool:
         if 'straight' in self.source:
@@ -39,12 +48,76 @@ class F110Trans(Transition):
         else:
             return st.curHall == 1
 
-    def jump(self, target: str, st: State) -> State:
+    def jump(self, target: str, st: State) -> Union[State, ObstacleState]:
         dist = straight_length(target)
         new_dist_f = st.car_dist_f - (7 if self.src_is_turn else 0)
         if flip_sides(self.source, target):
             car_dist_s = self.hall_width - st.car_dist_s
         else:
             car_dist_s = st.car_dist_s
-        return self.modes[target].set_state_local(
-            car_dist_s, dist + new_dist_f, st.car_heading, st)
+        try:
+            return self.plain_modes[target].set_state_local(
+                car_dist_s, dist + new_dist_f, st.car_heading, st)
+        except KeyError:
+            m_tgt = self.obstacle_modes[target]
+            obstacle_x, obstacle_y = m_tgt.random_obstacle_pos()
+            return ObstacleState(
+                x = m_tgt.start_x + car_dist_s - 0.5 * self.hall_width,
+                y = m_tgt.start_y + 5 - new_dist_f,
+                V = st.car_V,
+                theta = m_tgt.start_theta + st.car_heading,
+                obstacle_x = obstacle_x, obstacle_y = obstacle_y,
+                lines = m_tgt.compute_obstacle_lines(obstacle_x, obstacle_y),
+            )
+
+class F110ObstacleTrans(Transition):
+    plain_modes: Dict[str, F110Mode]
+    obstacle_modes: Dict[str, F110ObstacleMode]
+
+    def __init__(self,
+                 source: str,
+                 plain_modes: Dict[str, F110Mode],
+                 obstacle_modes: Dict[str, F110ObstacleMode],
+                 ) -> None:
+        self.plain_modes = plain_modes
+        self.obstacle_modes = obstacle_modes
+        super().__init__(
+            source,
+            [m.name for m in plain_modes.values()] +
+            [m.name for m in obstacle_modes.values()],
+        )
+
+    def guard(self, st: ObstacleState) -> bool:
+        return self.obstacle_modes[self.source].goal_region.contains(st)
+
+    def jump(self, target: str, st: ObstacleState) -> Union[State, ObstacleState]:
+        m_src = self.obstacle_modes[self.source]
+        dx = st.x - m_src.goal_x
+        dy = st.y - m_src.goal_y
+        dtheta = st.theta - m_src.goal_theta
+        goal_disp_r = np.sqrt(np.square(dx) + np.square(dy))
+        goal_disp_theta = np.arctan2(dy, dx)
+        proj_dtheta = goal_disp_theta - m_src.goal_theta
+        proj_forward = goal_disp_r * np.cos(proj_dtheta)
+        proj_right = -goal_disp_r * np.sin(proj_dtheta)
+        try:
+            m_tgt = self.obstacle_modes[target]
+            obstacle_x, obstacle_y = m_tgt.random_obstacle_pos()
+            return ObstacleState(
+                x = m_tgt.start_x + proj_right,
+                y = m_tgt.start_y + proj_forward,
+                V = st.V,
+                theta = m_tgt.start_theta + dtheta,
+                obstacle_x = obstacle_x, obstacle_y = obstacle_y,
+                lines = m_tgt.compute_obstacle_lines(obstacle_x, obstacle_y),
+            )
+        except KeyError:
+            plain_tgt = self.plain_modes[target]
+            if flip_sides(self.source, target):
+                car_dist_s = 0.5 * plain_tgt.hallWidths[0] - proj_right
+            else:
+                car_dist_s = 0.5 * plain_tgt.hallWidths[0] + proj_right
+            dist = straight_length(target)
+            car_dist_f = dist + 7 - proj_forward
+            return plain_tgt.set_state_local(
+                car_dist_s, car_dist_f, plain_tgt.init_car_heading + dtheta, plain_tgt.reset())

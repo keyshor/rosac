@@ -24,13 +24,13 @@ def train_single(automaton, name, total_timesteps, save_path):
         batch_size=256,
         policy_kwargs={'layers': [32, 32]},
         action_noise_scale=0.2,
-        verbose=1,
+        verbose=0,
         max_episode_steps=25,
     )
     train_stable(model, mode_info,
                  total_timesteps=total_timesteps, algo_name='ddpg',
-                 max_episode_steps=25, eval_freq=1000,
-                 n_eval_episodes=10, save_path=save_path)
+                 max_episode_steps=25, n_eval_episodes=10,
+                 save_path=save_path)
 
 
 if __name__ == '__main__':

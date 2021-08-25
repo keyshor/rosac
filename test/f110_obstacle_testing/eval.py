@@ -1,22 +1,22 @@
 import os
 import sys
+import argparse
+import pathlib
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
 from hybrid_gym.util.wrappers import BaselineCtrlWrapper, GymEnvWrapper
 from hybrid_gym.train.mode_pred import ScipyModePredictor
-from hybrid_gym.envs import make_f110_model
+from hybrid_gym.envs.f110_obstacle_testing.hybrid_env import make_f110_model
 from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
+from train import F110Policy
 
 import matplotlib.pyplot as plt
 
 
-automaton = make_f110_model(straight_lengths=[10], use_throttle=True)
-
-
-def eval_end_to_end(max_steps_in_mode, save_path):
+def eval_end_to_end(automaton, max_steps_in_mode, use_mode_pred, save_path):
 
     env = HybridEnv(
         automaton=automaton,
@@ -30,14 +30,16 @@ def eval_end_to_end(max_steps_in_mode, save_path):
         name: BaselineCtrlWrapper.load(
             os.path.join(save_path, name, 'best_model.zip'),
             algo_name='td3',
+            policy=F110Policy,
             env=env,
         )
         for name in automaton.modes
     }
-    # mode_predictor = ScipyModePredictor.load(
-    #    os.path.join(save_path, 'mode_predictor.mlp'),
-    #    automaton.observation_space, 'mlp',
-    # )
+    if use_mode_pred:
+        mode_predictor = ScipyModePredictor.load(
+            os.path.join(save_path, 'mode_predictor.mlp'),
+            automaton.observation_space, 'mlp',
+        )
 
     state_history: dict = {
         (m_name, pred_mode): []
@@ -54,14 +56,15 @@ def eval_end_to_end(max_steps_in_mode, save_path):
         while not done and e_in_mode < max_steps_in_mode:
             e += 1
             e_in_mode += 1
-            #mode = mode_predictor.get_mode(observation)
-            mode = env.mode.name
-            delta = controllers[mode].get_action(observation)
-            state_history[env.mode.name, mode].append(env.state)
-            observation, reward, done, info = env.step(delta)
-            if info['jump']:
+            new_mode = mode_predictor.get_mode(observation) \
+                if use_mode_pred else env.mode.name
+            if mode != new_mode:
                 e_in_mode = 0
-        if e_in_mode >= max_steps_in_mode:
+                mode = new_mode
+            action = controllers[mode].get_action(observation)
+            state_history[env.mode.name, mode].append(env.state)
+            observation, reward, done, info = env.step(action)
+        if e >= max_steps_in_mode:
             print(f'stuck in mode {mode} after {e} steps')
         elif env.mode.is_safe(env.state):
             print(f'terminated normally after {e} steps')
@@ -70,31 +73,24 @@ def eval_end_to_end(max_steps_in_mode, save_path):
 
     for (m_name, m) in automaton.modes.items():
         fig, ax = plt.subplots(figsize=(12, 10))
-        try:
-            m.plotHalls(ax=ax)
-        except AttributeError:
-            m.plot_halls(ax=ax, st=state_history[m_name, m_name][0])
+        m.plot_halls(ax=ax, st=m.reset())
         colors = ['r', 'g', 'b', 'm', 'c', 'y']
         for (pred_mode, c) in zip(list(automaton.modes), colors):
-            try:
-                x_hist = [s.car_global_x for s in state_history[m_name, pred_mode]]
-                y_hist = [s.car_global_y for s in state_history[m_name, pred_mode]]
-            except AttributeError:
-                x_hist = [s.x for s in state_history[m_name, pred_mode]]
-                y_hist = [s.y for s in state_history[m_name, pred_mode]]
+            x_hist = [s.x for s in state_history[m_name, pred_mode]]
+            y_hist = [s.y for s in state_history[m_name, pred_mode]]
             ax.scatter(x_hist, y_hist, s=1, c=c, label=pred_mode)
         ax.legend(markerscale=10)
         ax.set_title(m_name)
         ax.set_aspect('equal')
         fig.savefig(f'trajectories_{m.name}.png')
 
-
-def eval_single(name, save_path):
+def eval_single(automaton, name, save_path):
     mode = automaton.modes[name]
     env = GymEnvWrapper(mode, automaton.transitions[name])
     controller = BaselineCtrlWrapper.load(
         os.path.join(save_path, name, 'best_model.zip'),
         algo_name='td3',
+        policy=F110Policy,
         env=env,
     )
     state_history = []
@@ -109,11 +105,11 @@ def eval_single(name, save_path):
             if e > 100:
                 break
             e += 1
-            delta = controller.get_action(observation)
+            action = controller.get_action(observation)
             state_history.append(env.state)
-            observation, reward, done, info = env.step(delta)
-            # print(reward)
-        if e > 100:
+            observation, reward, done, info = env.step(action)
+            #print(reward)
+        if e > 50:
             #print('spent more than 50 steps in the mode')
             nonterm += 1
         elif env.mode.is_safe(env.state):
@@ -123,36 +119,40 @@ def eval_single(name, save_path):
             #print(f'crash after {e} steps')
             crash += 1
     fig, ax = plt.subplots()
-    try:
-        mode.plotHalls(ax=ax)
-        x_hist = [s.car_global_x for s in state_history]
-        y_hist = [s.car_global_y for s in state_history]
-    except AttributeError:
-        mode.plot_halls(ax=ax, st=state_history[0])
-        x_hist = [s.x for s in state_history]
-        y_hist = [s.y for s in state_history]
+    mode.plot_halls(ax=ax, st=state_history[0])
+    x_hist = [s.x for s in state_history]
+    y_hist = [s.y for s in state_history]
     ax.scatter(x_hist, y_hist, s=1)
     ax.set_title(name)
     ax.set_aspect('equal')
     fig.savefig(f'trajectories_{name}.png')
     print(f'{name}: nonterm = {nonterm}, normal = {normal}, crash = {crash}')
 
-
-def plot_lidar(name):
-    controller = BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3')
+def plot_lidar(automaton, name):
+    controller = BaselineCtrlWrapper.load(f'{name}.td3', algo_name='td3', policy=F110Policy)
     mode = automaton.modes[name]
     st = mode.reset()
     mode.render(st)
 
-
 if __name__ == '__main__':
-    save_path = '.'
-    if len(sys.argv) >= 2:
-        save_path = sys.argv[1]
-    if len(sys.argv) >= 3:
-        mode_list = sys.argv[2:]
-    else:
-        mode_list = list(automaton.modes)
+    automaton = make_f110_model(straight_lengths=[10])
+    ap = argparse.ArgumentParser(description='evaluate controllers and mode predictor')
+    ap.add_argument('--path', type=pathlib.Path, default='.',
+                    help='directory in which models are stored')
+    ap.add_argument('--all', action='store_true',
+                    help='use this flag to evaluate instead of specifying a list')
+    ap.add_argument('--no-mode-pred', action='store_true',
+                    help='disables mode predictor in end-to-end evaluation')
+    ap.add_argument('--no-e2e', action='store_true',
+                    help='disables end-to-end evaluation')
+    ap.add_argument('--mode-length', type=int, default=100,
+                    help='maximum number of time-steps in each mode')
+    ap.add_argument('modes', type=str, nargs='*',
+                    help='modes for which controllers will be evaluated')
+    args = ap.parse_args()
+
+    mode_list = list(automaton.modes) if args.all else args.modes
     for name in mode_list:
-        eval_single(name, save_path)
-    eval_end_to_end(100, save_path)
+        eval_single(automaton, name, args.path)
+    if not args.no_e2e:
+        eval_end_to_end(automaton, args.mode_length, not args.no_mode_pred, args.path)

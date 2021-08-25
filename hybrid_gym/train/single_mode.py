@@ -18,6 +18,7 @@ from hybrid_gym.model import Mode, Transition, StateType
 from hybrid_gym.util.wrappers import (
     GymMultiEnvWrapper, GymMultiGoalEnvWrapper,
     DoneOnSuccessWrapper, BaselineCtrlWrapper,
+    GymEnvWrapper,
 )
 
 
@@ -211,9 +212,9 @@ def make_sb_model_init_check(raw_mode_info: Iterable[Tuple[
     if not init_ok:
         print(f'failed to achieve suitable initialization after {max_init_retries}')
     ctrl = BaselineCtrlWrapper(model)
-    ctrl.save(os.path.join(save_path, first_mode.name + '.td3'))
-    ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, first_mode.name + '.td3'),
-                                    algo_name='td3', env=env)
+    ctrl.save(os.path.join(save_path, f'{first_mode.name}.{algo_name}'))
+    ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, f'{first_mode.name}.{algo_name}'),
+                                    algo_name=algo_name, env=env)
     return ctrl.model
 
 
@@ -236,17 +237,7 @@ def train_stable(model,
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
-    if algo_name == 'td3':
-        env = TimeLimit(GymMultiEnvWrapper(mode_info, flatten_obs=True),
-                        max_episode_steps=max_episode_steps)
-    elif algo_name == 'her':
-        env = HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
-            GymMultiGoalEnvWrapper(mode_info),
-            max_episode_steps=max_episode_steps,
-        )))
-    else:
-        env = TimeLimit(GymMultiEnvWrapper(mode_info),
-                        max_episode_steps=max_episode_steps)
+    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps)
     model.set_env(env)
     first_mode, _, _, _ = mode_info[0]
     best_model_path = custom_best_model_path or first_mode.name

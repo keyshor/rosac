@@ -27,7 +27,7 @@ SAFE_DISTANCE: float = 0.1  # in m
 
 # default throttle if left unspecified
 CONST_THROTTLE: float = 16
-MAX_THROTTLE: float = 50  # just used to compute maximum possible velocity
+MAX_THROTTLE: float = 30  # just used to compute maximum possible velocity
 
 # training parameters
 MINIMUM_ACCEPTABLE_SPEED: float = 1.5
