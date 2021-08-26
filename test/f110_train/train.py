@@ -44,7 +44,7 @@ def train_single(automaton, name,
         max_episode_steps=100,
         max_init_retries=10,
         min_reward=-np.inf,
-        min_episode_length=6,
+        min_episode_length=10,
         save_path=save_path,
     )
     train_stable(model, mode_info,
@@ -82,7 +82,7 @@ if __name__ == '__main__':
                     help='directory in which models will be saved')
     ap.add_argument('--timesteps', type=int, default=20000,
                     help='number of timesteps to train each controller')
-    ap.add_argument('--obstacle-timesteps', type=int, default=50000,
+    ap.add_argument('--obstacle-timesteps', type=int, default=1000000,
                     help='number of timesteps to train obstacle controller')
     ap.add_argument('--all', action='store_true',
                     help='use this flag to train all modes instead of specifying a list')

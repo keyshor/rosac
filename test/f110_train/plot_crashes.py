@@ -48,11 +48,15 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
         for pred_mode in automaton.modes
     }
 
-    for i in range(20):
+    num_normal = 0
+    num_stuck = 0
+    num_crash = 0
+
+    num_trials_format_width = len(str(num_trials - 1))
+    for i in range(num_trials):
         observation = env.reset()
         mode = mode_predictor.get_mode(observation) \
             if use_mode_pred else env.mode.name
-        true_mode = env.mode.name
         e = 0
         e_in_mode = 0
         for hist in state_history.values():
@@ -63,7 +67,6 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
             e_in_mode += 1
             mode = mode_predictor.get_mode(observation) \
                 if use_mode_pred else env.mode.name
-            true_mode = env.mode.name
             action = controllers[mode].get_action(observation)
             state_history[mode].append(env.state)
             observation, reward, done, info = env.step(action)
@@ -72,17 +75,20 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
                 for hist in state_history.values():
                     hist.clear()
         plot_trajectory = True
-        if e >= max_steps_in_mode:
-            print(f'stuck in mode {mode} after {e} steps')
+        if e_in_mode >= max_steps_in_mode:
+            num_stuck += 1
+            print(f'stuck in mode {env.mode.name} after {e} steps')
         elif env.mode.is_safe(env.state):
-            print(f'terminated normally after {e} steps')
+            num_normal += 1
             plot_trajectory = False
+            print(f'terminated normally after {e} steps')
         else:
-            print(f'crash after {e} steps in mode {mode}')
+            num_crash += 1
+            print(f'crash after {e} steps in mode {env.mode.name}')
 
         if plot_trajectory:
             fig, ax = plt.subplots()
-            m = automaton.modes[mode]
+            m = env.mode
             st = m.reset()
             for hist in state_history.values():
                 try:
@@ -93,7 +99,10 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
             try:
                 m.plotHalls(ax=ax)
             except AttributeError:
-                m.plot_halls(ax=ax, st=st)
+                try:
+                    m.plot_halls(ax=ax, st=st)
+                except AttributeError:
+                    print(f'mode = {mode}, true_mode = {true_mode}, type(st) = {type(st)}')
             colors = ['r', 'g', 'b', 'm', 'c', 'y']
             for (pred_mode, c) in zip(list(automaton.modes), colors):
                 try:
@@ -104,10 +113,11 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
                     y_hist = [s.y for s in state_history[pred_mode]]
                 ax.scatter(x_hist, y_hist, s=1, c=c, label=pred_mode)
             ax.legend(markerscale=10)
-            ax.set_title(f'trajectory {i}, mode {mode}')
+            ax.set_title(f'trajectory {i:0{num_trials_format_width}d}, mode {m.name}')
             ax.set_aspect('equal')
-            fig.savefig(f'trajectories_{i}.png')
+            fig.savefig(f'trajectories_{i:0{num_trials_format_width}d}.png')
             plt.close(fig)
+    print(f'normal {num_normal}, stuck {num_stuck}, crash {num_crash}')
 
 if __name__ == '__main__':
     automaton = make_f110_model(straight_lengths=[10])
