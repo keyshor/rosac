@@ -1,8 +1,15 @@
+import os
 import gym
 import numpy as np
 import joblib
+import pathlib
 from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2, SAC, TD3, TRPO
 from stable_baselines.common.base_class import BaseRLModel
+from stable_baselines3 import (
+    A2C as SB3_A2C, DDPG as SB3_DDPG, DQN as SB3_DQN,
+    PPO as SB3_PPO, SAC as SB3_SAC, TD3 as SB3_TD3,
+)
+from stable_baselines3.common.base_class import BaseAlgorithm
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg
 from typing import (Iterable, List, Tuple, Dict, Optional,
                     Callable, Generic, NoReturn, Type, TypeVar, Union, Any)
@@ -47,7 +54,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
         return gym.spaces.utils.flatten(self.mode.observation_space, wrapped_obs) \
             if self.flatten_obs else wrapped_obs
 
-    def reset(self) -> np.ndarray:
+    def reset(self) -> Any:
         self.state = self.reset_fn()
         return self.observe()
 
@@ -55,9 +62,9 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
         next_state = self.mode.step(self.state, action)
         reward = self.reward_fn(self.state, action, next_state)
         self.state = next_state
-        done = not self.mode.is_safe(self.state) \
-            or any([t.guard(self.state) for t in self.transitions])
-        return self.observe(), reward, done, {}
+        is_success = any([t.guard(self.state) for t in self.transitions])
+        done = not self.mode.is_safe(self.state) or is_success
+        return self.observe(), reward, done, {'is_success': is_success}
 
     def render(self) -> None:
         self.mode.render(self.state)
@@ -97,9 +104,9 @@ class GymGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
         next_state = self.mode.step(self.state, action)
         reward = self.reward_fn(self.state, action, next_state)
         self.state = next_state
-        done = not self.mode.is_safe(self.state) \
-            or any([t.guard(self.state) for t in self.transitions])
-        return self.mode.observe(self.state), reward, done, {}
+        is_success = any([t.guard(self.state) for t in self.transitions])
+        done = not self.mode.is_safe(self.state) or is_success
+        return self.mode.observe(self.state), reward, done, {'is_success': is_success}
 
     def render(self) -> None:
         self.mode.render(self.state)
@@ -169,9 +176,9 @@ class GymMultiEnvWrapper(gym.Env, Generic[StateType]):
         next_state = mode.step(self.state, action)
         reward = reward_fn(self.state, action, next_state)
         self.state = next_state
-        done = not mode.is_safe(self.state) \
-            or any([t.guard(self.state) for t in transitions])
-        return self.observe(), reward, done, {}
+        is_success = any([t.guard(self.state) for t in transitions])
+        done = not mode.is_safe(self.state) or is_success
+        return self.observe(), reward, done, {'is_success': is_success}
 
     def render(self) -> None:
         mode, _, _, _ = self.mode_info[self.mode_index]
@@ -216,20 +223,20 @@ class GymMultiGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):
         super().reset()
         self.reset()
 
-    def reset(self) -> np.ndarray:
+    def reset(self) -> Any:
         self.mode_index = self.rng.choice(len(self.mode_info))
         mode, _, reset_fn, _ = self.mode_info[self.mode_index]
         self.state = reset_fn()
         return mode.observe(self.state)
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: np.ndarray) -> Tuple[Any, float, bool, Dict]:
         mode, transitions, _, reward_fn = self.mode_info[self.mode_index]
         next_state = mode.step(self.state, action)
         reward = reward_fn(self.state, action, next_state)
         self.state = next_state
-        done = not mode.is_safe(self.state) \
-            or any([t.guard(self.state) for t in transitions])
-        return mode.observe(self.state), reward, done, {}
+        is_success = any([t.guard(self.state) for t in transitions])
+        done = not mode.is_safe(self.state) or is_success
+        return mode.observe(self.state), reward, done, {'is_success': is_success}
 
     def render(self) -> None:
         mode, _, _, _ = self.mode_info[self.mode_index]
@@ -265,7 +272,7 @@ class BaselineCtrlWrapper(Controller):
              path: str,
              env: gym.Env = None,
              algo_name: str = 'td3',
-             **kwargs: Dict,
+             **kwargs,
              ) -> BaselineCtrlWrapperType:
         if algo_name == 'a2c':
             model: BaseRLModel = A2C.load(path, env=env, **kwargs)
@@ -296,6 +303,46 @@ class BaselineCtrlWrapper(Controller):
         return cls(model)
 
 
+Sb3CtrlWrapperType = TypeVar('Sb3CtrlWrapperType', bound='Sb3CtrlWrapper')
+
+
+class Sb3CtrlWrapper(Controller):
+    model: BaseAlgorithm
+
+    def __init__(self, model: BaseAlgorithm) -> None:
+        self.model = model
+
+    def get_action(self, observation: Any) -> np.ndarray:
+        assert self.model.observation_space.contains(observation)
+        action, _ = self.model.predict(observation, deterministic=True)
+        return action
+
+    def save(self, path: str) -> None:
+        self.model.save(path)
+
+    @classmethod
+    def load(cls: Type[Sb3CtrlWrapperType],
+             path: str,
+             algo_name: str,
+             **kwargs,
+             ) -> Sb3CtrlWrapperType:
+        if algo_name == 'a2c':
+            model: BaseAlgorithm = SB3_A2C.load(path, **kwargs)
+        elif algo_name == 'ddpg':
+            model = SB3_DDPG.load(path, **kwargs)
+        elif algo_name == 'dqn':
+            model = SB3_DQN.load(path, **kwargs)
+        elif algo_name == 'ppo':
+            model = SB3_PPO.load(path, **kwargs)
+        elif algo_name == 'sac':
+            model = SB3_SAC.load(path, **kwargs)
+        elif algo_name == 'td3':
+            model = SB3_TD3.load(path, **kwargs)
+        else:
+            raise ValueError
+        return cls(model=model)
+
+
 SpectrlCtrlWrapperType = TypeVar('SpectrlCtrlWrapperType', bound='SpectrlCtrlWrapper')
 
 
@@ -315,7 +362,7 @@ class SpectrlCtrlWrapper(Controller):
     def load(cls: Type[SpectrlCtrlWrapperType],
              path: str,
              algo_name: str = 'td3',
-             **kwargs: Dict,
+             **kwargs,
              ) -> SpectrlCtrlWrapperType:
         return cls(joblib.load(path))
 

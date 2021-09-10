@@ -5,15 +5,20 @@ from hybrid_gym.envs.f110.mode import (
     make_square_right, make_square_left,
     make_sharp_right, make_sharp_left
 )
-from hybrid_gym.envs.f110.obstacle_mode import F110ObstacleMode, make_obstacle
+from hybrid_gym.envs.f110.obstacle_mode import (
+    F110ObstacleMode,
+    make_obstacle, make_obstacle_right, make_obstacle_left,
+)
 from hybrid_gym.envs.f110.transition import F110PlainTrans, F110ObstacleTrans
 from typing import List, Iterable, Union
 
 
-def cast_to_mode_union(l: List[F110Mode]) -> List[Union[F110Mode, F110ObstacleMode]]:
+def cast_to_mode_union(l: Union[List[F110Mode], List[F110ObstacleMode]],
+                       ) -> List[Union[F110Mode, F110ObstacleMode]]:
     return [x for x in l]
 
-def cast_to_trans_union(l: List[F110PlainTrans]) -> List[Union[F110PlainTrans, F110ObstacleTrans]]:
+def cast_to_trans_union(l: Union[List[F110PlainTrans], List[F110ObstacleTrans]],
+                        ) -> List[Union[F110PlainTrans, F110ObstacleTrans]]:
     return [x for x in l]
 
 def make_f110_model(straight_lengths: Iterable[float] = [10.0],
@@ -45,9 +50,23 @@ def make_f110_model(straight_lengths: Iterable[float] = [10.0],
                          width=hall_width),
     ]
 
-    obstacle_mode = make_obstacle(use_throttle=use_throttle,
-                                  lidar_num_rays=num_lidar_rays,
-                                  width=hall_width)
+    obstacle_modes = [
+        make_obstacle(
+            use_throttle=use_throttle,
+            lidar_num_rays=num_lidar_rays,
+            width=hall_width,
+        ),
+        # make_obstacle_right(
+        #     use_throttle=use_throttle,
+        #     lidar_num_rays=num_lidar_rays,
+        #     width=hall_width,
+        # ),
+        # make_obstacle_left(
+        #     use_throttle=use_throttle,
+        #     lidar_num_rays=num_lidar_rays,
+        #     width=hall_width,
+        # ),
+    ]
 
     if simple:
         modes = cast_to_mode_union(plain_modes)
@@ -67,18 +86,18 @@ def make_f110_model(straight_lengths: Iterable[float] = [10.0],
                             lidar_num_rays=num_lidar_rays,
                             width=hall_width),
         ]
-        modes = cast_to_mode_union(plain_modes) + [obstacle_mode]
+        modes = cast_to_mode_union(plain_modes) + cast_to_mode_union(obstacle_modes)
         transitions = cast_to_trans_union([
             F110PlainTrans(source=src.name,
                            plain_modes={m.name: m for m in plain_modes},
-                           obstacle_modes={obstacle_mode.name: obstacle_mode},
+                           obstacle_modes={m.name: m for m in obstacle_modes},
                            hall_width=hall_width)
             for src in plain_modes
-        ]) + [
-            F110ObstacleTrans(source=obstacle_mode.name,
+        ]) + cast_to_trans_union([
+            F110ObstacleTrans(source=src.name,
                               plain_modes={m.name: m for m in plain_modes},
-                              obstacle_modes={obstacle_mode.name: obstacle_mode})
-        ]
+                              obstacle_modes={m.name: m for m in obstacle_modes})
+            for src in obstacle_modes
+        ])
 
-    f110_automaton = HybridAutomaton(modes=modes, transitions=transitions)
-    return f110_automaton
+    return HybridAutomaton(modes=modes, transitions=transitions)

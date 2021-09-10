@@ -5,6 +5,7 @@ gym
 pyyaml
 git+https://github.com/numpy/numpy-stubs.git
 stable-baselines[mpi]
+stable-baselines3
 tensorflow<2.0.0
 scikit-learn
 mpi4py

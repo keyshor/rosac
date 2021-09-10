@@ -28,10 +28,10 @@ EKAT: np.ndarray = np.array(np.exp(-CAR_ACCEL_CONST * TIME_CHECK))
 STEP_REWARD_GAIN: float = 5
 CRASH_REWARD: float = -100
 MINIMUM_ACCEPTABLE_SPEED: float = 1.5
-LOW_SPEED_REWARD: float = -30
+LOW_SPEED_REWARD: float = -20
 SPEED_GAIN: float = 0.0
 PROGRESS_GAIN: float = 10
-MIDDLE_GAIN: float = -3
+MIDDLE_GAIN: float = -10
 DEFAULT_HALL_WIDTH: float = 1.5
 
 EPSILON: float = 1e-10
@@ -466,7 +466,7 @@ class F110ObstacleMode(Mode[State]):
         if self.center_reward_region.contains(st1):
             reward += MIDDLE_GAIN * self.center_reward_lines.distance(
                 np.array([st1.x]), np.array([st1.y]),
-            )
+            )[0]
 
         return reward
 
@@ -498,6 +498,114 @@ def make_obstacle(use_throttle: bool = True,
         obstacle_paths=[],
         obstacle_x_low=-hhw,
         obstacle_x_high=hhw,
+        obstacle_y_low=-1.0,
+        obstacle_y_high=1.0,
+        start_x=0,
+        start_y=-11,
+        start_V=2.5,
+        start_theta=float(np.radians(90)),
+        start_x_noise=0.2,
+        start_y_noise=0.2,
+        start_V_noise=2.5,
+        start_theta_noise = float(np.radians(30)),
+        goal_x=0,
+        goal_y=15,
+        goal_theta=float(np.radians(90)),
+        goal_region=Polyhedron(
+            # y >= 14.5
+            # x >= -hhw
+            # x <= hhw
+            A=np.array([
+                [0, -1, 0, 0],
+                [-1, 0, 0, 0],
+                [1, 0, 0, 0],
+            ]),
+            b=np.array([-14.5, hhw, hhw]),
+        ),
+        center_reward_region=Polyhedron(
+            # y >= 5
+            # x >= -hhw
+            # x <= hhw
+            A=np.array([
+                [0, -1, 0, 0],
+                [-1, 0, 0, 0],
+                [1, 0, 0, 0],
+            ]),
+            b=np.array([-5, hhw, hhw]),
+        ),
+        center_reward_path=((0, 0), (0, 20)),
+    )
+
+def make_obstacle_right(use_throttle: bool = True,
+                        lidar_num_rays: int = 1081,
+                        width: float = DEFAULT_HALL_WIDTH,
+                        ) -> F110ObstacleMode:
+    hhw = width / 2
+    return F110ObstacleMode(
+        name='f110_obstacle_right',
+        static_polygons=[],
+        static_paths=[
+            [(-hhw,-20), (-hhw,-5), (-width, -3), (-width, 3), (-hhw, 5), (-hhw, 20)],
+            [(hhw,-20), (hhw,-5), (width, -3), (width, 3), (hhw, 5), (hhw, 20)],
+        ],
+        obstacle_polygons=[[(0.5, 0.5), (0.5, -0.5), (-0.5, -0.5), (-0.5, 0.5)]],
+        obstacle_paths=[],
+        obstacle_x_low=0,
+        obstacle_x_high=hhw,
+        obstacle_y_low=-1.0,
+        obstacle_y_high=1.0,
+        start_x=0,
+        start_y=-11,
+        start_V=2.5,
+        start_theta=float(np.radians(90)),
+        start_x_noise=0.2,
+        start_y_noise=0.2,
+        start_V_noise=2.5,
+        start_theta_noise = float(np.radians(30)),
+        goal_x=0,
+        goal_y=15,
+        goal_theta=float(np.radians(90)),
+        goal_region=Polyhedron(
+            # y >= 14.5
+            # x >= -hhw
+            # x <= hhw
+            A=np.array([
+                [0, -1, 0, 0],
+                [-1, 0, 0, 0],
+                [1, 0, 0, 0],
+            ]),
+            b=np.array([-14.5, hhw, hhw]),
+        ),
+        center_reward_region=Polyhedron(
+            # y >= 5
+            # x >= -hhw
+            # x <= hhw
+            A=np.array([
+                [0, -1, 0, 0],
+                [-1, 0, 0, 0],
+                [1, 0, 0, 0],
+            ]),
+            b=np.array([-5, hhw, hhw]),
+        ),
+        center_reward_path=((0, 0), (0, 20)),
+    )
+
+def make_obstacle_left(use_throttle: bool = True,
+                       lidar_num_rays: int = 1081,
+                       width: float = DEFAULT_HALL_WIDTH,
+                       ) -> F110ObstacleMode:
+    hhw = width / 2
+    return F110ObstacleMode(
+        name='f110_obstacle_left',
+        static_polygons=[],
+        static_paths=[
+            [(-hhw,-20), (-hhw,-5), (-width, -3), (-width, 3), (-hhw, 5), (-hhw, 20)],
+            [(hhw,-20), (hhw,-5), (width, -3), (width, 3), (hhw, 5), (hhw, 20)],
+        ],
+        obstacle_polygons=[[(0.5, 0.5), (0.5, -0.5), (-0.5, -0.5), (-0.5, 0.5)]],
+        obstacle_paths=[],
+        obstacle_x_low=-hhw,
+        obstacle_x_high=0,
         obstacle_y_low=-1.0,
         obstacle_y_high=1.0,
         start_x=0,

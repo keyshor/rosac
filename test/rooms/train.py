@@ -5,11 +5,11 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
 from stable_baselines.td3.policies import FeedForwardPolicy
-from hybrid_gym.train.single_mode import train_stable, make_sb_model
+from hybrid_gym.train.single_mode import train_sb3, make_sb3_model
 from hybrid_gym.train.mode_pred import train_mode_predictor
 from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
-from hybrid_gym.util.wrappers import BaselineCtrlWrapper
+from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.util.io import parse_command_line_options
 from hybrid_gym.util.test import get_rollout
 from hybrid_gym.envs import make_rooms_model
@@ -18,19 +18,22 @@ from hybrid_gym.envs import make_rooms_model
 def train_single(automaton, name, total_timesteps, save_path):
     mode = automaton.modes[name]
     mode_info = [(mode, automaton.transitions[name], None, None)]
-    model = make_sb_model(
+    model = make_sb3_model(
         mode_info,
-        algo_name='ddpg',
+        algo_name='td3',
         batch_size=256,
-        policy_kwargs={'layers': [32, 32]},
+        policy_kwargs={'net_arch': [32, 32]},
         action_noise_scale=0.2,
+        learning_rate=0.0003,
+        tau=0.001,
+        buffer_size=50000,
         verbose=0,
         max_episode_steps=25,
     )
-    train_stable(model, mode_info,
-                 total_timesteps=total_timesteps, algo_name='ddpg',
-                 max_episode_steps=25, n_eval_episodes=10,
-                 save_path=save_path)
+    train_sb3(model, mode_info,
+              total_timesteps=total_timesteps, algo_name='td3',
+              max_episode_steps=25, #n_eval_episodes=10,
+              save_path=save_path)
 
 
 if __name__ == '__main__':
@@ -48,9 +51,9 @@ if __name__ == '__main__':
 
         if flags['render']:
             print('Rendering learned controller for mode {}'.format(name))
-            controller = BaselineCtrlWrapper.load(
+            controller = Sb3CtrlWrapper.load(
                 os.path.join(flags['path'], name, 'best_model.zip'),
-                algo_name='ddpg',
+                #algo_name='ddpg',
             )
             for i in range(10):
                 print('\n----- Rollout #{} -----'.format(i))

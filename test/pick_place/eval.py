@@ -9,7 +9,7 @@ sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.util.wrappers import BaselineCtrlWrapper, SpectrlCtrlWrapper, GymEnvWrapper, GymGoalEnvWrapper
+from hybrid_gym.util.wrappers import Sb3CtrlWrapper, SpectrlCtrlWrapper, GymEnvWrapper, GymGoalEnvWrapper
 from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.envs.pick_place.mode import ModeType
 from hybrid_gym.hybrid_env import HybridEnv, HybridGoalEnv
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     )
     controllers: dict = {}
     for mt in ModeType:
-        ctrl = BaselineCtrlWrapper.load(
+        ctrl = Sb3CtrlWrapper.load(
             os.path.join(args.path, mt.name, 'best_model.zip'),
             algo_name='her',
             env=env,

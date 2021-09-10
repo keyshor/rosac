@@ -121,6 +121,7 @@ class HybridGoalEnv(gym.GoalEnv):
         next_state = self.mode.step(self.state, action)
         reward = 0
         done = False
+        jump = False
 
         self.state = next_state
         for t in self.automaton.transitions[self.mode.name]:
@@ -129,6 +130,7 @@ class HybridGoalEnv(gym.GoalEnv):
                 if not done:
                     self.state = t.jump(new_mode, self.state)
                     self.mode = self.automaton.modes[new_mode]
+                    jump = True
                 else:
                     reward = 1
                 break

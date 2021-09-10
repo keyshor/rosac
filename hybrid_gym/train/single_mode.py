@@ -6,11 +6,25 @@ from stable_baselines.common.base_class import BaseRLModel
 from stable_baselines.common.callbacks import EvalCallback
 from stable_baselines.common.policies import BasePolicy
 from stable_baselines.common.evaluation import evaluate_policy
+from stable_baselines.ddpg.noise import NormalActionNoise
 from stable_baselines.her import HERGoalEnvWrapper
+from stable_baselines3 import (
+    A2C as SB3_A2C, DDPG as SB3_DDPG, DQN as SB3_DQN,
+    PPO as SB3_PPO, SAC as SB3_SAC, TD3 as SB3_TD3,
+    HerReplayBuffer
+)
+from stable_baselines3.common.base_class import BaseAlgorithm
+from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.callbacks import EvalCallback as SB3_EvalCallback
+from stable_baselines3.common.policies import BasePolicy as SB3_BasePolicy, ActorCriticPolicy
+from stable_baselines3.dqn.policies import DQNPolicy
+from stable_baselines3.sac.policies import SACPolicy
+from stable_baselines3.td3.policies import TD3Policy
+from stable_baselines3.common.evaluation import evaluate_policy as sb3_evaluate_policy
+from stable_baselines3.common.noise import NormalActionNoise as SB3_NormalActionNoise
 import gym
 from gym.wrappers import TimeLimit
 from typing import Iterable, Optional, List, Tuple, Union, Callable, TypeVar, Type, Any
-from stable_baselines.ddpg.noise import NormalActionNoise
 
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 
@@ -22,32 +36,29 @@ from hybrid_gym.util.wrappers import (
 )
 
 
-BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
+#BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
 
 
 def env_from_mode_info(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    algo_name: str,
-    max_episode_steps: int,
-) -> gym.Env:
+                           Mode[StateType],
+                           Iterable[Transition],
+                           Optional[Callable[[], StateType]],
+                           Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                       ]],
+                       algo_name: str,
+                       max_episode_steps: int,
+                       reward_offset: float,
+                       is_goal_env: bool,
+                       ) -> gym.Env:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
-    if algo_name == 'td3':
-        return TimeLimit(GymMultiEnvWrapper(mode_info, flatten_obs=True),
+    if is_goal_env:
+        return TimeLimit(GymMultiGoalEnvWrapper(mode_info),
                          max_episode_steps=max_episode_steps)
-    elif algo_name == 'her':
-        return HERGoalEnvWrapper(DoneOnSuccessWrapper(TimeLimit(
-            GymMultiGoalEnvWrapper(mode_info),
-            max_episode_steps=max_episode_steps,
-        )))
     else:
-        return TimeLimit(GymMultiEnvWrapper(mode_info),
+        return TimeLimit(GymMultiEnvWrapper(mode_info, flatten_obs=True),
                          max_episode_steps=max_episode_steps)
 
 
@@ -86,23 +97,25 @@ def train_spectrl(model,
 
 
 def make_sb_model(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    algo_name: str = 'td3',
-    wrapped_algo: str = 'ddpg',  # only relevent to HER
-    action_noise_scale: float = 0.1,
-    policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
-    max_episode_steps: int = 50,
-    **kwargs
-) -> BaseRLModel:
+                      Mode[StateType],
+                      Iterable[Transition],
+                      Optional[Callable[[], StateType]],
+                      Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                  ]],
+                  algo_name: str = 'td3',
+                  wrapped_algo: str = 'ddpg',  # only relevent to HER
+                  action_noise_scale: float = 0.1,
+                  policy: Union[Type[BasePolicy], str] = 'MlpPolicy',
+                  max_episode_steps: int = 50,
+                  reward_offset: float = 1.0,
+                  is_goal_env: bool = False,
+                  **kwargs
+                  ) -> BaseRLModel:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
-    env = env_from_mode_info(mode_info, algo_name, max_episode_steps)
+    env = env_from_mode_info(mode_info, algo_name, max_episode_steps, reward_offset, is_goal_env=is_goal_env)
     action_shape = env.action_space.shape
     ddpg_action_noise = NormalActionNoise(
         mean=np.zeros(action_shape),
@@ -165,35 +178,38 @@ def check_initialization(model: BaseRLModel,
 
 
 def make_sb_model_init_check(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    save_path: str = '.',
-    algo_name: str = 'td3',
-    wrapped_algo: str = 'ddpg',  # only relevent to HER
-    action_noise_scale: float = 0.1,
-    policy: Union[Type[BasePolicySubclass], str] = 'MlpPolicy',
-    max_episode_steps: int = 50,
-    max_init_retries: int = 10,
-    n_eval_episodes: int = 100,
-    num_timesteps: int = 1000,
-    min_reward: float = -np.inf,
-    min_episode_length: float = 0.0,
-    **kwargs,
-) -> BaseRLModel:
+                                 Mode[StateType],
+                                 Iterable[Transition],
+                                 Optional[Callable[[], StateType]],
+                                 Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                             ]],
+                             save_path: str = '.',
+                             algo_name: str = 'td3',
+                             wrapped_algo: str = 'ddpg',  # only relevent to HER
+                             action_noise_scale: float = 0.1,
+                             policy: Union[Type[BasePolicy], str] = 'MlpPolicy',
+                             max_episode_steps: int = 50,
+                             max_init_retries: int = 10,
+                             n_eval_episodes: int = 100,
+                             num_timesteps: int = 1000,
+                             min_reward: float = -np.inf,
+                             min_episode_length: float = 0.0,
+                             reward_offset: float = 1.0,
+                             is_goal_env: bool = False,
+                             **kwargs,
+                             ) -> BaseRLModel:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
     first_mode, _, _, _ = mode_info[0]
-    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps)
+    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps, reward_offset=reward_offset, is_goal_env=is_goal_env)
     init_ok = False
     for i in range(max_init_retries):
         model = make_sb_model(
             mode_info,
             algo_name=algo_name,
+            wrapped_algo=wrapped_algo,
             policy=policy,
             action_noise_scale=action_noise_scale,
             max_episode_steps=max_episode_steps,
@@ -230,18 +246,175 @@ def train_stable(model,
                  max_episode_steps: int = 50,
                  eval_freq: int = 10000,
                  n_eval_episodes: int = 100,
+                 reward_offset: float = 1.0,
                  save_path: str = '.',
                  custom_best_model_path: Optional[str] = None,
+                 is_goal_env: bool = False,
                  ) -> Any:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
-    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps)
+    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps, reward_offset=reward_offset, is_goal_env=is_goal_env)
     model.set_env(env)
     first_mode, _, _, _ = mode_info[0]
     best_model_path = custom_best_model_path or first_mode.name
     callback = EvalCallback(
+        eval_env=env, n_eval_episodes=n_eval_episodes, eval_freq=eval_freq,
+        log_path=os.path.join(save_path, best_model_path),
+        best_model_save_path=os.path.join(save_path, best_model_path),
+    )
+    model.learn(total_timesteps=total_timesteps, callback=callback)
+    return env
+
+def make_sb3_model(raw_mode_info: Iterable[Tuple[
+                       Mode[StateType],
+                       Iterable[Transition],
+                       Optional[Callable[[], StateType]],
+                       Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                   ]],
+                   algo_name: str,
+                   replay_buffer_class: Optional[ReplayBuffer] = None,
+                   action_noise_scale: float = 0.1,
+                   policy: Union[Type[SB3_BasePolicy], str] = 'MlpPolicy',
+                   max_episode_steps: int = 50,
+                   reward_offset: float = 1.0,
+                   is_goal_env: bool = False,
+                   **kwargs,
+                   ) -> BaseAlgorithm:
+    mode_info = [
+        (mode, list(transitions), reset_fn, reward_fn)
+        for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
+    ]
+    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps, reward_offset=reward_offset, is_goal_env=is_goal_env)
+    action_shape = env.action_space.shape
+    action_noise = SB3_NormalActionNoise(
+        mean=np.zeros(action_shape),
+        sigma=action_noise_scale * np.ones(action_shape)
+    )
+    if algo_name == 'a2c':
+        assert isinstance(policy, str) or issubclass(policy, ActorCriticPolicy), \
+            'policies passed to A2C must be subclasses of ActorCriticPolicy'
+        model: BaseAlgorithm = SB3_A2C(policy, env, **kwargs)
+    elif algo_name == 'ddpg':
+        assert isinstance(policy, str) or issubclass(policy, TD3Policy), \
+            'policies passed to DDPG must be subclasses of TD3Policy'
+        model = SB3_DDPG(policy, env, action_noise=action_noise, replay_buffer_class=replay_buffer_class, **kwargs)
+    elif algo_name == 'dqn':
+        assert isinstance(policy, str) or issubclass(policy, DQNPolicy), \
+            'policies passed to DQN must be subclasses of DQNPolicy'
+        model = SB3_DQN(policy, env, replay_buffer_class=replay_buffer_class, **kwargs)
+    elif algo_name == 'ppo':
+        assert isinstance(policy, str) or issubclass(policy, ActorCriticPolicy), \
+            'policies passed to PPO must be subclasses of ActorCriticPolicy'
+        model = SB3_PPO(policy, env, **kwargs)
+    elif algo_name == 'sac':
+        assert isinstance(policy, str) or issubclass(policy, SACPolicy), \
+            'policies passed to SAC must be subclasses of SACPolicy'
+        model = SB3_SAC(policy, env, replay_buffer_class=replay_buffer_class, **kwargs)
+    elif algo_name == 'td3':
+        assert isinstance(policy, str) or issubclass(policy, TD3Policy), \
+            'policies passed to TD3 must be subclasses of TD3Policy'
+        model = SB3_TD3(policy, env, action_noise=action_noise, replay_buffer_class=replay_buffer_class, **kwargs)
+    else:
+        raise ValueError
+    return model
+
+
+def sb3_check_initialization(model: BaseAlgorithm,
+                             env: gym.Env,
+                             n_eval_episodes: int,
+                             num_timesteps: int,
+                             min_reward: float,
+                             min_episode_length: float,
+                             ) -> bool:
+    model.set_env(env)
+    model.learn(total_timesteps=num_timesteps)
+    episode_reward, episode_timesteps = sb3_evaluate_policy(
+        model, env, n_eval_episodes=n_eval_episodes,
+        return_episode_rewards=True,
+    )
+    return np.mean(episode_reward) >= min_reward and \
+        np.mean(episode_timesteps) >= min_episode_length
+
+
+def make_sb3_model_init_check(raw_mode_info: Iterable[Tuple[
+                                  Mode[StateType],
+                                  Iterable[Transition],
+                                  Optional[Callable[[], StateType]],
+                                  Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                              ]],
+                              algo_name: str = 'td3',
+                              replay_buffer_class: Optional[ReplayBuffer] = None,
+                              action_noise_scale: float = 0.1,
+                              policy: Union[Type[SB3_BasePolicy], str] = 'MlpPolicy',
+                              max_episode_steps: int = 50,
+                              max_init_retries: int = 10,
+                              n_eval_episodes: int = 100,
+                              num_timesteps: int = 1000,
+                              min_reward: float = -np.inf,
+                              min_episode_length: float = 0.0,
+                              reward_offset: float = 1.0,
+                              is_goal_env: bool = False,
+                              **kwargs,
+                              ) -> BaseAlgorithm:
+    mode_info = [
+        (mode, list(transitions), reset_fn, reward_fn)
+        for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
+    ]
+    first_mode, _, _, _ = mode_info[0]
+    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps, reward_offset=reward_offset, is_goal_env=is_goal_env)
+    init_ok = False
+    for i in range(max_init_retries):
+        model = make_sb3_model(
+            mode_info,
+            algo_name=algo_name,
+            policy=policy,
+            action_noise_scale=action_noise_scale,
+            max_episode_steps=max_episode_steps,
+            **kwargs,
+        )
+        init_ok = sb3_check_initialization(
+            model, env,
+            n_eval_episodes=n_eval_episodes,
+            num_timesteps=num_timesteps,
+            min_reward=min_reward,
+            min_episode_length=min_episode_length,
+        )
+        if init_ok:
+            print(f'initialized model after {i+1} attempts')
+            break
+    if not init_ok:
+        print(f'failed to achieve suitable initialization after {max_init_retries}')
+    return model
+
+
+def train_sb3(model: BaseAlgorithm,
+              raw_mode_info: Iterable[Tuple[
+                  Mode[StateType],
+                  Iterable[Transition],
+                  Optional[Callable[[], StateType]],
+                  Optional[Callable[[StateType, np.ndarray, StateType], float]],
+              ]],
+              total_timesteps=1000,
+              algo_name: str = 'td3',
+              max_episode_steps: int = 50,
+              eval_freq: int = 10000,
+              n_eval_episodes: int = 100,
+              reward_offset: float = 1.0,
+              save_path: str = '.',
+              custom_best_model_path: Optional[str] = None,
+              is_goal_env: bool = False,
+              ) -> Any:
+    mode_info = [
+        (mode, list(transitions), reset_fn, reward_fn)
+        for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
+    ]
+    env = env_from_mode_info(mode_info, algo_name=algo_name, max_episode_steps=max_episode_steps, reward_offset=reward_offset, is_goal_env=is_goal_env)
+    model.set_env(env)
+    first_mode, _, _, _ = mode_info[0]
+    best_model_path = custom_best_model_path or first_mode.name
+    callback = SB3_EvalCallback(
         eval_env=env, n_eval_episodes=n_eval_episodes, eval_freq=eval_freq,
         log_path=os.path.join(save_path, best_model_path),
         best_model_save_path=os.path.join(save_path, best_model_path),

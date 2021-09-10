@@ -3,10 +3,10 @@ CounterExample Guided Reinforcement Learning
 '''
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
-from hybrid_gym.train.single_mode import make_sb_model, train_stable
+from hybrid_gym.train.single_mode import make_sb3_model, train_sb3
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
-from hybrid_gym.util.wrappers import BaselineCtrlWrapper
+from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.falsification.single_mode import falsify
 from typing import List, Dict, Any, Iterable, Callable, Optional
 
@@ -77,7 +77,7 @@ def cegrl(automaton: HybridAutomaton,
                    for mode in modes] for modes in mode_groups]
 
     # create one model for each group
-    models = [make_sb_model(
+    models = [make_sb3_model(
         group_info[g],
         algo_name=algo_name,
         max_episode_steps=time_limits[group_names[g][0]],
@@ -85,7 +85,7 @@ def cegrl(automaton: HybridAutomaton,
         for g in range(len(mode_groups))]
 
     # create one controller object for each mode
-    controllers: List[Controller] = [BaselineCtrlWrapper(model) for model in models]
+    controllers: List[Controller] = [Sb3CtrlWrapper(model) for model in models]
 
     for i in range(num_iter):
         print('\n**** Iteration {} ****'.format(i))
@@ -93,24 +93,26 @@ def cegrl(automaton: HybridAutomaton,
         # train agents
         for g in range(len(mode_groups)):
             print('\n---- Training controller for modes {} ----'.format(group_names[g]))
-            reload_env = train_stable(models[g], group_info[g], total_timesteps=steps_per_iter,
-                                      algo_name=algo_name, save_path=save_path,
-                                      max_episode_steps=time_limits[group_names[g][0]],
-                                      **train_kwargs)
+            reload_env = train_sb3(models[g], group_info[g], total_timesteps=steps_per_iter,
+                                   algo_name=algo_name, save_path=save_path,
+                                   max_episode_steps=time_limits[group_names[g][0]],
+                                   **train_kwargs)
             if use_best_model:
-                ctrl = BaselineCtrlWrapper.load(
+                ctrl = Sb3CtrlWrapper.load(
                     os.path.join(save_path, group_names[g][0], 'best_model.zip'),
-                    algo_name=algo_name, env=reload_env)
-            else:
-                controllers[g].save(os.path.join(save_path, group_names[g][0] + '.' + algo_name))
-                ctrl = BaselineCtrlWrapper.load(
-                    os.path.join(save_path, group_names[g][0] + '.' + algo_name),
-                    algo_name=algo_name, env=reload_env)
+                    algo_name=algo_name, #env=reload_env,
+                )
+                models[g].set_parameters(ctrl.model.get_parameters())
+            #else:
+            #    controllers[g].save(os.path.join(save_path, group_names[g][0] + '.' + algo_name))
+            #    ctrl = Sb3CtrlWrapper.load(
+            #        os.path.join(save_path, group_names[g][0] + '.' + algo_name),
+            #        algo_name=algo_name, env=reload_env)
 
             # set the init model for next iteration
-            if isinstance(ctrl, BaselineCtrlWrapper):  # typing check for mypy compliance
-                models[g] = ctrl.model
-                controllers[g] = ctrl
+            #if isinstance(ctrl, Sb3CtrlWrapper):  # typing check for mypy compliance
+            #    models[g] = ctrl.model
+            #    controllers[g] = ctrl
 
         # synthesis
         print('\n---- Running synthesis ----')

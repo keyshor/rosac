@@ -6,7 +6,7 @@ sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.util.wrappers import BaselineCtrlWrapper, GymEnvWrapper
+from hybrid_gym.util.wrappers import Sb3CtrlWrapper, GymEnvWrapper
 from hybrid_gym.train.mode_pred import ScipyModePredictor
 from hybrid_gym.envs.f110.hybrid_env import make_f110_model
 from hybrid_gym.hybrid_env import HybridEnv
@@ -29,7 +29,7 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
     )
 
     controllers = {
-        name: BaselineCtrlWrapper.load(
+        name: Sb3CtrlWrapper.load(
             os.path.join(save_path, name, 'best_model.zip'),
             algo_name='td3',
             policy=F110Policy,
@@ -103,15 +103,14 @@ def plot_crashes(automaton, max_steps_in_mode, use_mode_pred, num_trials, save_p
                     m.plot_halls(ax=ax, st=st)
                 except AttributeError:
                     print(f'mode = {mode}, true_mode = {true_mode}, type(st) = {type(st)}')
-            colors = ['r', 'g', 'b', 'm', 'c', 'y']
-            for (pred_mode, c) in zip(list(automaton.modes), colors):
+            for pred_mode in automaton.modes:
                 try:
                     x_hist = [s.car_global_x for s in state_history[pred_mode]]
                     y_hist = [s.car_global_y for s in state_history[pred_mode]]
                 except AttributeError:
                     x_hist = [s.x for s in state_history[pred_mode]]
                     y_hist = [s.y for s in state_history[pred_mode]]
-                ax.scatter(x_hist, y_hist, s=1, c=c, label=pred_mode)
+                ax.scatter(x_hist, y_hist, s=1, label=pred_mode)
             ax.legend(markerscale=10)
             ax.set_title(f'trajectory {i:0{num_trials_format_width}d}, mode {m.name}')
             ax.set_aspect('equal')

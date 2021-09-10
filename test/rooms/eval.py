@@ -4,7 +4,7 @@ sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.util.wrappers import BaselineCtrlWrapper, GymEnvWrapper
+from hybrid_gym.util.wrappers import Sb3CtrlWrapper, GymEnvWrapper
 from hybrid_gym.train.mode_pred import ScipyModePredictor
 from hybrid_gym.envs import make_rooms_model
 from hybrid_gym.util.test import end_to_end_test
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     automaton = make_rooms_model()
 
     controllers = {
-        name: BaselineCtrlWrapper.load(
+        name: Sb3CtrlWrapper.load(
             os.path.join(flags['path'], name, 'best_model.zip'),
             algo_name='td3',
         )

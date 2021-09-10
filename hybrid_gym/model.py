@@ -1,7 +1,7 @@
 import numpy as np
 import gym
 
-from typing import TypeVar, Generic, List, Any, Iterable, Tuple
+from typing import TypeVar, Type, Generic, List, Any, Iterable, Tuple
 from abc import ABCMeta, abstractmethod
 
 StateType = TypeVar('StateType')
@@ -157,6 +157,9 @@ class ModeSelector(metaclass=ABCMeta):
         Returns an initial mode (name).
         '''
         pass
+
+
+ControllerType = TypeVar('ControllerType', bound='Controller')
 
 
 class Controller(metaclass=ABCMeta):

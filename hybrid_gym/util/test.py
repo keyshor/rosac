@@ -4,6 +4,7 @@ Utility functions for testing/simulation.
 from hybrid_gym.model import Mode, Transition, Controller, ModeSelector
 from hybrid_gym.hybrid_env import HybridAutomaton
 from typing import List, Any, Dict, Union
+import gym
 
 
 def get_rollout(mode: Mode, transitions: List[Transition], controller: Controller,
@@ -17,6 +18,8 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
 
     sass = []
     info: Dict[str, Any] = {'safe': True, 'jump': None}
+
+    obs_space = mode.observation_space
 
     while step <= max_timesteps:
         obs = mode.observe(state)

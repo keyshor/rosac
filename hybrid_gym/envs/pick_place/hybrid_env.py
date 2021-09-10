@@ -63,6 +63,8 @@ def make_pick_place_model(num_objects: int = 3,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
         )
+        mv_wo_obj_modes.append(move_without_obj)
+        place_pt2_modes.append(place_obj_pt2)
         modes += [
             move_without_obj,
             pick_obj_pt1, pick_obj_pt2, pick_obj_pt3,

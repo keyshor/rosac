@@ -1,5 +1,6 @@
 import os
 import sys
+from stable_baselines3 import HerReplayBuffer
 
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
@@ -10,11 +11,12 @@ from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
 from hybrid_gym.hybrid_env import HybridGoalEnv
 from hybrid_gym.selectors import FixedSequenceSelector
+from hybrid_gym.envs.pick_place.mode import ModeType
 
 
 if __name__ == '__main__':
     num_objects = 3
-    automaton = make_pick_place_model(num_objects=num_objects)
+    automaton = make_pick_place_model(num_objects=num_objects, reward_type='dense')
 
     use_best_model = 0
     save_path = '.'
@@ -31,11 +33,22 @@ if __name__ == '__main__':
 
     time_limits = {m: 50 for m in automaton.modes}
 
-    controllers = cegrl(automaton, pre, time_limits, algo_name='her', steps_per_iter=200000,
-                        num_iter=10, num_synth_iter=10, abstract_samples=0, print_debug=True,
-                        wrapped_algo='sac', verbose=2, gamma=0.95, buffer_size=1000000,
-                        ent_coef='auto', goal_selection_strategy='future',
-                        n_sampled_goal=4, train_freq=1, learning_starts=1000,
+    mode_groups = [[automaton.modes[f'{mt.name}_{i}'] for i in range(num_objects)] for mt in ModeType]
+
+    controllers = cegrl(automaton, pre, time_limits, mode_groups=mode_groups,
+                        algo_name='sac', steps_per_iter=200,
+                        num_iter=10, num_synth_iter=10, abstract_synth_samples=0, print_debug=True,
+                        verbose=2, gamma=0.95, buffer_size=1000000,
+                        ent_coef='auto',
+                        replay_buffer_class=HerReplayBuffer,
+                        replay_buffer_kwargs=dict(
+                            n_sampled_goal=4,
+                            goal_selection_strategy='future',
+                            max_episode_length=50,
+                        ),
+                        is_goal_env=True,
+                        train_kwargs=dict(is_goal_env=True),
+                        train_freq=1, learning_starts=1000,
                         use_best_model=use_best_model, save_path=save_path)
 
     # save the controllers

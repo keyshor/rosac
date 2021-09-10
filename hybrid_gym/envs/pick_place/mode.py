@@ -103,7 +103,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
         # Compute distance between goal and the achieved goal.
         d = goal_distance(achieved_goal, goal)
         if self.reward_type == 'sparse':
-            return -float(d > self.distance_threshold)
+            return float(self._is_success(achieved_goal, goal))
         else:
             reward = -d
             if not self.is_safe():
@@ -532,7 +532,9 @@ class PickPlaceMode(Mode[State]):
         return self.get_state()
 
     def end_to_end_reset(self) -> State:
-        assert self.multi_obj.mode_type == ModeType.MOVE_WITHOUT_OBJ
+        if self.multi_obj.mode_type != ModeType.MOVE_WITHOUT_OBJ:
+            # print warning?
+            pass
         self.multi_obj.initialize_positions(tower_height=0)
         self.multi_obj._sample_goal()
         return self.get_state()

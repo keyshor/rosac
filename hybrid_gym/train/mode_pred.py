@@ -113,7 +113,8 @@ def train_mode_predictor(automaton: HybridAutomaton,
     mp: Optional[ScipyClassifier] = None
     data = np.zeros(tuple((0,) + automaton.observation_space.shape))
     labels = np.zeros(0)
-    for _ in range(num_iters):
+    for i in range(num_iters):
+        print(f'{i}th iteration of mode predictor training')
         new_data, new_labels = generate_data(
             automaton, reset_fns, controller, mp,
             samples_per_mode_per_iter, max_episode_length
