@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     controllers = cegrl(automaton, pre, time_limits, steps_per_iter=50000,
                         num_iter=15, num_synth_iter=15, abstract_synth_samples=flags['abstract_samples'],
-                        print_debug=True, batch_size=256, action_noise_scale=0.2, verbose=0,
+                        print_debug=True, batch_size=256, action_noise_scale=0.2, verbose=1,
                         learning_rate=0.0003, tau=0.001, buffer_size=50000,
                         # train_kwargs={'eval_freq': 1000, 'n_eval_episodes': 10},
                         use_best_model=(not flags['no_best']), policy_kwargs={'net_arch': [32, 32]},
