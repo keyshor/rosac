@@ -50,7 +50,8 @@ if __name__ == '__main__':
                         learning_rate=0.0003, tau=0.001, buffer_size=50000,
                         # train_kwargs={'eval_freq': 1000, 'n_eval_episodes': 10},
                         use_best_model=(not flags['no_best']), policy_kwargs={'net_arch': [32, 32]},
-                        falsify_func=falsify_func, save_path=flags['path'], algo_name='td3')
+                        falsify_func=falsify_func, save_path=flags['path'], algo_name='td3',
+                        device='cpu')
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

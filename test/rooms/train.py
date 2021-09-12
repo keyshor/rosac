@@ -29,6 +29,7 @@ def train_single(automaton, name, total_timesteps, save_path):
         buffer_size=50000,
         verbose=0,
         max_episode_steps=25,
+        device='cpu'
     )
     train_sb3(model, mode_info,
               total_timesteps=total_timesteps, algo_name='td3',
