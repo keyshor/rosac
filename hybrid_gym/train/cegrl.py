@@ -93,26 +93,16 @@ def cegrl(automaton: HybridAutomaton,
         # train agents
         for g in range(len(mode_groups)):
             print('\n---- Training controller for modes {} ----'.format(group_names[g]))
-            reload_env = train_sb3(models[g], group_info[g], total_timesteps=steps_per_iter,
-                                   algo_name=algo_name, save_path=save_path,
-                                   max_episode_steps=time_limits[group_names[g][0]],
-                                   **train_kwargs)
+            train_sb3(models[g], group_info[g], total_timesteps=steps_per_iter,
+                      algo_name=algo_name, save_path=save_path,
+                      max_episode_steps=time_limits[group_names[g][0]],
+                      **train_kwargs)
             if use_best_model:
                 ctrl = Sb3CtrlWrapper.load(
                     os.path.join(save_path, group_names[g][0], 'best_model.zip'),
-                    algo_name=algo_name, #env=reload_env,
+                    algo_name=algo_name,  # env=reload_env,
                 )
                 models[g].set_parameters(ctrl.model.get_parameters())
-            #else:
-            #    controllers[g].save(os.path.join(save_path, group_names[g][0] + '.' + algo_name))
-            #    ctrl = Sb3CtrlWrapper.load(
-            #        os.path.join(save_path, group_names[g][0] + '.' + algo_name),
-            #        algo_name=algo_name, env=reload_env)
-
-            # set the init model for next iteration
-            #if isinstance(ctrl, Sb3CtrlWrapper):  # typing check for mypy compliance
-            #    models[g] = ctrl.model
-            #    controllers[g] = ctrl
 
         # synthesis
         print('\n---- Running synthesis ----')

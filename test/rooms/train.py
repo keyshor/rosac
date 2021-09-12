@@ -32,7 +32,7 @@ def train_single(automaton, name, total_timesteps, save_path):
     )
     train_sb3(model, mode_info,
               total_timesteps=total_timesteps, algo_name='td3',
-              max_episode_steps=25, #n_eval_episodes=10,
+              max_episode_steps=25,  # n_eval_episodes=10,
               save_path=save_path)
 
 
@@ -47,13 +47,13 @@ if __name__ == '__main__':
 
     for name in mode_list:
         print(f'training mode {name}')
-        train_single(automaton, name, 500000, flags['path'])
+        train_single(automaton, name, 100000, flags['path'])
 
         if flags['render']:
             print('Rendering learned controller for mode {}'.format(name))
             controller = Sb3CtrlWrapper.load(
                 os.path.join(flags['path'], name, 'best_model.zip'),
-                #algo_name='ddpg',
+                # algo_name='ddpg',
             )
             for i in range(10):
                 print('\n----- Rollout #{} -----'.format(i))
