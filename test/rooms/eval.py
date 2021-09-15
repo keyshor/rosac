@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     controllers = {
         name: Sb3CtrlWrapper.load(
-            os.path.join(flags['path'], name, 'best_model.zip'),
+            os.path.join(flags['path'], name, 'best_model'),
             algo_name='td3',
         )
         for name in automaton.modes
