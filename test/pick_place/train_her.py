@@ -7,6 +7,7 @@ import gym
 from stable_baselines import SAC, HER
 from stable_baselines.ddpg.noise import NormalActionNoise
 from stable_baselines.common.vec_env import DummyVecEnv
+from stable_baselines3 import HerReplayBuffer
 from gym.envs.robotics.fetch.pick_and_place import FetchPickAndPlaceEnv
 from gym.wrappers import TimeLimit
 sys.path.append(os.path.join('..', '..'))  # nopep8
@@ -26,17 +27,25 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
                  for n in names]
     model = make_sb3_model(
         mode_info,
-        algo_name='her',
-        wrapped_algo='sac',
+        algo_name='sac',
+        policy='MultiInputPolicy',
         gamma=0.95, buffer_size=1000000,
-        ent_coef='auto', goal_selection_strategy='future',
-        n_sampled_goal=4, train_freq=1, learning_starts=1000,
+        ent_coef='auto',
+        replay_buffer_class=HerReplayBuffer,
+        replay_buffer_kwargs=dict(
+            n_sampled_goal=4,
+            goal_selection_strategy='future',
+            max_episode_length=50,
+        ),
+        train_freq=1, learning_starts=1000,
         reward_offset=0.0,
-        verbose=0
+        is_goal_env=True,
+        verbose=0,
     )
     train_sb3(model, mode_info,
-                 total_timesteps=total_timesteps, algo_name='her', reward_offset=0.0,
-                 save_path=save_path, custom_best_model_path=model_path)
+              total_timesteps=total_timesteps, algo_name='her',
+              reward_offset=0.0, is_goal_env=True,
+              save_path=save_path, custom_best_model_path=model_path)
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='train controllers and mode predictor')

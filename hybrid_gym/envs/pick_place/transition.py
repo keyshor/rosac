@@ -14,16 +14,14 @@ class PickPlaceTrans(Transition):
                  source_mode: PickPlaceMode,
                  target_mode: PickPlaceMode
                  ) -> None:
-        mt = source_mode.multi_obj.mode_type
-        next_mt = target_mode.multi_obj.mode_type
         self.source_mode = source_mode
         self.target_mode = target_mode
-        super().__init__(str(mt), [str(next_mt)])
+        super().__init__(source_mode.name, [target_mode.name])
 
     def guard(self, st: State) -> bool:
         self.source_mode.set_state(st)
         multi_obj = self.source_mode.multi_obj
-        if multi_obj.in_tower[multi_obj.next_obj_index]:
+        if multi_obj.next_obj_index in multi_obj.tower_set:
             return True
         obs_dict = self.source_mode.multi_obj._get_obs()
         return self.source_mode.multi_obj._is_success(
