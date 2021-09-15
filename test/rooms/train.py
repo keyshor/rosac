@@ -23,7 +23,7 @@ def train_single(automaton, name, total_timesteps, save_path):
         algo_name='td3',
         batch_size=256,
         policy_kwargs={'net_arch': [32, 32]},
-        action_noise_scale=0.2,
+        action_noise_scale=0.15,
         learning_rate=0.0003,
         tau=0.001,
         buffer_size=50000,
@@ -48,12 +48,12 @@ if __name__ == '__main__':
 
     for name in mode_list:
         print(f'training mode {name}')
-        train_single(automaton, name, 100000, flags['path'])
+        train_single(automaton, name, 500000, flags['path'])
 
         if flags['render']:
             print('Rendering learned controller for mode {}'.format(name))
             controller = Sb3CtrlWrapper.load(
-                os.path.join(flags['path'], name, 'best_model.zip'),
+                os.path.join(flags['path'], name, 'best_model'),
                 # algo_name='ddpg',
             )
             for i in range(10):
