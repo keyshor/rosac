@@ -20,6 +20,7 @@ from stable_baselines3.sac.policies import SACPolicy
 from stable_baselines3.td3.policies import TD3Policy
 from stable_baselines3.common.evaluation import evaluate_policy as sb3_evaluate_policy
 from stable_baselines3.common.noise import NormalActionNoise as SB3_NormalActionNoise
+from stable_baselines3.common.monitor import Monitor
 import gym
 from gym.wrappers import TimeLimit
 from typing import Iterable, Optional, List, Tuple, Union, Callable, Type, Any
@@ -420,7 +421,7 @@ def train_sb3(model: BaseAlgorithm,
     first_mode, _, _, _ = mode_info[0]
     best_model_path = custom_best_model_path or first_mode.name
     callback = SB3_EvalCallback(
-        eval_env=env, n_eval_episodes=n_eval_episodes, eval_freq=eval_freq,
+        eval_env=Monitor(env), n_eval_episodes=n_eval_episodes, eval_freq=eval_freq,
         log_path=os.path.join(save_path, best_model_path),
         best_model_save_path=os.path.join(save_path, best_model_path),
     )

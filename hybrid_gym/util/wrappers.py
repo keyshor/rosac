@@ -311,7 +311,9 @@ class Sb3CtrlWrapper(Controller):
         self.model = model
 
     def get_action(self, observation: Any) -> np.ndarray:
-        assert self.model.observation_space.contains(observation)
+        m_obs_sp = self.model.observation_space
+        if m_obs_sp:
+            assert m_obs_sp.contains(observation)
         action, _ = self.model.predict(observation, deterministic=True)
         return action
 
