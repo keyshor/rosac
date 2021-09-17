@@ -453,3 +453,13 @@ def learn_ars_model(model: ARSModel,
     first_mode, _, _, _ = raw_mode_info[0]
     best_model_path = custom_best_model_path or first_mode.name
     best_policy.save(best_model_path, save_path)
+
+
+def parallel_ars(model, mode_info, save_path, ret_queue, req_queue, verbose, use_gpu):
+    if use_gpu:
+        model.gpu()
+    learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
+    while req_queue.get() is not None:
+        if use_gpu:
+            model.cpu()
+        ret_queue.put(model)

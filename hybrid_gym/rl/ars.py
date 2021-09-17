@@ -16,6 +16,12 @@ class ARSModel:
     def learn(self, env_list, verbose=False):
         return ars(env_list, self.nn_policy, self.ars_params, verbose=verbose)
 
+    def cpu(self):
+        self.nn_policy = self.nn_policy.set_use_cpu()
+
+    def gpu(self):
+        self.nn_policy = self.nn_policy.set_use_gpu()
+
 # Parameters for training a policy neural net.
 #
 # state_dim: int (n)
@@ -152,7 +158,7 @@ class NNPolicy(Controller):
             self.set_use_gpu()
 
     @classmethod
-    def load(cls, name: str, path: str, use_gpu: bool = False):
+    def load(cls, name: str, path: str, use_gpu: bool = False, **kwargs):
         fh = open(os.path.join(path, name + '.pkl'), 'rb')
         policy = pickle.load(fh)
         if use_gpu:

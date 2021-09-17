@@ -3,13 +3,14 @@ CounterExample Guided Reinforcement Learning
 '''
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
-from hybrid_gym.train.single_mode import make_sb3_model, train_sb3, make_ars_model, learn_ars_model
+from hybrid_gym.train.single_mode import make_sb3_model, train_sb3, make_ars_model, parallel_ars
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.falsification.single_mode import falsify
 from hybrid_gym.rl.ars import NNPolicy
 from typing import List, Dict, Any, Iterable, Callable, Optional
+from multiprocessing import Process, Queue
 
 import numpy as np
 import random
@@ -77,9 +78,11 @@ def cegrl(automaton: HybridAutomaton,
 
     # create one model and one controller for each group
     if algo_name == 'ars':
-        models = [make_ars_model(**kwargs)
-                  for _ in mode_groups]
+        models = [make_ars_model(**kwargs) for _ in mode_groups]
         controllers: List[Controller] = [model.nn_policy for model in models]
+        use_gpu = False
+        if 'use_gpu' in kwargs:
+            use_gpu = kwargs['use_gpu']
     else:
         models = [make_sb3_model(
             group_info[g],
@@ -92,31 +95,55 @@ def cegrl(automaton: HybridAutomaton,
     for i in range(num_iter):
         print('\n**** Iteration {} ****'.format(i))
 
+        # parallelize learning
+        if algo_name == 'ars':
+            ret_queues: List[Queue] = []
+            req_queues: List[Queue] = []
+            processes = []
+
         # train agents
         for g in range(len(mode_groups)):
             print('\n---- Training controller for modes {} ----'.format(group_names[g]))
             if algo_name == 'ars':
-                learn_ars_model(models[g], list(group_info[g]),
-                                save_path=save_path, verbose=print_debug)
+                ret_queues.append(Queue())
+                req_queues.append(Queue())
+                if use_gpu:
+                    models[g].cpu()
+                processes.append(Process(target=parallel_ars, args=(models[g], list(
+                    group_info[g]), save_path, ret_queues[g], req_queues[g], print_debug, use_gpu)))
+                processes[g].start()
             else:
                 train_sb3(models[g], group_info[g],
                           algo_name=algo_name, save_path=save_path,
                           max_episode_steps=time_limits[group_names[g][0]],
                           **kwargs)
 
-            if use_best_model:
-                if algo_name == 'ars':
-                    nn_policy = NNPolicy.load(group_names[g][0], save_path, **kwargs)
-                    models[g].nn_policy = nn_policy
-                else:
-                    ctrl = Sb3CtrlWrapper.load(
-                        os.path.join(save_path, group_names[g][0], 'best_model.zip'),
-                        algo_name=algo_name,  # env=reload_env,
-                    )
-                    models[g].set_parameters(ctrl.model.get_parameters())
+            if use_best_model and algo_name != 'ars':
+                ctrl = Sb3CtrlWrapper.load(
+                    os.path.join(save_path, group_names[g][0], 'best_model.zip'),
+                    algo_name=algo_name,  # env=reload_env,
+                )
+                models[g].set_parameters(ctrl.model.get_parameters())
 
         if algo_name == 'ars':
-            controllers = [model.nn_policy for model in models]
+            for g in range(len(mode_groups)):
+                try:
+                    req_queues[g].put(1)
+                    models[g] = ret_queues[g].get()
+                    if use_gpu:
+                        models[g].gpu()
+                except RuntimeError:
+                    print('Runtime Error occured while retrieving policy! Retrying...')
+                    continue
+                # stop the learning process and join
+                req_queues[g].put(None)
+                processes[g].join()
+
+                if use_best_model:
+                    nn_policy = NNPolicy.load(group_names[g][0], save_path, **kwargs)
+                    models[g].nn_policy = nn_policy
+
+                controllers[g] = models[g].nn_policy
 
         # synthesis
         print('\n---- Running synthesis ----')

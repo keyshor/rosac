@@ -46,10 +46,10 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         # Define action space
         high = np.array([1., 1.])
         low = -high
-        action_space = gym.spaces.Box(low, high, dtype=np.float32)
+        action_space = gym.spaces.Box(low, high)
 
         # Define observation space
-        observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2,), dtype=np.float32)
+        observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2,))
 
         # Initialize super
         super().__init__(name, action_space, observation_space)
