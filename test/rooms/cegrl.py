@@ -10,6 +10,7 @@ from hybrid_gym.envs import make_rooms_model
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
 from hybrid_gym.util.io import parse_command_line_options
+from hybrid_gym.rl.ars import NNParams, ARSParams
 from typing import List, Any
 
 
@@ -44,15 +45,15 @@ if __name__ == '__main__':
     if flags['falsify']:
         falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()}
 
-    controllers = cegrl(automaton, pre, time_limits, steps_per_iter=50000,
-                        num_iter=8, num_synth_iter=10, abstract_synth_samples=flags['abstract_samples'],
-                        print_debug=True, batch_size=256, action_noise_scale=0.15, verbose=1,
-                        learning_rate=0.0003, tau=0.001, buffer_size=50000,
-                        # train_kwargs={'eval_freq': 1000, 'n_eval_episodes': 10},
-                        use_best_model=(not flags['no_best']), policy_kwargs={'net_arch': [32, 32]},
-                        falsify_func=falsify_func, save_path=flags['path'], algo_name='td3',
-                        device='cpu')
+    nn_params = NNParams(2, 2, 1.0, 30)
+    ars_params = ARSParams(150, 30, 15, 0.05, 0.3, 0.95, 25)
+
+    controllers = cegrl(automaton, pre, time_limits, num_iter=20, num_synth_iter=10,
+                        abstract_synth_samples=flags['abstract_samples'], print_debug=True,
+                        use_best_model=flags['best'], falsify_func=falsify_func,
+                        save_path=flags['path'], algo_name='ars', nn_params=nn_params,
+                        ars_params=ars_params, use_gpu=flags['gpu'])
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
-        ctrl.save(os.path.join(flags['path'], mode_name + '.td3'))
+        ctrl.save(mode_name + '_final', flags['path'])

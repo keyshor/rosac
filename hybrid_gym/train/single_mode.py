@@ -29,24 +29,24 @@ from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 
 from hybrid_gym.model import Mode, Transition, StateType
 from hybrid_gym.util.wrappers import (
-    GymMultiEnvWrapper, GymMultiGoalEnvWrapper, BaselineCtrlWrapper
+    GymMultiEnvWrapper, GymMultiGoalEnvWrapper, BaselineCtrlWrapper, GymEnvWrapper
 )
+
+from hybrid_gym.rl.ars import NNParams, ARSParams, ARSModel
 
 
 # BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
-
-
-def env_from_mode_info(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    algo_name: str,
-    max_episode_steps: int,
-    reward_offset: float,
-    is_goal_env: bool,
-) -> gym.Env:
+def env_from_mode_info(
+        raw_mode_info: Iterable[Tuple[
+            Mode[StateType],
+            Iterable[Transition],
+            Optional[Callable[[], StateType]],
+            Optional[Callable[[StateType, np.ndarray, StateType], float]],
+        ]],
+        algo_name: str,
+        max_episode_steps: int,
+        reward_offset: float,
+        is_goal_env: bool) -> gym.Env:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -93,21 +93,21 @@ def train_spectrl(model,
     model.train(env)
 
 
-def make_sb_model(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    algo_name: str = 'td3',
-    wrapped_algo: str = 'ddpg',  # only relevent to HER
-    action_noise_scale: float = 0.1,
-    policy: Union[Type[BasePolicy], str] = 'MlpPolicy',
-    max_episode_steps: int = 50,
-    reward_offset: float = 1.0,
-    is_goal_env: bool = False,
-    **kwargs
-) -> BaseRLModel:
+def make_sb_model(
+        raw_mode_info: Iterable[Tuple[
+            Mode[StateType],
+            Iterable[Transition],
+            Optional[Callable[[], StateType]],
+            Optional[Callable[[StateType, np.ndarray, StateType], float]],
+        ]],
+        algo_name: str = 'td3',
+        wrapped_algo: str = 'ddpg',  # only relevent to HER
+        action_noise_scale: float = 0.1,
+        policy: Union[Type[BasePolicy], str] = 'MlpPolicy',
+        max_episode_steps: int = 50,
+        reward_offset: float = 1.0,
+        is_goal_env: bool = False,
+        **kwargs) -> BaseRLModel:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -175,27 +175,27 @@ def check_initialization(model: BaseRLModel,
         np.mean(episode_timesteps) >= min_episode_length
 
 
-def make_sb_model_init_check(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    save_path: str = '.',
-    algo_name: str = 'td3',
-    wrapped_algo: str = 'ddpg',  # only relevent to HER
-    action_noise_scale: float = 0.1,
-    policy: Union[Type[BasePolicy], str] = 'MlpPolicy',
-    max_episode_steps: int = 50,
-    max_init_retries: int = 10,
-    n_eval_episodes: int = 100,
-    num_timesteps: int = 1000,
-    min_reward: float = -np.inf,
-    min_episode_length: float = 0.0,
-    reward_offset: float = 1.0,
-    is_goal_env: bool = False,
-    **kwargs,
-) -> BaseRLModel:
+def make_sb_model_init_check(
+        raw_mode_info: Iterable[Tuple[
+            Mode[StateType],
+            Iterable[Transition],
+            Optional[Callable[[], StateType]],
+            Optional[Callable[[StateType, np.ndarray, StateType], float]],
+        ]],
+        save_path: str = '.',
+        algo_name: str = 'td3',
+        wrapped_algo: str = 'ddpg',  # only relevent to HER
+        action_noise_scale: float = 0.1,
+        policy: Union[Type[BasePolicy], str] = 'MlpPolicy',
+        max_episode_steps: int = 50,
+        max_init_retries: int = 10,
+        n_eval_episodes: int = 100,
+        num_timesteps: int = 1000,
+        min_reward: float = -np.inf,
+        min_episode_length: float = 0.0,
+        reward_offset: float = 1.0,
+        is_goal_env: bool = False,
+        **kwargs,) -> BaseRLModel:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -268,21 +268,21 @@ def train_stable(model,
     return env
 
 
-def make_sb3_model(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    algo_name: str,
-    replay_buffer_class: Optional[ReplayBuffer] = None,
-    action_noise_scale: float = 0.1,
-    policy: Union[Type[SB3_BasePolicy], str] = 'MlpPolicy',
-    max_episode_steps: int = 50,
-    reward_offset: float = 1.0,
-    is_goal_env: bool = False,
-    **kwargs,
-) -> BaseAlgorithm:
+def make_sb3_model(
+        raw_mode_info: Iterable[Tuple[
+            Mode[StateType],
+            Iterable[Transition],
+            Optional[Callable[[], StateType]],
+            Optional[Callable[[StateType, np.ndarray, StateType], float]],
+        ]],
+        algo_name: str,
+        replay_buffer_class: Optional[ReplayBuffer] = None,
+        action_noise_scale: float = 0.1,
+        policy: Union[Type[SB3_BasePolicy], str] = 'MlpPolicy',
+        max_episode_steps: int = 50,
+        reward_offset: float = 1.0,
+        is_goal_env: bool = False,
+        **kwargs) -> BaseAlgorithm:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -342,26 +342,26 @@ def sb3_check_initialization(model: BaseAlgorithm,
         np.mean(episode_timesteps) >= min_episode_length
 
 
-def make_sb3_model_init_check(raw_mode_info: Iterable[Tuple[
-    Mode[StateType],
-    Iterable[Transition],
-    Optional[Callable[[], StateType]],
-    Optional[Callable[[StateType, np.ndarray, StateType], float]],
-]],
-    algo_name: str = 'td3',
-    replay_buffer_class: Optional[ReplayBuffer] = None,
-    action_noise_scale: float = 0.1,
-    policy: Union[Type[SB3_BasePolicy], str] = 'MlpPolicy',
-    max_episode_steps: int = 50,
-    max_init_retries: int = 10,
-    n_eval_episodes: int = 100,
-    num_timesteps: int = 1000,
-    min_reward: float = -np.inf,
-    min_episode_length: float = 0.0,
-    reward_offset: float = 1.0,
-    is_goal_env: bool = False,
-    **kwargs,
-) -> BaseAlgorithm:
+def make_sb3_model_init_check(
+        raw_mode_info: Iterable[Tuple[
+            Mode[StateType],
+            Iterable[Transition],
+            Optional[Callable[[], StateType]],
+            Optional[Callable[[StateType, np.ndarray, StateType], float]],
+        ]],
+        algo_name: str = 'td3',
+        replay_buffer_class: Optional[ReplayBuffer] = None,
+        action_noise_scale: float = 0.1,
+        policy: Union[Type[SB3_BasePolicy], str] = 'MlpPolicy',
+        max_episode_steps: int = 50,
+        max_init_retries: int = 10,
+        n_eval_episodes: int = 100,
+        num_timesteps: int = 1000,
+        min_reward: float = -np.inf,
+        min_episode_length: float = 0.0,
+        reward_offset: float = 1.0,
+        is_goal_env: bool = False,
+        **kwargs) -> BaseAlgorithm:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -410,7 +410,7 @@ def train_sb3(model: BaseAlgorithm,
               save_path: str = '.',
               custom_best_model_path: Optional[str] = None,
               is_goal_env: bool = False,
-              ) -> Any:
+              **kwargs) -> Any:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -427,3 +427,29 @@ def train_sb3(model: BaseAlgorithm,
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)
     return env
+
+
+def make_ars_model(
+        ars_params: ARSParams,
+        nn_params: NNParams,
+        use_gpu: bool = False,
+        **kwargs) -> ARSModel:
+    return ARSModel(nn_params, ars_params, use_gpu=use_gpu)
+
+
+def learn_ars_model(model: ARSModel,
+                    raw_mode_info: List[Tuple[
+                        Mode[StateType],
+                        Iterable[Transition],
+                        Optional[Callable[[], StateType]],
+                        Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                    ]],
+                    save_path: str = '.',
+                    custom_best_model_path: Optional[str] = None,
+                    verbose=False) -> None:
+    env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
+    best_policy, _ = model.learn(env_list, verbose=verbose)
+
+    first_mode, _, _, _ = raw_mode_info[0]
+    best_model_path = custom_best_model_path or first_mode.name
+    best_policy.save(best_model_path, save_path)

@@ -58,6 +58,15 @@ class Box(AbstractState):
         else:
             return None
 
+    def __str__(self):
+        low = 'None'
+        high = 'None'
+        if self.low is not None:
+            low = self.low.tolist()
+        if self.high is not None:
+            high = self.high.tolist()
+        return 'Low: {}\nHigh: {}'.format(low, high)
+
 
 class VectorizeWrapper(AbstractState):
     '''
@@ -109,3 +118,6 @@ class StateWrapper(AbstractState):
 
     def copy(self):
         return StateWrapper(self.mode, self.abstract_state.copy())
+
+    def __str__(self):
+        return self.abstract_state.__str__()

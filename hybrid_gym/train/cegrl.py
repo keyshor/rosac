@@ -3,11 +3,12 @@ CounterExample Guided Reinforcement Learning
 '''
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
-from hybrid_gym.train.single_mode import make_sb3_model, train_sb3
+from hybrid_gym.train.single_mode import make_sb3_model, train_sb3, make_ars_model, learn_ars_model
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.falsification.single_mode import falsify
+from hybrid_gym.rl.ars import NNPolicy
 from typing import List, Dict, Any, Iterable, Callable, Optional
 
 import numpy as np
@@ -38,21 +39,19 @@ class ResetFunc:
 def cegrl(automaton: HybridAutomaton,
           pre: Dict[str, AbstractState],
           time_limits: Dict[str, int],
+          mode_groups: List[List[Mode]] = [],
+          print_debug: bool = False,
+          use_best_model: bool = False,
+          save_path: str = '.',
           algo_name: str = 'td3',
-          steps_per_iter: int = 10000,
           num_iter: int = 20,
           num_synth_iter: int = 10,
           n_synth_samples: int = 50,
           abstract_synth_samples: int = 0,
-          print_debug: bool = False,
-          use_best_model: bool = False,
-          save_path: str = '.',
           num_falsification_iter: int = 100,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
-          mode_groups: List[List[Mode]] = [],
-          train_kwargs: Dict[str, Any] = {},
           **kwargs
           ) -> Dict[str, Controller]:
     '''
@@ -76,16 +75,19 @@ def cegrl(automaton: HybridAutomaton,
     group_info = [[(mode, automaton.transitions[mode.name], reset_funcs[mode.name], None)
                    for mode in modes] for modes in mode_groups]
 
-    # create one model for each group
-    models = [make_sb3_model(
-        group_info[g],
-        algo_name=algo_name,
-        max_episode_steps=time_limits[group_names[g][0]],
-        **kwargs)
-        for g in range(len(mode_groups))]
-
-    # create one controller object for each mode
-    controllers: List[Controller] = [Sb3CtrlWrapper(model) for model in models]
+    # create one model and one controller for each group
+    if algo_name == 'ars':
+        models = [make_ars_model(**kwargs)
+                  for _ in mode_groups]
+        controllers: List[Controller] = [model.nn_policy for model in models]
+    else:
+        models = [make_sb3_model(
+            group_info[g],
+            algo_name=algo_name,
+            max_episode_steps=time_limits[group_names[g][0]],
+            **kwargs)
+            for g in range(len(mode_groups))]
+        controllers = [Sb3CtrlWrapper(model) for model in models]
 
     for i in range(num_iter):
         print('\n**** Iteration {} ****'.format(i))
@@ -93,16 +95,28 @@ def cegrl(automaton: HybridAutomaton,
         # train agents
         for g in range(len(mode_groups)):
             print('\n---- Training controller for modes {} ----'.format(group_names[g]))
-            train_sb3(models[g], group_info[g], total_timesteps=steps_per_iter,
-                      algo_name=algo_name, save_path=save_path,
-                      max_episode_steps=time_limits[group_names[g][0]],
-                      **train_kwargs)
+            if algo_name == 'ars':
+                learn_ars_model(models[g], list(group_info[g]),
+                                save_path=save_path, verbose=print_debug)
+            else:
+                train_sb3(models[g], group_info[g],
+                          algo_name=algo_name, save_path=save_path,
+                          max_episode_steps=time_limits[group_names[g][0]],
+                          **kwargs)
+
             if use_best_model:
-                ctrl = Sb3CtrlWrapper.load(
-                    os.path.join(save_path, group_names[g][0], 'best_model.zip'),
-                    algo_name=algo_name,  # env=reload_env,
-                )
-                models[g].set_parameters(ctrl.model.get_parameters())
+                if algo_name == 'ars':
+                    nn_policy = NNPolicy.load(group_names[g][0], save_path, **kwargs)
+                    models[g].nn_policy = nn_policy
+                else:
+                    ctrl = Sb3CtrlWrapper.load(
+                        os.path.join(save_path, group_names[g][0], 'best_model.zip'),
+                        algo_name=algo_name,  # env=reload_env,
+                    )
+                    models[g].set_parameters(ctrl.model.get_parameters())
+
+        if algo_name == 'ars':
+            controllers = [model.nn_policy for model in models]
 
         # synthesis
         print('\n---- Running synthesis ----')

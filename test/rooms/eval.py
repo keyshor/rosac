@@ -12,8 +12,16 @@ from hybrid_gym.hybrid_env import HybridEnv
 from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 from hybrid_gym.falsification.rl_based import dqn_adversary, mcts_adversary
 from hybrid_gym.util.io import parse_command_line_options
+from hybrid_gym.rl.ars import NNPolicy
 
 import matplotlib.pyplot as plt
+
+
+def _get_suffix(use_best):
+    if use_best:
+        return ''
+    return '_final'
+
 
 if __name__ == '__main__':
 
@@ -21,26 +29,21 @@ if __name__ == '__main__':
     automaton = make_rooms_model()
 
     controllers = {
-        name: Sb3CtrlWrapper.load(
-            os.path.join(flags['path'], name, 'best_model'),
-            algo_name='td3',
-        )
+        name: NNPolicy.load(name + _get_suffix(flags['best']), flags['path'], flags['gpu'])
         for name in automaton.modes
     }
 
     time_limits = {m: 25 for m in automaton.modes}
 
     if flags['falsify']:
+        print('\nEvaluating with MCTS adversary')
         selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=10,
                                   num_rollouts=500, print_debug=True)
     else:
+        print('\nEvaluating with random adversary')
         selector = MaxJumpWrapper(UniformSelector(
             [mode for m, mode in automaton.modes.items()]), 10)
 
-    # selector = dqn_adversary(automaton, controllers, time_limits, max_jumps=10,
-    #                          learning_timesteps=500, policy_kwargs={'layers': [16, 16]})
-
-    print('\nEvaluating with MCTS adversary')
     print('Probability of successful completion: {}'.format(
         end_to_end_test(automaton, selector, controllers, time_limits,
                         num_rollouts=100, max_jumps=10, print_debug=True,
