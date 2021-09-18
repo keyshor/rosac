@@ -27,17 +27,22 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
                  for n in names]
     model = make_sb3_model(
         mode_info,
-        algo_name='sac',
+        algo_name='tqc',
         policy='MultiInputPolicy',
         gamma=0.95, buffer_size=1000000,
-        ent_coef='auto',
+        batch_size=2048,
+        learning_rate=0.001,
         replay_buffer_class=HerReplayBuffer,
         replay_buffer_kwargs=dict(
             n_sampled_goal=4,
             goal_selection_strategy='future',
+            online_sampling=True,
             max_episode_length=50,
         ),
-        train_freq=1, learning_starts=1000,
+        policy_kwargs=dict(
+            net_arch=[512, 512, 512],
+            n_critics=2,
+        ),
         reward_offset=0.0,
         is_goal_env=True,
         verbose=0,

@@ -11,6 +11,7 @@ from stable_baselines3 import (
     A2C as SB3_A2C, DDPG as SB3_DDPG, DQN as SB3_DQN,
     PPO as SB3_PPO, SAC as SB3_SAC, TD3 as SB3_TD3
 )
+from sb3_contrib import TQC as SB3_TQC, QRDQN as SB3_QRDQN
 from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.callbacks import EvalCallback as SB3_EvalCallback
@@ -18,9 +19,12 @@ from stable_baselines3.common.policies import BasePolicy as SB3_BasePolicy, Acto
 from stable_baselines3.dqn.policies import DQNPolicy
 from stable_baselines3.sac.policies import SACPolicy
 from stable_baselines3.td3.policies import TD3Policy
+from sb3_contrib.tqc.policies import TQCPolicy
+from sb3_contrib.qrdqn.policies import QRDQNPolicy
 from stable_baselines3.common.evaluation import evaluate_policy as sb3_evaluate_policy
 from stable_baselines3.common.noise import NormalActionNoise as SB3_NormalActionNoise
 from stable_baselines3.common.monitor import Monitor
+from sb3_contrib.common.wrappers import TimeFeatureWrapper
 import gym
 from gym.wrappers import TimeLimit
 from typing import Iterable, Optional, List, Tuple, Union, Callable, Type, Any
@@ -52,8 +56,10 @@ def env_from_mode_info(
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
     ]
     if is_goal_env:
-        return TimeLimit(GymMultiGoalEnvWrapper(mode_info),
-                         max_episode_steps=max_episode_steps)
+        return TimeLimit(
+            GymMultiGoalEnvWrapper(mode_info),
+            max_episode_steps=max_episode_steps,
+        )
     else:
         return TimeLimit(GymMultiEnvWrapper(mode_info, flatten_obs=True),
                          max_episode_steps=max_episode_steps)
@@ -319,6 +325,16 @@ def make_sb3_model(
         assert isinstance(policy, str) or issubclass(policy, TD3Policy), \
             'policies passed to TD3 must be subclasses of TD3Policy'
         model = SB3_TD3(policy, env, action_noise=action_noise,
+                        replay_buffer_class=replay_buffer_class, **kwargs)
+    elif algo_name == 'tqc':
+        assert isinstance(policy, str) or issubclass(policy, TQCPolicy), \
+            'policies passed to TQC must be subclasses of TQCPolicy'
+        model = SB3_TQC(policy, env, action_noise=action_noise,
+                        replay_buffer_class=replay_buffer_class, **kwargs)
+    elif algo_name == 'qrdqn':
+        assert isinstance(policy, str) or issubclass(policy, QRDQNPolicy), \
+            'policies passed to QRDQN must be subclasses of QRDQNPolicy'
+        model = SB3_QRDQN(policy, env,
                         replay_buffer_class=replay_buffer_class, **kwargs)
     else:
         raise ValueError

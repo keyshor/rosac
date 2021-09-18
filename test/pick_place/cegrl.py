@@ -36,16 +36,21 @@ if __name__ == '__main__':
     mode_groups = [[automaton.modes[f'{mt.name}_{i}'] for i in range(num_objects)] for mt in ModeType]
 
     controllers = cegrl(automaton, pre, time_limits, mode_groups=mode_groups,
-                        algo_name='sac', policy='MultiInputPolicy', steps_per_iter=200,
+                        algo_name='tqc', policy='MultiInputPolicy', steps_per_iter=200,
                         num_iter=10, num_synth_iter=10, abstract_synth_samples=0, print_debug=True,
                         verbose=0, gamma=0.95, buffer_size=1000000,
-                        ent_coef='auto',
+                        batch_size=2048, learning_rate=0.001,
                         reward_offset=0.0,
                         replay_buffer_class=HerReplayBuffer,
                         replay_buffer_kwargs=dict(
                             n_sampled_goal=4,
                             goal_selection_strategy='future',
+                            online_sampling=True,
                             max_episode_length=50,
+                        ),
+                        policy_kwargs=dict(
+                            net_arch=[512, 512, 512],
+                            n_critics=2,
                         ),
                         is_goal_env=True,
                         train_kwargs=dict(is_goal_env=True, reward_offset=0.0),
