@@ -9,7 +9,8 @@ from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.falsification.single_mode import falsify
 from hybrid_gym.rl.ars import NNPolicy
-from typing import List, Dict, Any, Iterable, Callable, Optional
+from hybrid_gym.util.test import mcts_eval, random_selector_eval
+from typing import List, Dict, Any, Iterable, Callable, Optional, Tuple
 from multiprocessing import Process, Queue
 
 import numpy as np
@@ -22,14 +23,18 @@ class ResetFunc:
     Reset function used to sample start states in training
     '''
 
-    def __init__(self, mode: Mode, states: List = [], prob: float = 0.75) -> None:
+    def __init__(self, mode: Mode, states: List = [], prob: float = 0.75,
+                 full_reset: bool = False) -> None:
         self.mode = mode
         self.states = states
         self.prob = prob
+        self.full_reset = full_reset
 
     def __call__(self):
         if np.random.binomial(1, self.prob) and len(self.states) > 0:
             return random.choice(self.states)
+        elif self.full_reset:
+            return self.mode.reset()
         else:
             return self.mode.end_to_end_reset()
 
@@ -41,6 +46,7 @@ def cegrl(automaton: HybridAutomaton,
           pre: Dict[str, AbstractState],
           time_limits: Dict[str, int],
           mode_groups: List[List[Mode]] = [],
+          max_jumps: int = 10,
           print_debug: bool = False,
           use_best_model: bool = False,
           save_path: str = '.',
@@ -54,12 +60,17 @@ def cegrl(automaton: HybridAutomaton,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
           **kwargs
-          ) -> Dict[str, Controller]:
+          ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
     Train policies for all modes
     '''
 
-    reset_funcs = {name: ResetFunc(mode) for (name, mode) in automaton.modes.items()}
+    log_info = []
+    steps_taken = 0
+
+    # define reset functions
+    reset_funcs = {name: ResetFunc(mode, full_reset=(num_synth_iter == 0))
+                   for (name, mode) in automaton.modes.items()}
 
     # Add each mode into its own group if no grouping is given
     if len(mode_groups) == 0:
@@ -113,10 +124,10 @@ def cegrl(automaton: HybridAutomaton,
                     group_info[g]), save_path, ret_queues[g], req_queues[g], print_debug, use_gpu)))
                 processes[g].start()
             else:
-                train_sb3(models[g], group_info[g],
-                          algo_name=algo_name, save_path=save_path,
-                          max_episode_steps=time_limits[group_names[g][0]],
-                          **kwargs)
+                steps_taken += train_sb3(models[g], group_info[g],
+                                         algo_name=algo_name, save_path=save_path,
+                                         max_episode_steps=time_limits[group_names[g][0]],
+                                         **kwargs)
 
             if use_best_model and algo_name != 'ars':
                 ctrl = Sb3CtrlWrapper.load(
@@ -127,14 +138,17 @@ def cegrl(automaton: HybridAutomaton,
 
         if algo_name == 'ars':
             for g in range(len(mode_groups)):
-                try:
-                    req_queues[g].put(1)
-                    models[g] = ret_queues[g].get()
-                    if use_gpu:
-                        models[g].gpu()
-                except RuntimeError:
-                    print('Runtime Error occured while retrieving policy! Retrying...')
-                    continue
+                while True:
+                    try:
+                        req_queues[g].put(1)
+                        models[g], steps = ret_queues[g].get()
+                        if use_gpu:
+                            models[g].gpu()
+                        break
+                    except RuntimeError:
+                        print('Runtime Error occured while retrieving policy! Retrying...')
+                        continue
+
                 # stop the learning process and join
                 req_queues[g].put(None)
                 processes[g].join()
@@ -144,26 +158,38 @@ def cegrl(automaton: HybridAutomaton,
                     models[g].nn_policy = nn_policy
 
                 controllers[g] = models[g].nn_policy
+                steps_taken += steps
+
+        # evaluating controllers
+        mode_controllers = {name: controllers[g] for name, g in group_map.items()}
+        mcts_prob = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
+                              mcts_rollouts=500, eval_rollouts=100)
+        rs_prob = random_selector_eval(automaton, mode_controllers, time_limits,
+                                       max_jumps=max_jumps, eval_rollouts=100)
+        log_info.append([steps_taken, rs_prob, mcts_prob])
 
         # synthesis
-        print('\n---- Running synthesis ----')
-        pre_copy = {name: astate.copy() for name, astate in pre.items()}
-        mode_controllers = {name: controllers[g] for name, g in group_map.items()}
-        ces = synthesize(automaton, mode_controllers, pre_copy, time_limits, num_synth_iter,
-                         n_synth_samples, abstract_synth_samples, print_debug)
+        if num_synth_iter > 0:
+            print('\n---- Running synthesis ----')
+            pre_copy = {name: astate.copy() for name, astate in pre.items()}
+            ces, steps = synthesize(automaton, mode_controllers, pre_copy, time_limits,
+                                    num_synth_iter, n_synth_samples, abstract_synth_samples,
+                                    print_debug)
+            steps_taken += steps
 
-        if falsify_func is not None:
-            # use falsification to identify bad states
-            for (m, pre_m) in pre_copy.items():
-                bad_states = falsify(automaton.modes[m], automaton.transitions[m],
-                                     mode_controllers[m], pre_copy[m], falsify_func[m],
-                                     time_limits[m], num_falsification_iter,
-                                     num_falsification_samples,
-                                     num_falsification_top_samples)
-                reset_funcs[m].add_states(bad_states)
-        else:
-            # add counterexamples to reset function
-            for ce in ces:
-                reset_funcs[ce.m].add_states([ce.s])
+            if falsify_func is not None:
+                # use falsification to identify bad states
+                for (m, pre_m) in pre_copy.items():
+                    bad_states, steps = falsify(automaton.modes[m], automaton.transitions[m],
+                                                mode_controllers[m], pre_copy[m], falsify_func[m],
+                                                time_limits[m], num_falsification_iter,
+                                                num_falsification_samples,
+                                                num_falsification_top_samples)
+                    steps_taken += steps
+                    reset_funcs[m].add_states(bad_states)
+            else:
+                # add counterexamples to reset function
+                for ce in ces:
+                    reset_funcs[ce.m].add_states([ce.s])
 
-    return mode_controllers
+    return mode_controllers, np.array(log_info)

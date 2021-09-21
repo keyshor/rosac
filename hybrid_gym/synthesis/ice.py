@@ -30,11 +30,12 @@ class CE:
 def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                pre: Dict[str, AbstractState], time_limits: Dict[str, int],
                num_iter: int, n_samples: int, abstract_samples: int = 0,
-               print_debug: bool = False) -> List[CE]:
+               print_debug: bool = False) -> Tuple[List[CE], int]:
     all_states: Dict[str, List] = {}
     start_states: Dict[str, List] = {}
     implication_examples: List[IE] = []
     counterexamples: List[CE] = []
+    steps_taken = 0
 
     for it in range(num_iter):
 
@@ -54,7 +55,8 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                     start_states[m].append(s)
 
         # Simulate and generate examples
-        ies, ces = generate_examples(automaton, controllers, time_limits, start_states)
+        ies, ces, steps = generate_examples(automaton, controllers, time_limits, start_states)
+        steps_taken += steps
         counterexamples.extend(ces)
         for ie in ies:
             if not pre[ie.m2].contains(ie.s2):
@@ -89,14 +91,15 @@ def synthesize(automaton: HybridAutomaton, controllers: Dict[str, Controller],
         if pre[ce.m].contains(ce.s):
             ret_ces.append(ce)
 
-    return ret_ces
+    return ret_ces, steps_taken
 
 
 def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Controller],
                       time_limits: Dict[str, int], start_states: Dict[str, List]
-                      ) -> Tuple[List[IE], List[CE]]:
+                      ) -> Tuple[List[IE], List[CE], int]:
     implication_examples = []
     counterexamples = []
+    steps_taken = 0
 
     for m1 in automaton.modes:
 
@@ -109,6 +112,7 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
             # Get a rollout using controller for m1
             sarss, info = get_rollout(mode, automaton.transitions[m1],
                                       controller, s1, time_limits[m1])
+            steps_taken += len(sarss)
 
             # generate counterexamples
             if not info['safe']:
@@ -121,4 +125,4 @@ def generate_examples(automaton: HybridAutomaton, controllers: Dict[str, Control
                     s2 = info['jump'].jump(m2, sarss[-1][-1])
                     implication_examples.append(IE(m1, m2, s1, s2))
 
-    return implication_examples, counterexamples
+    return implication_examples, counterexamples, steps_taken

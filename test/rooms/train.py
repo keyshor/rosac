@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
     for name in mode_list:
         print(f'training mode {name}')
-        train_ars(automaton, name, 4000, flags['path'], flags['gpu'])
+        train_ars(automaton, name, 20000, flags['path'], flags['gpu'])
 
         if flags['render']:
             print('Rendering learned controller for mode {}'.format(name))

@@ -24,7 +24,6 @@ from sb3_contrib.qrdqn.policies import QRDQNPolicy
 from stable_baselines3.common.evaluation import evaluate_policy as sb3_evaluate_policy
 from stable_baselines3.common.noise import NormalActionNoise as SB3_NormalActionNoise
 from stable_baselines3.common.monitor import Monitor
-from sb3_contrib.common.wrappers import TimeFeatureWrapper
 import gym
 from gym.wrappers import TimeLimit
 from typing import Iterable, Optional, List, Tuple, Union, Callable, Type, Any
@@ -335,7 +334,7 @@ def make_sb3_model(
         assert isinstance(policy, str) or issubclass(policy, QRDQNPolicy), \
             'policies passed to QRDQN must be subclasses of QRDQNPolicy'
         model = SB3_QRDQN(policy, env,
-                        replay_buffer_class=replay_buffer_class, **kwargs)
+                          replay_buffer_class=replay_buffer_class, **kwargs)
     else:
         raise ValueError
     return model
@@ -442,7 +441,7 @@ def train_sb3(model: BaseAlgorithm,
         best_model_save_path=os.path.join(save_path, best_model_path),
     )
     model.learn(total_timesteps=total_timesteps, callback=callback)
-    return env
+    return total_timesteps
 
 
 def make_ars_model(
@@ -464,18 +463,19 @@ def learn_ars_model(model: ARSModel,
                     custom_best_model_path: Optional[str] = None,
                     verbose=False) -> None:
     env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
-    best_policy, _ = model.learn(env_list, verbose=verbose)
+    best_policy, log_info = model.learn(env_list, verbose=verbose)
 
     first_mode, _, _, _ = raw_mode_info[0]
     best_model_path = custom_best_model_path or first_mode.name
     best_policy.save(best_model_path, save_path)
+    return log_info
 
 
 def parallel_ars(model, mode_info, save_path, ret_queue, req_queue, verbose, use_gpu):
     if use_gpu:
         model.gpu()
-    learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
+    log_info = learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
+    if use_gpu:
+        model.cpu()
     while req_queue.get() is not None:
-        if use_gpu:
-            model.cpu()
-        ret_queue.put(model)
+        ret_queue.put((model, log_info[-1][0]))

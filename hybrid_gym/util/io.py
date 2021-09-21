@@ -11,7 +11,7 @@ def parse_command_line_options(print_options=False):
     path = '.'
     falsify = False
     use_best = False
-    simple_env = False
+    synthesize = False
     no_throttle = False
     render = False
     abstract_samples = 0
@@ -22,7 +22,7 @@ def parse_command_line_options(print_options=False):
         if option[0] == '-d':
             path = option[1]
         if option[0] == '-s':
-            simple_env = True
+            synthesize = True
         if option[0] == '-f':
             falsify = True
         if option[0] == '-b':
@@ -38,7 +38,7 @@ def parse_command_line_options(print_options=False):
     if itno != -1:
         path = os.path.join(path, 'run{}'.format(itno))
     flags = {'path': path,
-             'simple': simple_env,
+             'synthesize': synthesize,
              'falsify': falsify,
              'best': use_best,
              'no_throttle': no_throttle,
@@ -53,5 +53,5 @@ def parse_command_line_options(print_options=False):
 
 
 def save_log_info(log_info, name, path):
-    path = os.path.join(path, name)
+    path = os.path.join(path, name + '.npy')
     np.save(path, log_info)

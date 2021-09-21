@@ -5,18 +5,20 @@ Optimization methods used for falsification.
 import numpy as np
 from scipy.stats import truncnorm, norm
 
-from typing import Callable, List
+from typing import Callable, List, Tuple
 from hybrid_gym.synthesis.abstractions import AbstractState, Box
 
 
-def cem(f: Callable[[np.ndarray], float], X: AbstractState, mu: np.ndarray,
+def cem(f: Callable[[np.ndarray], Tuple[float, int]], X: AbstractState, mu: np.ndarray,
         sigma: np.ndarray, num_iter: int, samples_per_iter: int, num_top_samples: int,
-        alpha: float = 0.9, print_debug: bool = False, max_samples=500) -> List[np.ndarray]:
+        alpha: float = 0.9, print_debug: bool = False, max_samples=500
+        ) -> Tuple[List[np.ndarray], int]:
     '''
     Cross-entropy method for minimizing a function f.
     '''
 
     top_samples = []
+    steps_taken = 0
 
     for i in range(num_iter):
 
@@ -41,7 +43,11 @@ def cem(f: Callable[[np.ndarray], float], X: AbstractState, mu: np.ndarray,
                 tries += 1
                 if tries >= max_samples:
                     break
-        values = [f(s) for s in samples]
+        values = []
+        for s in samples:
+            v, steps = f(s)
+            values.append(v)
+            steps_taken += steps
 
         # find top-k samples
         sorted_tuples = sorted(list(zip(values, list(range(samples_per_iter)))))
@@ -56,7 +62,7 @@ def cem(f: Callable[[np.ndarray], float], X: AbstractState, mu: np.ndarray,
         if print_debug:
             print('Iteration {}: mu = {} | sigma = {}'.format(i, mu, sigma))
 
-    return top_samples
+    return top_samples, steps_taken
 
 
 def _get_truncnorm(mean, sd, low, high):
