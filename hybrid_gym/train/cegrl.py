@@ -9,7 +9,7 @@ from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.falsification.single_mode import falsify
 from hybrid_gym.rl.ars import NNPolicy
-from hybrid_gym.util.test import mcts_eval, random_selector_eval
+from hybrid_gym.eval import mcts_eval, random_selector_eval
 from typing import List, Dict, Any, Iterable, Callable, Optional, Tuple
 from multiprocessing import Process, Queue
 
