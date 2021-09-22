@@ -28,7 +28,7 @@ if __name__ == '__main__':
     pre = {}
     for m in automaton.modes:
         pre[m] = StateWrapper(automaton.modes[m], Box())
-        for _ in range(100):
+        for _ in range(10):
             pre[m].extend(automaton.modes[m].reset())
 
     time_limits = {m: 50 for m in automaton.modes}
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     mode_groups = [[automaton.modes[f'{mt.name}_{i}'] for i in range(num_objects)] for mt in ModeType]
 
     controllers = cegrl(automaton, pre, time_limits, mode_groups=mode_groups,
-                        algo_name='tqc', policy='MultiInputPolicy', steps_per_iter=200,
+                        algo_name='tqc', policy='MultiInputPolicy',
                         num_iter=10, num_synth_iter=10, abstract_synth_samples=0, print_debug=True,
                         verbose=0, gamma=0.95, buffer_size=1000000,
                         batch_size=2048, learning_rate=0.001,
@@ -53,9 +53,13 @@ if __name__ == '__main__':
                             n_critics=2,
                         ),
                         is_goal_env=True,
-                        train_kwargs=dict(is_goal_env=True, reward_offset=0.0),
+                        sb3_train_kwargs=dict(
+                            total_timesteps=200,
+                            is_goal_env=True,
+                            reward_offset=0.0,
+                        ),
                         train_freq=1, learning_starts=1000,
-                        use_best_model=use_best_model, save_path=save_path)
+                        use_best_model=use_best_model, save_path=save_path),
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
