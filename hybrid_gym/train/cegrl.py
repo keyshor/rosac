@@ -59,6 +59,7 @@ def cegrl(automaton: HybridAutomaton,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
+          sb3_train_kwargs: Dict[str, Any] = dict(),
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -127,7 +128,7 @@ def cegrl(automaton: HybridAutomaton,
                 steps_taken += train_sb3(models[g], group_info[g],
                                          algo_name=algo_name, save_path=save_path,
                                          max_episode_steps=time_limits[group_names[g][0]],
-                                         **kwargs)
+                                         **sb3_train_kwargs)
 
             if use_best_model and algo_name != 'ars':
                 ctrl = Sb3CtrlWrapper.load(
