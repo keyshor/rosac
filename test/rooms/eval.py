@@ -35,11 +35,11 @@ if __name__ == '__main__':
 
     if flags['falsify']:
         print('\nEvaluating with MCTS adversary')
-        prob = mcts_eval(automaton, controllers, time_limits, max_jumps=7,
+        prob = mcts_eval(automaton, controllers, time_limits, max_jumps=5,
                          mcts_rollouts=500, eval_rollouts=100, print_debug=True)
     else:
         print('\nEvaluating with random adversary')
-        prob = random_selector_eval(automaton, controllers, time_limits, max_jumps=7,
+        prob = random_selector_eval(automaton, controllers, time_limits, max_jumps=5,
                                     eval_rollouts=100, print_debug=True)
 
     print('Probability of successful completion: {}'.format(prob))

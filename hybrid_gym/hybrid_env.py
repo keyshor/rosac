@@ -51,10 +51,16 @@ class HybridEnv(gym.Env):
                  automaton: HybridAutomaton,
                  selector: ModeSelector,
                  flatten_obs: bool = False,
+                 safety_penalty: float = -1e5,
+                 jump_bonus: float = 10.,
+                 max_timesteps: int = 100,
                  ) -> None:
         self.automaton = automaton
         self.selector = selector
         self.flatten_obs = flatten_obs
+        self.safety_penalty = safety_penalty
+        self.jump_bonus = jump_bonus
+        self.max_timesteps = max_timesteps
 
         self.observation_space = gym.spaces.utils.flatten_space(self.automaton.observation_space) \
             if self.flatten_obs else self.automaton.observation_space
@@ -69,12 +75,14 @@ class HybridEnv(gym.Env):
         mode_name = self.selector.reset()
         self.mode = self.automaton.modes[mode_name]
         self.state = self.mode.end_to_end_reset()
+        self.progress = 0.
+        self.t = 0
         return self.observe()
 
     def step(self, action: np.ndarray) -> Tuple[Any, float, bool, Dict]:
         next_state = self.mode.step(self.state, action)
-        reward = 0
-        done = False
+        reward = self.mode.reward(self.state, action, next_state)
+        done = self.t >= self.max_timesteps
         jump = False
 
         self.state = next_state
@@ -84,14 +92,16 @@ class HybridEnv(gym.Env):
                 if not done:
                     self.state = t.jump(new_mode, self.state)
                     self.mode = self.automaton.modes[new_mode]
+                    self.progress += self.jump_bonus
                     jump = True
-                else:
-                    reward = 1
                 break
 
         if not self.mode.is_safe(self.state):
-            reward = -1
+            reward = self.safety_penalty
             done = True
+        else:
+            reward += self.progress
+            self.t += 1
 
         return self.observe(), reward, done, {'jump': jump}
 

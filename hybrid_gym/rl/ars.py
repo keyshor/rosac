@@ -1,4 +1,5 @@
 from hybrid_gym.rl.util import discounted_reward, get_rollout, test_policy
+from hybrid_gym.eval import mcts_eval, random_selector_eval
 from hybrid_gym.model import Controller
 
 import numpy as np
@@ -13,8 +14,9 @@ class ARSModel:
         self.nn_policy = NNPolicy(nn_params, use_gpu)
         self.ars_params = ars_params
 
-    def learn(self, env_list, verbose=False):
-        return ars(env_list, self.nn_policy, self.ars_params, verbose=verbose)
+    def learn(self, env_list, verbose=False, eval_automaton=None, max_jumps=10, time_limits=None):
+        return ars(env_list, self.nn_policy, self.ars_params, verbose=verbose,
+                   eval_automaton=eval_automaton, max_jumps=max_jumps, time_limits=time_limits)
 
     def cpu(self):
         self.nn_policy = self.nn_policy.set_use_cpu()
@@ -177,7 +179,8 @@ class NNPolicy(Controller):
 #                 (works only for environments with sparse rewards and
 #                  use_envs_cum_reward has to be False)
 # process_id: string to distiguish console ouputs for simultaneous executions
-def ars(env, nn_policy, params, multi_env=True, verbose=False):
+def ars(env, nn_policy, params, multi_env=True, verbose=False,
+        eval_automaton=None, max_jumps=10, time_limits=None):
     # Step 1: Save original policy
     nn_policy_orig = nn_policy
     log_info = []
@@ -270,13 +273,21 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False):
             if verbose:
                 print('Expected rewards at iteration {}: {}'.format(i, cum_rewards))
 
-            # Step 3i: Save best policy
+        # Step 3i: Save best policy
             cum_reward = np.mean(cum_rewards)
             if best_reward <= cum_reward:
                 best_policy = nn_policy
                 best_reward = cum_reward
 
-        log_info.append([num_transitions, cum_reward])
+        if eval_automaton is not None and i % 500 == 0:
+            mode_controllers = {mname: best_policy for mname in eval_automaton.modes}
+            mcts_prob = mcts_eval(eval_automaton, mode_controllers, time_limits,
+                                  max_jumps=max_jumps, mcts_rollouts=500, eval_rollouts=100)
+            rs_prob = random_selector_eval(eval_automaton, mode_controllers, time_limits,
+                                           max_jumps=max_jumps, eval_rollouts=100)
+            log_info.append([num_transitions, rs_prob, mcts_prob])
+        else:
+            log_info.append([num_transitions, cum_reward])
 
     # Step 4: Copy new weights and normalization parameters to original policy
     for param, param_orig in zip(nn_policy.parameters(), nn_policy_orig.parameters()):
