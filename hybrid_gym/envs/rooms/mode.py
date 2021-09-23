@@ -24,6 +24,8 @@ class GridParams:
         self.full_size = self.partition_size + self.wall_size
         self.hdoor = np.array(horizontal_door) + self.wall_size[0]
         self.vdoor = np.array(vertical_door) + self.wall_size[1]
+        self.bd_size = np.array([self.hdoor[1] - self.hdoor[0], self.wall_size[1]])
+        self.bd_point = np.array([self.hdoor[0], 0]) - (self.full_size/2)
 
     def sample_full(self):
         return (np.random.random_sample(2) * self.room_size) - (self.room_size / 2)
@@ -31,11 +33,18 @@ class GridParams:
     def sample_center(self):
         return (np.random.random_sample(2) * self.wall_size) - (self.wall_size / 2)
 
+    def sample_bottom(self):
+        return (np.random.random_sample(2) * self.bd_size) + self.bd_point
+
+    def sample_bottom_center(self):
+        return (np.random.random_sample(2) * (self.bd_size/2)) + (self.bd_point + (self.bd_size/4))
+
 
 class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
-    def __init__(self, grid_params: GridParams, name: str):
+    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = True):
         self.grid_params = grid_params
+        self.bottom_start = bottom_start
         self._goal = self._get_goal(name)
         self._reward_scale = np.mean(self.grid_params.partition_size)
 
@@ -55,11 +64,17 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         super().__init__(name, action_space, observation_space)
 
     def reset(self):
-        pos = tuple(self.grid_params.sample_full())
+        if self.bottom_start:
+            pos = tuple(self.grid_params.sample_bottom())
+        else:
+            pos = tuple(self.grid_params.sample_full())
         return (pos, pos)
 
     def end_to_end_reset(self):
-        pos = tuple(self.grid_params.sample_center())
+        if self.bottom_start:
+            pos = tuple(self.grid_params.sample_bottom_center())
+        else:
+            pos = tuple(self.grid_params.sample_center())
         return (pos, pos)
 
     def render(self, state):
@@ -173,7 +188,30 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         return None
 
     def change_of_coordinates(self, s, direction):
-        return s - self._get_goal(direction)
+        return s - (2*self._get_goal(direction))
+
+    def completed_task(self, s):
+        p = s + (self.grid_params.full_size / 2)
+        if p[0] < self.grid_params.wall_size[0]:
+            return 'left'
+        if p[0] > self.grid_params.partition_size[0]:
+            return 'right'
+        if p[1] < self.grid_params.wall_size[1]:
+            return 'down'
+        if p[1] > self.grid_params.partition_size[1]:
+            return 'up'
+        return None
+
+    def mode_transition(self, s, direction):
+        if direction == 'left':
+            return self.mode_transition(np.array([s[1], -s[0]]), 'up')
+        if direction == 'right':
+            return self.mode_transition(np.array([-s[1], s[0]]), 'up')
+        if direction == 'up':
+            return s - np.array([0, self.grid_params.partition_size[1]])
+        if direction == 'down':
+            return s
+        return None
 
     def _get_goal(self, name):
         if name == 'left':
@@ -186,4 +224,4 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             goal = [0, -1]
         else:
             raise ValueError('Invalid mode name/direction!')
-        return np.array(goal) * self.grid_params.partition_size
+        return np.array(goal) * (self.grid_params.partition_size/2)

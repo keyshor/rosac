@@ -49,10 +49,10 @@ if __name__ == '__main__':
     if flags['synthesize']:
         num_synth_iter = 10
 
-    nn_params = NNParams(2, 2, 1.0, 64)
-    ars_params = ARSParams(500, 30, 10, 0.04, 0.2, 0.95, 25)
+    nn_params = NNParams(250, 2, 1.0, 32)
+    ars_params = ARSParams(2, 30, 15, 0.05, 0.3, 0.95, 25)
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=60, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], falsify_func=falsify_func,
                                   save_path=flags['path'], algo_name='ars', nn_params=nn_params,

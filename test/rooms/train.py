@@ -42,7 +42,7 @@ def train_single(automaton, name, total_timesteps, save_path):
 def train_ars(automaton, name, total_episodes, save_path, use_gpu):
     mode = automaton.modes[name]
     mode_info = [(mode, automaton.transitions[name], None, None)]
-    nn_params = NNParams(2, 2, 1.0, 30)
+    nn_params = NNParams(2, 2, 1.0, 32)
     ars_params = ARSParams(total_episodes, 30, 15, 0.05, 0.3, 0.95, 25)
     model = make_ars_model(ars_params, nn_params, use_gpu)
     learn_ars_model(model, mode_info, save_path, name, True)
