@@ -3,6 +3,7 @@ import gym
 import math
 
 from hybrid_gym.model import Mode
+from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from typing import Tuple
 
 
@@ -212,6 +213,13 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         if direction == 'down':
             return s
         return None
+
+    def get_init_pre(self):
+        low = self.grid_params.bd_point + (self.grid_params.bd_size/4)
+        high = self.grid_params.bd_point + (3*self.grid_params.bd_size/4)
+        low = np.concatenate([low, low])
+        high = np.concatenate([high, high])
+        return StateWrapper(self, Box(low=low, high=high))
 
     def _get_goal(self, name):
         if name == 'left':

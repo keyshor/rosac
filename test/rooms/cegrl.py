@@ -34,20 +34,16 @@ if __name__ == '__main__':
         os.makedirs(flags['path'])
 
     automaton = make_rooms_model()
-
-    init_vec = {m: np.zeros((4,)) for m in automaton.modes}
-    delta = np.ones((4,))
-    pre = {m: StateWrapper(mode, Box(low=init_vec[m] - delta, high=init_vec[m] + delta))
-           for m, mode in automaton.modes.items()}
+    pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
     time_limits = {m: 25 for m in automaton.modes}
 
     falsify_func = None
     num_synth_iter = 0
     if flags['falsify']:
         falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()}
-        num_synth_iter = 10
+        num_synth_iter = 15
     if flags['synthesize']:
-        num_synth_iter = 10
+        num_synth_iter = 15
 
     nn_params = NNParams(2, 2, 1.0, 32)
     ars_params = ARSParams(300, 30, 15, 0.05, 0.3, 0.95, 25)
