@@ -22,11 +22,15 @@ class ResetFunc:
     '''
     Reset function used to sample start states in training
     '''
+    mode: Mode
+    states: List[Any]
+    prob: float
+    full_reset: bool
 
-    def __init__(self, mode: Mode, states: List = [], prob: float = 0.75,
+    def __init__(self, mode: Mode, states: Iterable[Any] = [], prob: float = 0.75,
                  full_reset: bool = False) -> None:
         self.mode = mode
-        self.states = states
+        self.states = list(states)
         self.prob = prob
         self.full_reset = full_reset
 
