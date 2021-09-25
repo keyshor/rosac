@@ -27,7 +27,7 @@ class ResetFunc:
     prob: float
     full_reset: bool
 
-    def __init__(self, mode: Mode, states: Iterable[Any] = [], prob: float = 0.75,
+    def __init__(self, mode: Mode, states: Iterable[Any] = [], prob: float = 0.5,
                  full_reset: bool = False) -> None:
         self.mode = mode
         self.states = list(states)

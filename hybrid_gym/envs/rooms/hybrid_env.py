@@ -2,7 +2,7 @@ from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.envs.rooms.mode import RoomsMode, GridParams
 from hybrid_gym.envs.rooms.transition import RoomsTrans
 
-DEFAULT_GRID_PARAMS = GridParams((8, 8), (2, 2), (3.5, 4.5), (3.5, 4.5))
+DEFAULT_GRID_PARAMS = GridParams((8, 8), (2, 2), (3.8, 4.2), (3.8, 4.2))
 
 
 def make_rooms_model(grid_params: GridParams = DEFAULT_GRID_PARAMS) -> HybridAutomaton:
