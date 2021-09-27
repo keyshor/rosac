@@ -132,6 +132,7 @@ def cegrl(automaton: HybridAutomaton,
                 steps_taken += train_sb3(models[g], group_info[g],
                                          algo_name=algo_name, save_path=save_path,
                                          max_episode_steps=time_limits[group_names[g][0]],
+                                         use_best_model=use_best_model,
                                          **sb3_train_kwargs)
 
             if use_best_model and algo_name != 'ars':

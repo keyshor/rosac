@@ -3,3 +3,5 @@
 *.mlp
 *.zip
 *.npz
+*.npy
+*.pdf

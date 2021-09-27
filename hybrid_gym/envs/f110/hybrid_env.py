@@ -51,21 +51,21 @@ def make_f110_model(straight_lengths: Iterable[float] = [10.0],
     ]
 
     obstacle_modes = [
-        make_obstacle(
+        #make_obstacle(
+        #    use_throttle=use_throttle,
+        #    lidar_num_rays=num_lidar_rays,
+        #    width=hall_width,
+        #),
+        make_obstacle_right(
             use_throttle=use_throttle,
             lidar_num_rays=num_lidar_rays,
             width=hall_width,
         ),
-        # make_obstacle_right(
-        #     use_throttle=use_throttle,
-        #     lidar_num_rays=num_lidar_rays,
-        #     width=hall_width,
-        # ),
-        # make_obstacle_left(
-        #     use_throttle=use_throttle,
-        #     lidar_num_rays=num_lidar_rays,
-        #     width=hall_width,
-        # ),
+        make_obstacle_left(
+            use_throttle=use_throttle,
+            lidar_num_rays=num_lidar_rays,
+            width=hall_width,
+        ),
     ]
 
     if simple:

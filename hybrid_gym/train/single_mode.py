@@ -425,6 +425,7 @@ def train_sb3(model: BaseAlgorithm,
               save_path: str = '.',
               custom_best_model_path: Optional[str] = None,
               is_goal_env: bool = False,
+              use_best_model: bool = True,
               **kwargs) -> Any:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
@@ -440,7 +441,10 @@ def train_sb3(model: BaseAlgorithm,
         log_path=os.path.join(save_path, best_model_path),
         best_model_save_path=os.path.join(save_path, best_model_path),
     )
-    model.learn(total_timesteps=total_timesteps, callback=callback)
+    model.learn(
+        total_timesteps=total_timesteps,
+        callback=(callback if use_best_model else None),
+    )
     return total_timesteps
 
 
