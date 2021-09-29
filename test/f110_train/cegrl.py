@@ -53,7 +53,8 @@ def run_f110(procedure: str, save_path: str, use_best_model: bool) -> None:
         learning_rate=0.0003,
         buffer_size=50000,
         policy_kwargs=dict(net_arch=[200, 50]),
-        sb3_train_kwargs=dict(total_timesteps=20000),
+        sb3_train_kwargs=dict(total_timesteps=200),
+        init_check_min_episode_length=10,
         use_best_model=use_best_model, save_path=save_path)
 
     # save the controllers
@@ -62,29 +63,31 @@ def run_f110(procedure: str, save_path: str, use_best_model: bool) -> None:
     save_log_info(log_info, 'log', save_path)
 
 if __name__ == '__main__':
-    for i in range(1, 6):
-        print(f'begin run {i}')
-        processes = [
-            Process(target=run_f110, kwargs=dict(
-                procedure=procedure,
-                save_path=os.path.join('cegrl_models', procedure, f'run{i}'),
-                use_best_model=False,
-            ))
-            for procedure in ['basic', 'dagger', 'falsify']
-        ]
-        for p in processes:
-            p.start()
-        for p in processes:
-            p.join()
-        print(f'end run {i}')
     #for i in range(1, 6):
     #    print(f'begin run {i}')
-    #    for procedure in ['basic', 'dagger', 'falsify']:
-    #        print(f'begin procedure {procedure}')
-    #        run_f110(
+    #    processes = [
+    #        Process(target=run_f110, kwargs=dict(
     #            procedure=procedure,
     #            save_path=os.path.join('cegrl_models', procedure, f'run{i}'),
     #            use_best_model=False,
-    #        )
-    #        print(f'end procedure {procedure}')
+    #        ))
+    #        for procedure in ['basic', 'dagger', 'falsify']
+    #    ]
+    #    for p in processes:
+    #        p.start()
+    #    for p in processes:
+    #        p.join()
     #    print(f'end run {i}')
+    #for i in range(1, 6):
+    for i in range(1, 2):
+        print(f'begin run {i}')
+        #for procedure in ['basic', 'dagger', 'falsify']:
+        for procedure in ['basic']:
+            print(f'begin procedure {procedure}')
+            run_f110(
+                procedure=procedure,
+                save_path=os.path.join('cegrl_models', procedure, f'run{i}'),
+                use_best_model=False,
+            )
+            print(f'end procedure {procedure}')
+        print(f'end run {i}')

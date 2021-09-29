@@ -3,7 +3,7 @@ CounterExample Guided Reinforcement Learning
 '''
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
-from hybrid_gym.train.single_mode import make_sb3_model, train_sb3, make_ars_model, parallel_ars
+from hybrid_gym.train.single_mode import make_sb3_model_init_check, train_sb3, make_ars_model, parallel_ars
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
@@ -64,6 +64,8 @@ def cegrl(automaton: HybridAutomaton,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
           sb3_train_kwargs: Dict[str, Any] = dict(),
+          init_check_min_reward: float = -np.inf,
+          init_check_min_episode_length: float = 0.0,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -100,10 +102,12 @@ def cegrl(automaton: HybridAutomaton,
         if 'use_gpu' in kwargs:
             use_gpu = kwargs['use_gpu']
     else:
-        models = [make_sb3_model(
+        models = [make_sb3_model_init_check(
             group_info[g],
             algo_name=algo_name,
             max_episode_steps=time_limits[group_names[g][0]],
+            min_reward=init_check_min_reward,
+            min_episode_length=init_check_min_episode_length,
             **kwargs)
             for g in range(len(mode_groups))]
         controllers = [Sb3CtrlWrapper(model) for model in models]
