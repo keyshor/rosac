@@ -25,14 +25,17 @@ class GridParams:
         self.full_size = self.partition_size + self.wall_size
         self.hdoor = np.array(horizontal_door) + self.wall_size[0]
         self.vdoor = np.array(vertical_door) + self.wall_size[1]
-        self.bd_size = np.array([self.hdoor[1] - self.hdoor[0], self.wall_size[1]])
+        self.center_size = np.array([self.hdoor[1] - self.hdoor[0], self.vdoor[1] - self.vdoor[0]])
+        self.center_start = np.array([self.hdoor[0], self.vdoor[0]]) - (self.full_size/2)
+        self.bd_size = np.array([self.center_size[0], self.wall_size[1]])
         self.bd_point = np.array([self.hdoor[0], 0]) - (self.full_size/2)
+        self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
 
     def sample_full(self):
-        return (np.random.random_sample(2) * self.room_size) - (self.room_size / 2)
+        return (np.random.random_sample(2) * self.full_init_size) + self.bd_point
 
     def sample_center(self):
-        return (np.random.random_sample(2) * self.wall_size) - (self.wall_size / 2)
+        return (np.random.random_sample(2) * self.center_size) + self.center_start
 
     def sample_bottom(self):
         return (np.random.random_sample(2) * self.bd_size) + self.bd_point
@@ -43,7 +46,7 @@ class GridParams:
 
 class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
-    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = True):
+    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = False):
         self.grid_params = grid_params
         self.bottom_start = bottom_start
         self._goal = self._get_goal(name)
@@ -215,8 +218,12 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         return None
 
     def get_init_pre(self):
-        low = self.grid_params.bd_point + (self.grid_params.bd_size/4)
-        high = self.grid_params.bd_point + (3*self.grid_params.bd_size/4)
+        if self.bottom_start:
+            low = self.grid_params.bd_point + (self.grid_params.bd_size/4)
+            high = low + (self.grid_params.bd_size/2)
+        else:
+            low = self.grid_params.center_start
+            high = low + self.grid_params.center_size
         low = np.concatenate([low, low])
         high = np.concatenate([high, high])
         return StateWrapper(self, Box(low=low, high=high))
