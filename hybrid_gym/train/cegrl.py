@@ -3,7 +3,8 @@ CounterExample Guided Reinforcement Learning
 '''
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
-from hybrid_gym.train.single_mode import make_sb3_model_init_check, train_sb3, make_ars_model, parallel_ars
+from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
+                                          make_ars_model, parallel_ars)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
@@ -66,6 +67,7 @@ def cegrl(automaton: HybridAutomaton,
           sb3_train_kwargs: Dict[str, Any] = dict(),
           init_check_min_reward: float = -np.inf,
           init_check_min_episode_length: float = 0.0,
+          full_reset: bool = False,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -76,7 +78,7 @@ def cegrl(automaton: HybridAutomaton,
     steps_taken = 0
 
     # define reset functions
-    reset_funcs = {name: ResetFunc(mode, full_reset=(num_synth_iter == 0))
+    reset_funcs = {name: ResetFunc(mode, full_reset=full_reset)
                    for (name, mode) in automaton.modes.items()}
 
     # Add each mode into its own group if no grouping is given
