@@ -175,7 +175,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def hit_obstacle(self, p1, p2):
         if self.grid_params.hdoor[0] <= p1[0] and p1[0] <= self.grid_params.hdoor[1]:
-            if p1[1] < self.wall_size[1] and p2[1] >= self.wall_size[1]:
+            if p1[1] < self.grid_params.wall_size[1] and p2[1] >= self.grid_params.wall_size[1]:
                 x = ((p2[0] - p1[0]) * (self.wall_size[1] - p1[1]) / (p2[1] - p1[1])) + p1[0]
                 return x < self.grid_params.full_size[0]/2
         return False
