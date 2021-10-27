@@ -32,7 +32,10 @@ class GridParams:
         self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
 
     def sample_full(self):
-        return (np.random.random_sample(2) * self.full_init_size) + self.bd_point
+        if np.random.binomial(1, 0.5):
+            return self.sample_bottom()
+        else:
+            return self.sample_center()
 
     def sample_center(self):
         return (np.random.random_sample(2) * self.center_size) + self.center_start
@@ -121,6 +124,9 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         if not self.is_state_legal(p2):
             return False
 
+        if self.hit_obstacle(p1, p2):
+            return False
+
         # both states are inside the same room (not in the door area)
         if np.all(p1 <= params.partition_size) and np.all(p1 >= params.wall_size) and \
                 np.all(p2 <= params.partition_size) and np.all(p2 >= params.wall_size):
@@ -166,6 +172,13 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             return (p[1] >= params.vdoor[0] and p[1] <= params.vdoor[1])
         elif p[1] > params.partition_size[1] or p[1] < params.wall_size[1]:
             return (p[0] >= params.hdoor[0] and p[0] <= params.hdoor[1])
+
+    def hit_obstacle(self, p1, p2):
+        if self.grid_params.hdoor[0] <= p1[0] and p1[0] <= self.grid_params.hdoor[1]:
+            if p1[1] < self.wall_size[1] and p2[1] >= self.wall_size[1]:
+                x = ((p2[0] - p1[0]) * (self.wall_size[1] - p1[1]) / (p2[1] - p1[1])) + p1[0]
+                return x < self.grid_params.full_size[0]/2
+        return False
 
     # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
     # horizontal coordinates should be relative positions within rooms
