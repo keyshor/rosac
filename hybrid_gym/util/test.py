@@ -59,9 +59,10 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
     controller: Can be a single controller (also handles mode detection) OR
                 one controller per mode (assumes full observability)
 
-    Returns: float (the probability of success)
+    Returns: float (the probability of success), dist of start states collected for each mode
     '''
     num_success = 0
+    collected_states: Dict[str, List] = {m: [] for m in automaton.modes}
 
     for _ in range(num_rollouts):
         steps = 0
@@ -105,10 +106,11 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
             # update start state
             if not done:
                 state = info['jump'].jump(mname, sarss[-1][-1])
+                collected_states[mname].append(state)
 
             # count success
             else:
                 num_success += 1
                 break
 
-    return num_success / num_rollouts
+    return num_success / num_rollouts, collected_states

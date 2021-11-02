@@ -28,7 +28,7 @@ class ResetFunc:
     prob: float
     full_reset: bool
 
-    def __init__(self, mode: Mode, states: Iterable[Any] = [], prob: float = 0.5,
+    def __init__(self, mode: Mode, states: Iterable[Any] = [], prob: float = 0.75,
                  full_reset: bool = False) -> None:
         self.mode = mode
         self.states = list(states)
@@ -68,6 +68,7 @@ def cegrl(automaton: HybridAutomaton,
           init_check_min_reward: float = -np.inf,
           init_check_min_episode_length: float = 0.0,
           full_reset: bool = False,
+          dagger: bool = False,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -174,10 +175,10 @@ def cegrl(automaton: HybridAutomaton,
 
         # evaluating controllers
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
-        mcts_prob = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
-                              mcts_rollouts=500, eval_rollouts=100)
-        rs_prob = random_selector_eval(automaton, mode_controllers, time_limits,
-                                       max_jumps=max_jumps, eval_rollouts=100)
+        mcts_prob, _ = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
+                                 mcts_rollouts=500, eval_rollouts=100)
+        rs_prob, collected_states = random_selector_eval(automaton, mode_controllers, time_limits,
+                                                         max_jumps=max_jumps, eval_rollouts=100)
         log_info.append([steps_taken, rs_prob, mcts_prob])
 
         # synthesis
@@ -203,5 +204,10 @@ def cegrl(automaton: HybridAutomaton,
                 # add counterexamples to reset function
                 for ce in ces:
                     reset_funcs[ce.m].add_states([ce.s])
+
+        # dataset aggregation using random selector
+        elif dagger:
+            for m in collected_states:
+                reset_funcs[m].add_states(collected_states[m])
 
     return mode_controllers, np.array(log_info)

@@ -52,7 +52,8 @@ if __name__ == '__main__':
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], falsify_func=falsify_func,
                                   save_path=flags['path'], algo_name='ars', nn_params=nn_params,
-                                  ars_params=ars_params, use_gpu=flags['gpu'], max_jumps=15)
+                                  ars_params=ars_params, use_gpu=flags['gpu'], max_jumps=15,
+                                  dagger=flags['dagger'], full_reset=(num_synth_iter == 0))
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
