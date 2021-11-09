@@ -237,7 +237,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def get_init_pre(self):
         if self.bottom_start:
-            low = self.grid_params.bd_point + np.array([0, self.wall_size[1]])
+            low = self.grid_params.bd_point + np.array([0, self.grid_params.wall_size[1]])
             high = low + np.array([self.grid_params.bd_size[0], 0])
         else:
             low = self.grid_params.center_start
