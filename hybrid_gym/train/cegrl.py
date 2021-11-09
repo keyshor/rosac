@@ -17,6 +17,7 @@ from multiprocessing import Process, Queue
 import numpy as np
 import random
 import os
+import matplotlib.pyplot as plt
 
 
 class ResetFunc:
@@ -69,6 +70,8 @@ def cegrl(automaton: HybridAutomaton,
           init_check_min_episode_length: float = 0.0,
           full_reset: bool = False,
           dagger: bool = False,
+          num_sb3_processes: int = 3,
+          plot_synthesized_regions: bool = False,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -126,8 +129,8 @@ def cegrl(automaton: HybridAutomaton,
 
         # train agents
         for g in range(len(mode_groups)):
-            print('\n---- Training controller for modes {} ----'.format(group_names[g]))
             if algo_name == 'ars':
+                print('\n---- Training controller for modes {} ----'.format(group_names[g]))
                 ret_queues.append(Queue())
                 req_queues.append(Queue())
                 if use_gpu:
@@ -136,18 +139,16 @@ def cegrl(automaton: HybridAutomaton,
                     group_info[g]), save_path, ret_queues[g], req_queues[g], print_debug, use_gpu)))
                 processes[g].start()
             else:
-                steps_taken += train_sb3(models[g], group_info[g],
-                                         algo_name=algo_name, save_path=save_path,
-                                         max_episode_steps=time_limits[group_names[g][0]],
-                                         use_best_model=use_best_model,
-                                         **sb3_train_kwargs)
-
-            if use_best_model and algo_name != 'ars':
-                ctrl = Sb3CtrlWrapper.load(
-                    os.path.join(save_path, group_names[g][0], 'best_model.zip'),
-                    algo_name=algo_name,  # env=reload_env,
+                steps_taken += train_sb3(
+                    model=models[g],
+                    raw_mode_info=group_info[g],
+                    algo_name=algo_name,
+                    save_path=save_path,
+                    max_episode_steps=time_limits[group_names[g][0]],
+                    use_best_model=use_best_model,
+                    **sb3_train_kwargs,
                 )
-                models[g].set_parameters(ctrl.model.get_parameters())
+
 
         if algo_name == 'ars':
             for g in range(len(mode_groups)):
@@ -172,6 +173,14 @@ def cegrl(automaton: HybridAutomaton,
 
                 controllers[g] = models[g].nn_policy
                 steps_taken += steps
+        else:
+            if use_best_model:
+                for g in range(len(mode_groups)):
+                    ctrl = Sb3CtrlWrapper.load(
+                        os.path.join(save_path, group_names[g][0], 'best_model.zip'),
+                        algo_name=algo_name,  # env=reload_env,
+                    )
+                    models[g].set_parameters(ctrl.model.get_parameters())
 
         # evaluating controllers
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
@@ -209,5 +218,13 @@ def cegrl(automaton: HybridAutomaton,
         elif dagger:
             for m in collected_states:
                 reset_funcs[m].add_states(collected_states[m])
+
+        if plot_synthesized_regions:
+            for (name, rf) in reset_funcs.items():
+                fig, ax = plt.subplots()
+                automaton.modes[name].plot_state_iterable(ax=ax, sts=[rf() for _ in range(200)])
+                ax.set_title(f'start_{name}_iter{i}')
+                ax.set_aspect('equal')
+                fig.savefig(os.path.join(save_path, f'start_{name}_iter{i}.png'))
 
     return mode_controllers, np.array(log_info)

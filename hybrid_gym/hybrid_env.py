@@ -54,6 +54,7 @@ class HybridEnv(gym.Env):
                  safety_penalty: float = -1e5,
                  jump_bonus: float = 10.,
                  max_timesteps: int = 100,
+                 max_timesteps_per_mode: int = 1000000000000000000000000,
                  ) -> None:
         self.automaton = automaton
         self.selector = selector
@@ -61,6 +62,7 @@ class HybridEnv(gym.Env):
         self.safety_penalty = safety_penalty
         self.jump_bonus = jump_bonus
         self.max_timesteps = max_timesteps
+        self.max_timesteps_per_mode = max_timesteps_per_mode
 
         self.observation_space = gym.spaces.utils.flatten_space(self.automaton.observation_space) \
             if self.flatten_obs else self.automaton.observation_space
@@ -77,6 +79,7 @@ class HybridEnv(gym.Env):
         self.state = self.mode.end_to_end_reset()
         self.progress = 0.
         self.t = 0
+        self.t_in_mode = 0
         return self.observe()
 
     def step(self, action: np.ndarray) -> Tuple[Any, float, bool, Dict]:
@@ -93,6 +96,7 @@ class HybridEnv(gym.Env):
                     self.state = t.jump(new_mode, self.state)
                     self.mode = self.automaton.modes[new_mode]
                     self.progress += self.jump_bonus
+                    self.t_in_mode = 0
                     jump = True
                 break
 
@@ -102,8 +106,10 @@ class HybridEnv(gym.Env):
         else:
             reward += self.progress
             self.t += 1
+            self.t_in_mode += 1
 
-        return self.observe(), reward, done, {'jump': jump}
+        stuck = self.t_in_mode >= self.max_timesteps_per_mode
+        return self.observe(), reward, done or stuck, {'jump': jump, 'stuck': stuck}
 
     def render(self) -> None:
         self.mode.render(self.state)

@@ -443,7 +443,7 @@ def train_sb3(model: BaseAlgorithm,
     )
     model.learn(
         total_timesteps=total_timesteps,
-        callback=(callback if use_best_model else None),
+        callback=callback if use_best_model else None,
     )
     return total_timesteps
 

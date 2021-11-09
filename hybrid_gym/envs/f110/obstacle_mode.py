@@ -25,14 +25,15 @@ TIME_STEP: float = 0.1
 TIME_CHECK: np.ndarray = np.linspace(0, TIME_STEP, 100)
 EKAT: np.ndarray = np.array(np.exp(-CAR_ACCEL_CONST * TIME_CHECK))
 
-STEP_REWARD_GAIN: float = 5
+STEP_REWARD_GAIN: float = -15
 CRASH_REWARD: float = -100
 MINIMUM_ACCEPTABLE_SPEED: float = 1.5
-LOW_SPEED_REWARD: float = -20
-SPEED_GAIN: float = 0.0
+LOW_SPEED_REWARD: float = -0
+SPEED_GAIN: float = 5.0
 PROGRESS_GAIN: float = 10
 MIDDLE_GAIN: float = -10
 DEFAULT_HALL_WIDTH: float = 1.5
+GOAL_REWARD: float = 1000
 
 EPSILON: float = 1e-10
 
@@ -109,7 +110,7 @@ class LineSegments:
             return cls.empty()
         segment_array = np.array([
             [x1, y1, x2, y2] for ((x1, y1), (x2, y2)) in segment_list
-        ])
+        ], dtype=np.float32)
 
         seg_x1 = segment_array[:,0]
         seg_y1 = segment_array[:,1]
@@ -164,7 +165,6 @@ class LineSegments:
             diff_y=np.zeros(shape=(0,1)),
         )
 
-
     def distance(self,
                  px_flat: np.ndarray, py_flat: np.ndarray,
                  ) -> np.ndarray:
@@ -196,6 +196,36 @@ class LineSegments:
         )
         return np.amin(dist_to_segment, axis=1)
 
+    def scan_lidar(self,
+                   x: float,
+                   y: float,
+                   theta: float,
+                   num_lidar_rays: int,
+                   ) -> np.ndarray:
+        theta = np.linspace(
+            start=theta - LIDAR_FIELD_OF_VIEW,
+            stop=theta + LIDAR_FIELD_OF_VIEW,
+            num=num_lidar_rays,
+            dtype=np.float32,
+        )
+        x_pt = self.seg_x2[:,np.newaxis] - x
+        y_pt = self.seg_y2[:,np.newaxis] - y
+        determinant = self.diff_y * np.cos(theta) - self.diff_x * np.sin(theta)
+        #print(f'seg_x2.shape = {self.seg_x2.shape}')
+        #print(f'seg_y2.shape = {self.seg_y2.shape}')
+        #print(f'x_pt.shape = {x_pt.shape}')
+        #print(f'y_pt.shape = {y_pt.shape}')
+        c = (self.diff_y * x_pt - self.diff_x * y_pt) / determinant
+        alpha = (y_pt * np.cos(theta) - x_pt * np.sin(theta)) / determinant
+        segment_distances = np.where(
+            (np.abs(determinant) > EPSILON) & (0 <= alpha) & (alpha <= 1) & (c > EPSILON),
+            c, np.inf,
+        )
+        lidar_distances = np.amin(segment_distances, axis=0)
+        return np.array(np.minimum(lidar_distances, LIDAR_RANGE), dtype=np.float32)
+
+StateTypevar = TypeVar('StateTypevar', bound='State')
+
 class State(NamedTuple):
     x: float
     y: float
@@ -203,7 +233,53 @@ class State(NamedTuple):
     theta: float
     obstacle_x: float
     obstacle_y: float
+    prev_x: float
+    prev_y: float
+    prev_theta: float
+    start_theta: float
+    cur_lidar: np.ndarray
+    prev_lidar: np.ndarray
     lines: LineSegments
+
+    @classmethod
+    def make(cls: Type[StateTypevar],
+             x: float,
+             y: float,
+             V: float,
+             theta: float,
+             obstacle_x: float,
+             obstacle_y: float,
+             lines: LineSegments,
+             num_lidar_rays: int,
+             prev_st: Optional[StateTypevar],
+             ) -> StateTypevar:
+        if prev_st:
+            prev_x = prev_st.x
+            prev_y = prev_st.y
+            prev_theta = prev_st.theta
+            start_theta = prev_st.start_theta
+            prev_lidar = prev_st.cur_lidar
+        else:
+            prev_x = x - TIME_STEP * V * np.cos(theta)
+            prev_y = y - TIME_STEP * V * np.sin(theta)
+            prev_theta = theta
+            start_theta = theta
+            prev_lidar = lines.scan_lidar(prev_x, prev_y, prev_theta, num_lidar_rays)
+        return cls(
+            x=x,
+            y=y,
+            V=V,
+            theta=theta,
+            obstacle_x=obstacle_x,
+            obstacle_y=obstacle_y,
+            prev_x=prev_x,
+            prev_y=prev_y,
+            prev_theta=prev_theta,
+            start_theta=start_theta,
+            cur_lidar=lines.scan_lidar(x, y, theta, num_lidar_rays),
+            prev_lidar=prev_lidar,
+            lines=lines,
+        )
 
 class Polyhedron:
     A: np.ndarray
@@ -252,6 +328,18 @@ class F110ObstacleMode(Mode[State]):
 
     center_reward_region: Polyhedron
     center_reward_lines: LineSegments
+    start_trans_x: float
+    start_trans_y: float
+    start_trans_theta: float
+    goal_trans_x: float
+    goal_trans_y: float
+    goal_trans_theta: float
+
+    override_start_region: Optional[Tuple[float, float, float, float, float, float]]
+    additional_unsafe_regions: List[Polyhedron]
+    observe_heading: bool
+    mode_onehot: np.ndarray
+    observe_previous_lidar: bool
 
     def __init__(self,
                  name: str,
@@ -280,6 +368,13 @@ class F110ObstacleMode(Mode[State]):
                  num_lidar_rays: int = 1081,
                  use_beta: bool = False,
                  use_throttle: bool = True,
+                 override_start_region: Optional[Tuple[float, float, float, float, float, float]] = None,
+                 override_start_transition_pos: Optional[Tuple[float, float, float]] = None,
+                 override_goal_transition_pos: Optional[Tuple[float, float, float]] = None,
+                 additional_unsafe_regions: List[Polyhedron] = [],
+                 observe_heading: bool = False,
+                 mode_onehot_indices: Optional[Tuple[int, int]] = None,
+                 observe_previous_lidar: bool = False,
                  rng: np.random.Generator = np.random.default_rng(),
                  ) -> None:
         self.num_lidar_rays = num_lidar_rays
@@ -317,12 +412,41 @@ class F110ObstacleMode(Mode[State]):
             polygons=static_polygons, paths=static_paths,
         )
 
+        if override_start_transition_pos:
+            self.start_trans_x, self.start_trans_y, self.start_trans_theta = override_start_transition_pos
+        else:
+            self.start_trans_x, self.start_trans_y, self.start_trans_theta = start_x, start_y, start_theta
+        if override_goal_transition_pos:
+            self.goal_trans_x, self.goal_trans_y, self.goal_trans_theta = override_goal_transition_pos
+        else:
+            self.goal_trans_x, self.goal_trans_y, self.goal_trans_theta = goal_x, goal_y, goal_theta
+
+        self.override_start_region = override_start_region
+        self.additional_unsafe_regions = additional_unsafe_regions
+        self.observe_heading = observe_heading
+        if mode_onehot_indices:
+            n, i = mode_onehot_indices
+            self.mode_onehot = np.zeros(shape=(n,), dtype=np.float32)
+            self.mode_onehot[i] = 1.0
+        else:
+            self.mode_onehot = np.zeros(shape=(0,), dtype=np.float32)
+        self.observe_previous_lidar = observe_previous_lidar
+        lidar_obs_dim = (2 if observe_previous_lidar else 1) * num_lidar_rays
+        lidar_low = np.zeros(shape=(lidar_obs_dim,))
+        lidar_high = np.full(shape=(lidar_obs_dim,), fill_value=LIDAR_RANGE)
+        heading_low = np.array([-np.inf]) if self.observe_heading else np.zeros(shape=(0,))
+        heading_high = np.array([np.inf]) if self.observe_heading else np.zeros(shape=(0,))
+        onehot_low = np.full_like(self.mode_onehot, fill_value=0)
+        onehot_high = np.full_like(self.mode_onehot, fill_value=1)
+        obs_low = np.concatenate([lidar_low, heading_low, onehot_low])
+        obs_high = np.concatenate([lidar_high, heading_high, onehot_high])
+
         super().__init__(
             name=name,
             action_space=spaces.Box(low=-1.0, high=1.0,
                                     shape=(2 if use_throttle else 1,), dtype=np.float32),
-            observation_space=spaces.Box(low=0, high=LIDAR_RANGE,
-                                         shape=(num_lidar_rays,), dtype=np.float32)
+            observation_space=spaces.Box(low=obs_low, high=obs_high,
+                                         shape=obs_low.shape, dtype=np.float32)
         )
 
     def compute_obstacle_lines(self,
@@ -343,16 +467,42 @@ class F110ObstacleMode(Mode[State]):
 
     def reset(self) -> State:
         obstacle_x, obstacle_y = self.random_obstacle_pos()
-        return State(
+        if self.override_start_region and self.rng.random() < 0.9:
+            x_low, x_high, y_low, y_high, theta_low, theta_high = self.override_start_region
+        else:
+            x_low = self.start_x - self.start_x_noise
+            x_high = self.start_x + self.start_x_noise
+            y_low = self.start_y - self.start_y_noise
+            y_high = self.start_y + self.start_y_noise
+            theta_low = self.start_theta - self.start_theta_noise
+            theta_high = self.start_theta + self.start_theta_noise
+        return State.make(
+            x = self.rng.uniform(x_low, x_high),
+            y = self.rng.uniform(y_low, y_high),
+            V = self.rng.uniform(self.start_V - self.start_V_noise, self.start_V + self.start_V_noise),
+            theta = self.rng.uniform(theta_low, theta_high),
+            obstacle_x = obstacle_x, obstacle_y = obstacle_y,
+            lines = self.compute_obstacle_lines(obstacle_x, obstacle_y),
+            num_lidar_rays = self.num_lidar_rays,
+            prev_st = None,
+        )
+
+    def end_to_end_reset(self) -> State:
+        obstacle_x, obstacle_y = self.random_obstacle_pos()
+        return State.make(
             x = self.rng.uniform(self.start_x - self.start_x_noise, self.start_x + self.start_x_noise),
             y = self.rng.uniform(self.start_y - self.start_y_noise, self.start_y + self.start_y_noise),
             V = self.rng.uniform(self.start_V - self.start_V_noise, self.start_V + self.start_V_noise),
             theta = self.rng.uniform(self.start_theta - self.start_theta_noise, self.start_theta + self.start_theta_noise),
             obstacle_x = obstacle_x, obstacle_y = obstacle_y,
             lines = self.compute_obstacle_lines(obstacle_x, obstacle_y),
+            num_lidar_rays = self.num_lidar_rays,
+            prev_st=None,
         )
 
     def is_safe(self, st: State) -> bool:
+        if any([r.contains(st) for r in self.additional_unsafe_regions]):
+            return False
         min_dist = st.lines.distance(np.array([st.x]), np.array([st.y]))
         assert min_dist.shape == (1,), f'incorrect shape {min_dist.shape}'
         return min_dist[0] > SAFE_DISTANCE
@@ -392,11 +542,19 @@ class F110ObstacleMode(Mode[State]):
                         ax: mpl.axes.Axes,
                         trajectory: Iterable[State],
                         ) -> None:
+        traj_list = list(trajectory)
         ax.plot(
-            [st.x for st in trajectory],
-            [st.y for st in trajectory],
+            [st.x for st in traj_list],
+            [st.y for st in traj_list],
             'r--',
         )
+    def plot_state_iterable(self,
+                            ax: mpl.axes.Axes,
+                            sts: Iterable[State]
+                            ) -> None:
+        st_list = list(sts)
+        self.plot_halls(ax=ax, st=st_list[0])
+        self.plot_trajectory(ax=ax, trajectory=st_list)
 
     def render(self, st: State) -> None:
         fig, ax = plt.subplots()
@@ -425,29 +583,22 @@ class F110ObstacleMode(Mode[State]):
         seg_dists = st.lines.distance(x, y)
         i_eff = first_true(seg_dists <= SAFE_DISTANCE)
         # i_eff is -1 (the last element) if there are no unsafe points in the trajectory
-        return State(
+        return State.make(
             x=x[i_eff], y=y[i_eff], V=V[i_eff], theta=theta[i_eff],
             obstacle_x=st.obstacle_x, obstacle_y=st.obstacle_y,
             lines=st.lines,
+            num_lidar_rays = self.num_lidar_rays,
+            prev_st=st,
         )
 
     def _observation_fn(self, st: State) -> np.ndarray:
-        theta = np.linspace(
-            st.theta - LIDAR_FIELD_OF_VIEW,
-            st.theta + LIDAR_FIELD_OF_VIEW,
-            self.num_lidar_rays,
-        )
-        x_pt = st.lines.seg_x2[:,np.newaxis] - st.x
-        y_pt = st.lines.seg_y2[:,np.newaxis] - st.y
-        determinant = st.lines.diff_y * np.cos(theta) - st.lines.diff_x * np.sin(theta)
-        c = (st.lines.diff_y * x_pt - st.lines.diff_x * y_pt) / determinant
-        alpha = (y_pt * np.cos(theta) - x_pt * np.sin(theta)) / determinant
-        segment_distances = np.where(
-            (np.abs(determinant) > EPSILON) & (0 <= alpha) & (alpha <= 1) & (c > EPSILON),
-            c, np.inf,
-        )
-        lidar_distances = np.amin(segment_distances, axis=0)
-        return np.array(np.minimum(lidar_distances, LIDAR_RANGE))
+        return np.concatenate([
+            st.cur_lidar,
+            st.prev_lidar if self.observe_previous_lidar else np.zeros(shape=(0,), dtype=np.float32),
+            np.array([st.theta - st.start_theta], dtype=np.float32)
+            if self.observe_heading else np.zeros(shape=(0,), dtype=np.float32),
+            self.mode_onehot,
+        ])
 
     def _reward_fn(self, st0: State, action: np.ndarray, st1: State) -> float:
         if not self.is_safe(st1):
@@ -467,19 +618,42 @@ class F110ObstacleMode(Mode[State]):
             reward += MIDDLE_GAIN * self.center_reward_lines.distance(
                 np.array([st1.x]), np.array([st1.y]),
             )[0]
+        if self.goal_region.contains(st1):
+            reward += GOAL_REWARD
 
         return reward
 
     def vectorize_state(self, st: State) -> np.ndarray:
-        return np.array([st.x, st.y, st.V, st.theta, st.obstacle_x, st.obstacle_y])
+        return np.array([
+            st.x, st.y, st.V, st.theta,
+            st.obstacle_x, st.obstacle_y,
+            st.prev_x, st.prev_y, st.prev_theta,
+            st.start_theta,
+        ])
 
     def state_from_vector(self, vec: np.ndarray) -> State:
-        obstacle_x = vec[4]
-        obstacle_y = vec[5]
+        return self.state_from_scalars(
+            x = vec[0], y = vec[1], V = vec[2], theta = vec[3],
+            obstacle_x = vec[4], obstacle_y = vec[5],
+            prev_x = vec[6], prev_y = vec[7], prev_theta = vec[8],
+            start_theta = vec[9],
+        )
+
+    def state_from_scalars(self,
+                           x: float, y: float, V: float, theta: float,
+                           obstacle_x: float, obstacle_y: float,
+                           prev_x: float, prev_y: float, prev_theta: float,
+                           start_theta: float,
+                           ) -> State:
+        lines = self.compute_obstacle_lines(obstacle_x, obstacle_y)
         return State(
-            x=vec[0], y=vec[1], V=vec[2], theta=vec[3],
+            x=x, y=y, V=V, theta=theta,
             obstacle_x=obstacle_x, obstacle_y=obstacle_y,
-            lines=self.compute_obstacle_lines(obstacle_x, obstacle_y),
+            prev_x=prev_x, prev_y=prev_y, prev_theta=prev_theta,
+            start_theta=start_theta,
+            lines=lines,
+            cur_lidar=lines.scan_lidar(x=x, y=y, theta=theta, num_lidar_rays=self.num_lidar_rays),
+            prev_lidar=lines.scan_lidar(x=prev_x, y=prev_y, theta=prev_theta, num_lidar_rays=self.num_lidar_rays),
         )
 
 def make_obstacle(use_throttle: bool = True,

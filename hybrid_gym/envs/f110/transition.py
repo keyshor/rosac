@@ -61,13 +61,15 @@ class F110PlainTrans(Transition):
         except KeyError:
             m_tgt = self.obstacle_modes[target]
             obstacle_x, obstacle_y = m_tgt.random_obstacle_pos()
-            return ObstacleState(
+            return ObstacleState.make(
                 x = m_tgt.start_x + car_dist_s - 0.5 * self.hall_width,
                 y = m_tgt.start_y + 5 - new_dist_f,
                 V = st.car_V,
                 theta = m_tgt.start_theta + st.car_heading,
                 obstacle_x = obstacle_x, obstacle_y = obstacle_y,
                 lines = m_tgt.compute_obstacle_lines(obstacle_x, obstacle_y),
+                num_lidar_rays = m_tgt.num_lidar_rays,
+                prev_st = None,
             )
 
 class F110ObstacleTrans(Transition):
@@ -94,25 +96,44 @@ class F110ObstacleTrans(Transition):
         m_src = self.obstacle_modes[self.source]
         dx = st.x - m_src.goal_x
         dy = st.y - m_src.goal_y
-        dtheta = st.theta - m_src.goal_theta
-        goal_disp_r = np.sqrt(np.square(dx) + np.square(dy))
-        goal_disp_theta = np.arctan2(dy, dx)
-        proj_dtheta = goal_disp_theta - m_src.goal_theta
-        proj_forward = goal_disp_r * np.cos(proj_dtheta)
-        proj_right = -goal_disp_r * np.sin(proj_dtheta)
+        prev_dx = st.prev_x - m_src.goal_x
+        prev_dy = st.prev_y - m_src.goal_y
         try:
             m_tgt = self.obstacle_modes[target]
+            change_theta = m_tgt.start_theta - m_src.goal_theta
+            rot_matrix = np.array([
+                [np.cos(change_theta), -np.sin(change_theta)],
+                [np.sin(change_theta), np.cos(change_theta)],
+            ])
+            src_points = np.array([
+                [dx, prev_dx],
+                [dy, prev_dy],
+            ])
+            tgt_points = rot_matrix @ src_points
+            tgt_dx = tgt_points[0, 0]
+            tgt_dy = tgt_points[1, 0]
+            tgt_prev_dx = tgt_points[0, 1]
+            tgt_prev_dy = tgt_points[1, 1]
             obstacle_x, obstacle_y = m_tgt.random_obstacle_pos()
-            return ObstacleState(
-                x = m_tgt.start_x + proj_right,
-                y = m_tgt.start_y + proj_forward,
+            return m_tgt.state_from_scalars(
+                x = m_tgt.start_x + tgt_dx,
+                y = m_tgt.start_y + tgt_dy,
                 V = st.V,
-                theta = m_tgt.start_theta + dtheta,
+                theta = st.theta + change_theta,
                 obstacle_x = obstacle_x, obstacle_y = obstacle_y,
-                lines = m_tgt.compute_obstacle_lines(obstacle_x, obstacle_y),
+                prev_x = m_tgt.start_x + tgt_prev_dx,
+                prev_y = m_tgt.start_y + tgt_prev_dy,
+                prev_theta = st.prev_theta + change_theta,
+                start_theta = st.theta + change_theta,
             )
         except KeyError:
             plain_tgt = self.plain_modes[target]
+            dtheta = st.theta - m_src.goal_theta
+            goal_disp_r = np.sqrt(np.square(dx) + np.square(dy))
+            goal_disp_theta = np.arctan2(dy, dx)
+            proj_dtheta = goal_disp_theta - m_src.goal_theta
+            proj_forward = goal_disp_r * np.cos(proj_dtheta)
+            proj_right = -goal_disp_r * np.sin(proj_dtheta)
             if flip_sides(self.source, target):
                 car_dist_s = 0.5 * plain_tgt.hallWidths[0] - proj_right
             else:

@@ -1,5 +1,6 @@
 import numpy as np
 import gym
+from matplotlib.axes import Axes
 
 from typing import TypeVar, Generic, List, Any, Iterable, Tuple
 from abc import ABCMeta, abstractmethod
@@ -36,7 +37,8 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
 
     def observe(self, state: StateType) -> Any:
         obs = self._observation_fn(state)
-        assert self.observation_space.contains(obs)
+        assert self.observation_space.contains(obs), \
+            f'obs.dtype = {obs.dtype}, space.dtype = {self.observation_space.dtype}'
         return obs
 
     def reward(self, state: StateType, action: np.ndarray, next_state: StateType) -> float:
@@ -113,6 +115,12 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         Allows change in distribution in end-to-end testing.
         '''
         return self.reset()
+
+    def plot_state_iterable(self, ax: Axes, sts: Iterable[StateType]) -> None:
+        '''
+        plot a set of states
+        '''
+        raise NotImplementedError
 
 
 class Transition(metaclass=ABCMeta):
