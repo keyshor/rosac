@@ -46,10 +46,14 @@ class GridParams:
     def sample_bottom_center(self):
         return (np.random.random_sample(2) * (self.bd_size/2)) + (self.bd_point + (self.bd_size/4))
 
+    def sample_bottom_strip(self):
+        return np.array([np.random.random_sample(1) * self.bd_size[0] + self.bd_point[0],
+                         self.bd_point[1] + self.wall_size[1]])
+
 
 class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
-    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = False):
+    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = True):
         self.grid_params = grid_params
         self.bottom_start = bottom_start
         self._goal = self._get_goal(name)
@@ -79,7 +83,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def end_to_end_reset(self):
         if self.bottom_start:
-            pos = tuple(self.grid_params.sample_bottom_center())
+            pos = tuple(self.grid_params.sample_bottom_strip())
         else:
             pos = tuple(self.grid_params.sample_center())
         return (pos, pos)
@@ -233,8 +237,8 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def get_init_pre(self):
         if self.bottom_start:
-            low = self.grid_params.bd_point + (self.grid_params.bd_size/4)
-            high = low + (self.grid_params.bd_size/2)
+            low = self.grid_params.bd_point + np.array([0, self.wall_size[1]])
+            high = low + np.array([self.grid_params.bd_size[0], 0])
         else:
             low = self.grid_params.center_start
             high = low + self.grid_params.center_size

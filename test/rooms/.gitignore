@@ -3,5 +3,4 @@
 *.mlp
 *.zip
 *.npz
-results/
-results2/
+results*
