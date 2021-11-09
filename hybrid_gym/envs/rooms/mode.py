@@ -47,7 +47,7 @@ class GridParams:
         return (np.random.random_sample(2) * (self.bd_size/2)) + (self.bd_point + (self.bd_size/4))
 
     def sample_bottom_strip(self):
-        return np.array([np.random.random_sample(1) * self.bd_size[0] + self.bd_point[0],
+        return np.array([np.random.random_sample(1)[0] * self.bd_size[0] + self.bd_point[0],
                          self.bd_point[1] + self.wall_size[1]])
 
 
