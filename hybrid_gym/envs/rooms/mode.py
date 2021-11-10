@@ -182,7 +182,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             if p1[1] < self.grid_params.wall_size[1] and p2[1] >= self.grid_params.wall_size[1]:
                 x = ((p2[0] - p1[0]) * (self.grid_params.wall_size[1] - p1[1]) / (p2[1] - p1[1])) \
                     + p1[0]
-                return x < (self.grid_params.full_size[0]/2 - self.grid_params.center_size[0]/4)
+                return x < (self.grid_params.full_size[0]/2)
         return False
 
     # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
