@@ -149,7 +149,6 @@ def cegrl(automaton: HybridAutomaton,
                     **sb3_train_kwargs,
                 )
 
-
         if algo_name == 'ars':
             for g in range(len(mode_groups)):
                 while True:
@@ -185,7 +184,7 @@ def cegrl(automaton: HybridAutomaton,
         # evaluating controllers
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
         mcts_prob, _ = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
-                                 mcts_rollouts=500, eval_rollouts=100)
+                                 mcts_rollouts=2000, eval_rollouts=100)
         rs_prob, collected_states = random_selector_eval(automaton, mode_controllers, time_limits,
                                                          max_jumps=max_jumps, eval_rollouts=100)
         log_info.append([steps_taken, rs_prob, mcts_prob])
