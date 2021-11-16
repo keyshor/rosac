@@ -61,21 +61,30 @@ def cegrl(automaton: HybridAutomaton,
           num_synth_iter: int = 10,
           n_synth_samples: int = 50,
           abstract_synth_samples: int = 0,
-          num_falsification_iter: int = 100,
+          num_falsification_iter: int = 200,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
-          sb3_train_kwargs: Dict[str, Any] = dict(),
+          dagger: bool = False,
+          full_reset: bool = False,
           init_check_min_reward: float = -np.inf,
           init_check_min_episode_length: float = 0.0,
-          full_reset: bool = False,
-          dagger: bool = False,
+          sb3_train_kwargs: Dict[str, Any] = dict(),
           num_sb3_processes: int = 3,
           plot_synthesized_regions: bool = False,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
     Train policies for all modes
+
+    * Set 'full_reset' to True to use reset() instead of end_to_end_reset()
+        as default sampling method.
+    * Set 'num_synth_iter' to 0 to not use synthesis (counterexample guided learning).
+        Optionally set 'dagger' to True to use dataset aggregation.
+    * When synthesis is enabled, optionally provide 'falsify_func' to be used
+        CE method to find bad states.
+    * 'abstract_synth_samples' denotes the number of states sampled from the synthesized
+        abstract states (using the corresponding sampling function of the domain).
     '''
 
     log_info = []

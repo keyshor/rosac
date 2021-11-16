@@ -220,10 +220,8 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         if (np.any(p1 >= params.partition_size) or np.any(p1 <= params.wall_size)) \
                 and (np.any(p2 >= params.partition_size) or np.any(p2 <= params.wall_size)):
             # p2 outside the room
-            if np.any(p2 <= 0.) or np.any(p2 >= params.full_size):
-                direction = self.compute_direction(s2)
-                return self.is_safe((self.change_of_coordinates(s1, direction),
-                                     self.change_of_coordinates(s2, direction)))
+            if np.any(p2 < 0.) or np.any(p2 > params.full_size):
+                return False
             # both states in door area
             else:
                 return True
@@ -277,21 +275,6 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
     def check_vertical_intersect(self, p1, p2, y):
         x = ((p2[0] - p1[0]) * (y - p1[1]) / (p2[1] - p1[1])) + p1[0]
         return (self.grid_params.hdoor[0] <= x and x <= self.grid_params.hdoor[1])
-
-    def compute_direction(self, s):
-        p = s + (self.grid_params.full_size / 2)
-        if p[0] <= 0.:
-            return 'left'
-        if p[0] >= self.grid_params.full_size[0]:
-            return 'right'
-        if p[1] <= 0.:
-            return 'down'
-        if p[1] >= self.grid_params.full_size[1]:
-            return 'up'
-        return None
-
-    def change_of_coordinates(self, s, direction):
-        return s - (2*self._get_goal(direction))
 
     def completed_task(self, s):
         p = s + (self.grid_params.full_size / 2)
