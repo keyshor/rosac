@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from gym import spaces
 from hybrid_gym.model import Mode
-from typing import List, Iterable, Tuple, Optional, NamedTuple, Type, TypeVar
+from typing import List, Iterable, Tuple, Optional, NamedTuple, Type, TypeVar, Any
 
 FloatPair = Tuple[float, float]
 
@@ -44,7 +44,8 @@ def first_true(arr: np.ndarray) -> int:
     # takes a 1-D boolean array and returns the position of the first True
     # returns -1 if all elements of arr are False
     try:
-        return np.nonzero(arr)[0][0]
+        arr_any: Any = arr
+        return np.nonzero(arr_any)[0][0]
     except IndexError:
         return -1
 
@@ -202,7 +203,7 @@ class LineSegments:
                    theta: float,
                    num_lidar_rays: int,
                    ) -> np.ndarray:
-        theta = np.linspace(
+        angles = np.linspace(
             start=theta - LIDAR_FIELD_OF_VIEW,
             stop=theta + LIDAR_FIELD_OF_VIEW,
             num=num_lidar_rays,
@@ -210,13 +211,13 @@ class LineSegments:
         )
         x_pt = self.seg_x2[:,np.newaxis] - x
         y_pt = self.seg_y2[:,np.newaxis] - y
-        determinant = self.diff_y * np.cos(theta) - self.diff_x * np.sin(theta)
+        determinant = self.diff_y * np.cos(angles) - self.diff_x * np.sin(angles)
         #print(f'seg_x2.shape = {self.seg_x2.shape}')
         #print(f'seg_y2.shape = {self.seg_y2.shape}')
         #print(f'x_pt.shape = {x_pt.shape}')
         #print(f'y_pt.shape = {y_pt.shape}')
         c = (self.diff_y * x_pt - self.diff_x * y_pt) / determinant
-        alpha = (y_pt * np.cos(theta) - x_pt * np.sin(theta)) / determinant
+        alpha = (y_pt * np.cos(angles) - x_pt * np.sin(angles)) / determinant
         segment_distances = np.where(
             (np.abs(determinant) > EPSILON) & (0 <= alpha) & (alpha <= 1) & (c > EPSILON),
             c, np.inf,
@@ -295,7 +296,7 @@ class Polyhedron:
 
     def contains(self, st: State) -> bool:
         vec = np.array([st.x, st.y, st.V, st.theta])
-        return np.all(self.A @ vec <= self.b)
+        return bool(np.all(self.A @ vec <= self.b))
 
 class F110ObstacleMode(Mode[State]):
     num_lidar_rays: int
@@ -340,6 +341,7 @@ class F110ObstacleMode(Mode[State]):
     observe_heading: bool
     mode_onehot: np.ndarray
     observe_previous_lidar: bool
+    observe_previous_lidar_avg: bool
 
     def __init__(self,
                  name: str,
@@ -375,6 +377,7 @@ class F110ObstacleMode(Mode[State]):
                  observe_heading: bool = False,
                  mode_onehot_indices: Optional[Tuple[int, int]] = None,
                  observe_previous_lidar: bool = False,
+                 observe_previous_lidar_avg: bool = False,
                  rng: np.random.Generator = np.random.default_rng(),
                  ) -> None:
         self.num_lidar_rays = num_lidar_rays
@@ -431,15 +434,21 @@ class F110ObstacleMode(Mode[State]):
         else:
             self.mode_onehot = np.zeros(shape=(0,), dtype=np.float32)
         self.observe_previous_lidar = observe_previous_lidar
-        lidar_obs_dim = (2 if observe_previous_lidar else 1) * num_lidar_rays
-        lidar_low = np.zeros(shape=(lidar_obs_dim,))
-        lidar_high = np.full(shape=(lidar_obs_dim,), fill_value=LIDAR_RANGE)
-        heading_low = np.array([-np.inf]) if self.observe_heading else np.zeros(shape=(0,))
-        heading_high = np.array([np.inf]) if self.observe_heading else np.zeros(shape=(0,))
-        onehot_low = np.full_like(self.mode_onehot, fill_value=0)
-        onehot_high = np.full_like(self.mode_onehot, fill_value=1)
-        obs_low = np.concatenate([lidar_low, heading_low, onehot_low])
-        obs_high = np.concatenate([lidar_high, heading_high, onehot_high])
+        self.observe_previous_lidar_avg = observe_previous_lidar
+        lidar_obs_dim = num_lidar_rays
+        lidar_low = np.zeros(shape=(lidar_obs_dim,), dtype=np.float32)
+        lidar_high = np.full(shape=(lidar_obs_dim,), fill_value=LIDAR_RANGE, dtype=np.float32)
+        prev_lidar_low = np.zeros(shape=(lidar_obs_dim,), dtype=np.float32) if self.observe_previous_lidar else np.zeros(shape=(0,), dtype=np.float32)
+        prev_lidar_high = np.full(shape=(lidar_obs_dim,), fill_value=LIDAR_RANGE, dtype=np.float32) if self.observe_previous_lidar else np.zeros(shape=(0,), dtype=np.float32)
+        prev_lidar_avg_low = np.array([0], dtype=np.float32) if self.observe_previous_lidar_avg else np.zeros(shape=(0,), dtype=np.float32)
+        prev_lidar_avg_high = np.array([LIDAR_RANGE], dtype=np.float32) if self.observe_previous_lidar_avg else np.zeros(shape=(0,), dtype=np.float32)
+        heading_low = np.array([-np.inf]) if self.observe_heading else np.zeros(shape=(0,), dtype=np.float32)
+        heading_high = np.array([np.inf]) if self.observe_heading else np.zeros(shape=(0,), dtype=np.float32)
+        mode_onehot_any: Any = self.mode_onehot
+        onehot_low = np.full_like(mode_onehot_any, fill_value=0, dtype=np.float32)
+        onehot_high = np.full_like(mode_onehot_any, fill_value=1, dtype=np.float32)
+        obs_low = np.concatenate([lidar_low, prev_lidar_low, prev_lidar_avg_low, heading_low, onehot_low])
+        obs_high = np.concatenate([lidar_high, prev_lidar_high, prev_lidar_avg_high, heading_high, onehot_high])
 
         super().__init__(
             name=name,
@@ -592,9 +601,11 @@ class F110ObstacleMode(Mode[State]):
         )
 
     def _observation_fn(self, st: State) -> np.ndarray:
+        prev_lidar_any: Any = st.prev_lidar
         return np.concatenate([
             st.cur_lidar,
             st.prev_lidar if self.observe_previous_lidar else np.zeros(shape=(0,), dtype=np.float32),
+            np.array([np.mean(prev_lidar_any)]) if self.observe_previous_lidar_avg else np.zeros(shape=(0,), dtype=np.float32),
             np.array([st.theta - st.start_theta], dtype=np.float32)
             if self.observe_heading else np.zeros(shape=(0,), dtype=np.float32),
             self.mode_onehot,

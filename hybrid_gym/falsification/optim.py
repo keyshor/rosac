@@ -68,6 +68,7 @@ def cem(f: Callable[[np.ndarray], Tuple[float, int]], X: AbstractState, mu: np.n
 def _get_truncnorm(mean, sd, low, high):
     a = (low-mean)/sd
     b = (high-mean)/sd
+    assert sd > 0, f'invalid standard deviation {sd}'
     if abs(a-b) < 1e-15:
         return norm(loc=mean, scale=0.)
     return truncnorm(a, b, loc=mean, scale=sd)

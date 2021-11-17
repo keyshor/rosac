@@ -411,7 +411,7 @@ class F110Mode(Mode[State]):
             outer_y=self.init_outer_y,
             inner_x=self.init_inner_x,
             inner_y=self.init_inner_y,
-            missing_indices=np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays),
+            missing_indices=list(np.random.choice(self.lidar_num_rays, self.cur_num_missing_rays)),
         )
         return self.init_state
 
@@ -566,7 +566,7 @@ class F110Mode(Mode[State]):
 
         # new_x = new_x[1]
         new_x = self.bicycle_dynamics_clf(
-            st=st, delta=np.float(np.radians(delta)), throttle=throttle,
+            st=st, delta=float(np.radians(delta)), throttle=throttle,
             is_right_turn=(self.turns[st.curHall] < 0), use_beta=False,
         )
 

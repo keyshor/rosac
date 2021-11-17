@@ -176,9 +176,9 @@ class MultiObjectEnv(robot_env.RobotEnv):
         ])
 
         return {
-            'observation': obs.copy(),
-            'achieved_goal': achieved_goal.copy(),
-            'desired_goal': self.goal.copy(),
+            'observation': np.array(obs.copy(), dtype=np.float32),
+            'achieved_goal': np.array(achieved_goal.copy(), dtype=np.float32),
+            'desired_goal': np.array(self.goal.copy(), dtype=np.float32),
         }
 
     def _viewer_setup(self) -> None:
@@ -290,7 +290,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
         self.sim.forward()
 
     def set_gripper_position(self, raw_gripper_target: np.ndarray) -> None:
-        gripper_target = raw_gripper_target + np.array([-0.0001, 0.0000, 0.0203])
+        gripper_target: np.ndarray = raw_gripper_target + np.array([-0.0001, 0.0000, 0.0203])
         gripper_rotation = np.array([1., 0., 1., 0.])
         self.sim.data.set_mocap_pos('robot0:mocap', gripper_target)
         self.sim.data.set_mocap_quat('robot0:mocap', gripper_rotation)
@@ -317,7 +317,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
     def make_goal_dict(self) -> Dict[str, np.ndarray]:
         desired_object_pos = [self.object_position(i) for i in range(self.num_objects)]
         if self.mode_type == ModeType.MOVE_WITH_OBJ:
-            desired_arm_position = self.top_tower_block_pos() \
+            desired_arm_position: np.ndarray = self.top_tower_block_pos() \
                 + np.array([0, 0, object_length + pick_height_offset])
             desired_finger_pos = np.full((2,), object_length / 2.0)
             desired_object_pos[self.next_obj_index] = desired_arm_position
@@ -402,8 +402,9 @@ class MultiObjectEnv(robot_env.RobotEnv):
             bool,
             Dict[str, Any]
     ]:
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        self._set_action(action)
+        action_any: Any = action
+        action_clip = np.clip(action_any, self.action_space.low, self.action_space.high)
+        self._set_action(action_clip)
         self.sim.step()
         self._step_callback()
         obs = self._get_obs()

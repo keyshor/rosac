@@ -109,7 +109,7 @@ class F110ObstacleTrans(Transition):
                 [dx, prev_dx],
                 [dy, prev_dy],
             ])
-            tgt_points = rot_matrix @ src_points
+            tgt_points: np.ndarray = rot_matrix @ src_points
             tgt_dx = tgt_points[0, 0]
             tgt_dy = tgt_points[1, 0]
             tgt_prev_dx = tgt_points[0, 1]

@@ -15,7 +15,7 @@ from hybrid_gym.selectors import UniformSelector, MaxJumpWrapper
 import matplotlib.pyplot as plt
 
 
-def eval_end_to_end(automaton, max_steps_in_mode, num_trials, save_path):
+def eval_end_to_end(automaton, max_steps_in_mode, num_trials, save_path, best_model):
 
     env = HybridEnv(
         automaton=automaton,
@@ -29,7 +29,8 @@ def eval_end_to_end(automaton, max_steps_in_mode, num_trials, save_path):
 
     controllers = {
         name: Sb3CtrlWrapper.load(
-            os.path.join(save_path, name, 'best_model.zip'),
+            os.path.join(save_path, name, 'best_model.zip') \
+            if best_model else os.path.join(save_path, f'{name}.td3'),
             algo_name='td3',
             env=env,
         )
@@ -80,11 +81,12 @@ def eval_end_to_end(automaton, max_steps_in_mode, num_trials, save_path):
         fig.savefig(f'trajectories_{m_name}.png')
 
 
-def eval_single(automaton, name, time_limit, num_trials, save_path):
+def eval_single(automaton, name, time_limit, num_trials, save_path, best_model):
     mode = automaton.modes[name]
     env = GymEnvWrapper(mode, automaton.transitions[name])
     controller = Sb3CtrlWrapper.load(
-        os.path.join(save_path, name, 'best_model.zip'),
+        os.path.join(save_path, name, 'best_model.zip') \
+        if best_model else os.path.join(save_path, f'{name}.td3'),
         algo_name='td3',
         env=env,
     )
@@ -145,10 +147,20 @@ if __name__ == '__main__':
                     help='number of trials for end-to-end evaluation')
     ap.add_argument('--mode-length', type=int, default=100,
                     help='maximum number of time-steps in each mode')
+    ap.add_argument('--no-best-model', action='store_true',
+                    help='load a model not saved by the "best model" callback')
     args = ap.parse_args()
 
     automaton = make_f110_blocked_model(use_throttle=not args.no_throttle, supplement_start_region=True)
     name = next(iter(automaton.modes.keys()))
-    eval_single(automaton, name, args.mode_length, args.num_single_trials, args.path)
+    eval_single(
+        automaton=automaton, name=name,
+        time_limit=args.mode_length, num_trials=args.num_single_trials,
+        save_path=args.path, best_model=not args.no_best_model,
+    )
     if args.num_e2e_trials > 0:
-        eval_end_to_end(automaton, args.mode_length, args.num_e2e_trials, args.path)
+        eval_end_to_end(
+            automaton=automaton,
+            max_steps_in_mode=args.mode_length, num_trials=args.num_e2e_trials,
+            save_path=args.path, best_model=not args.no_best_model,
+        )

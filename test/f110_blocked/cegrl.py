@@ -41,7 +41,7 @@ def run_f110(automaton: HybridEnv,
 
     falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()} \
         if procedure == 'falsify' else None
-    num_synth_iter = 15 if procedure == 'falsify' or procedure == 'synthesize' else 0
+    num_synth_iter = 15 if procedure == 'falsify' or procedure == 'cegrl' else 0
 
     pre = {}
     for m in automaton.modes:
@@ -50,6 +50,7 @@ def run_f110(automaton: HybridEnv,
             pre[m].extend(automaton.modes[m].reset())
 
     time_limits = {m: 50 for m in automaton.modes}
+    full_reset=(procedure == 'basic_large')
 
     controllers, log_info = cegrl(
         automaton, pre, time_limits,
@@ -66,7 +67,7 @@ def run_f110(automaton: HybridEnv,
         init_check_min_episode_length=10,
         use_best_model=use_best_model, save_path=save_path,
         dagger=(procedure == 'dagger'),
-        full_reset=False, plot_synthesized_regions=True)
+        full_reset=full_reset, plot_synthesized_regions=True)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
@@ -85,8 +86,6 @@ if __name__ == '__main__':
                     help='multiplier for number of iterations for each procedure')
     ap.add_argument('--num-runs', type=int, default=5,
                     help='number of runs for each procedure')
-    ap.add_argument('--big-start-region', action='store_true',
-                    help='use this flag to give the training algorithm a big start region')
     ap.add_argument('--best-model', action='store_true',
                     help='use this flag to evaluate the controller regularly and keep the best model')
     ap.add_argument('--all', action='store_true',
@@ -96,12 +95,14 @@ if __name__ == '__main__':
     ap.add_argument('procedures', type=str, nargs='*',
                     help='procedures for which controllers will be trained')
     args = ap.parse_args()
-    automaton = make_f110_blocked_model(use_throttle=not args.no_throttle, observe_heading=True, supplement_start_region=args.big_start_region)
-    procedure_list = ['basic', 'dagger', 'synthesis', 'falsify'] if args.all else args.procedures
+    automaton = make_f110_blocked_model(use_throttle=not args.no_throttle, observe_heading=True, supplement_start_region=True)
+    procedure_list = ['basic', 'dagger', 'cegrl', 'falsify', 'basic_large'] if args.all else args.procedures
     num_iter = dict(
         basic=5 * args.iter_scale,
-        dagger=3 * args.iter_scale,
-        falsify=2 * args.iter_scale,
+        dagger=4 * args.iter_scale,
+        cegrl=4 * args.iter_scale,
+        falsify=4 * args.iter_scale,
+        basic_large=5 * args.iter_scale,
     )
 
     for i in range(1, args.num_runs + 1):

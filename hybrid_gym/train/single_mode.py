@@ -390,8 +390,11 @@ def make_sb3_model_init_check(
             mode_info,
             algo_name=algo_name,
             policy=policy,
+            replay_buffer_class=replay_buffer_class,
             action_noise_scale=action_noise_scale,
             max_episode_steps=max_episode_steps,
+            reward_offset=reward_offset,
+            is_goal_env=is_goal_env,
             **kwargs,
         )
         init_ok = sb3_check_initialization(
