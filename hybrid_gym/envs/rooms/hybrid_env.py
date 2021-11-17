@@ -1,8 +1,9 @@
 from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.envs.rooms.mode import RoomsMode, GridParams
 from hybrid_gym.envs.rooms.transition import RoomsTrans
+from matplotlib import pyplot as plt
 
-DEFAULT_GRID_PARAMS = GridParams((8, 8), (2, 2), (3.75, 4.25), (3.75, 4.25))
+DEFAULT_GRID_PARAMS = GridParams((8, 8), (2, 2), (3, 5), (3, 5))
 
 
 def make_rooms_model(grid_params: GridParams = DEFAULT_GRID_PARAMS) -> HybridAutomaton:
@@ -10,3 +11,11 @@ def make_rooms_model(grid_params: GridParams = DEFAULT_GRID_PARAMS) -> HybridAut
     mode_dict = {m.name: m for m in modes}
     return HybridAutomaton(modes=modes, transitions=[
         RoomsTrans(source=m.name, modes=mode_dict) for m in modes])
+
+
+# Simple tests
+if __name__ == '__main__':
+
+    # visualize the room
+    DEFAULT_GRID_PARAMS.plot_room()
+    plt.show()

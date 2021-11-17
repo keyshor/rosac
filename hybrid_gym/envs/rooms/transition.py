@@ -21,5 +21,6 @@ class RoomsTrans(Transition):
             self.source_mode.is_safe(state)
 
     def jump(self, target: str, state: Tuple[Tuple, Tuple]) -> Tuple[Tuple, Tuple]:
-        s = self.source_mode.mode_transition(np.array(state[1]), self.source)
-        return (tuple(s), tuple(s))
+        s1 = self.source_mode.mode_transition(np.array(state[0]), self.source)
+        s2 = self.source_mode.mode_transition(np.array(state[1]), self.source)
+        return (tuple(s1), tuple(s2))

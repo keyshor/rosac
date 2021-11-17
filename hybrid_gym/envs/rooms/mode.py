@@ -4,6 +4,7 @@ import math
 
 from hybrid_gym.model import Mode
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
+from matplotlib import pyplot as plt
 from typing import Tuple
 
 
@@ -25,11 +26,14 @@ class GridParams:
         self.full_size = self.partition_size + self.wall_size
         self.hdoor = np.array(horizontal_door) + self.wall_size[0]
         self.vdoor = np.array(vertical_door) + self.wall_size[1]
+
+        # Following coordinates are wrt center of room as origin
         self.center_size = np.array([self.hdoor[1] - self.hdoor[0], self.vdoor[1] - self.vdoor[0]])
         self.center_start = np.array([self.hdoor[0], self.vdoor[0]]) - (self.full_size/2)
-        self.bd_size = np.array([self.center_size[0], self.wall_size[1]])
-        self.bd_point = np.array([self.hdoor[0], 0]) - (self.full_size/2)
+        self.bd_size = np.array([self.center_size[0], self.wall_size[1]/2])
+        self.bd_point = np.array([self.hdoor[0], self.wall_size[1]/2]) - (self.full_size/2)
         self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
+        self.exit_wall = self.full_size[0]/2  # + self.bd_size[0]/4
 
     def sample_full(self):
         if np.random.binomial(1, 0.75):
@@ -46,17 +50,98 @@ class GridParams:
     def sample_bottom_center(self):
         return (np.random.random_sample(2) * (self.bd_size/2)) + (self.bd_point + (self.bd_size/4))
 
+    def sample_bottom_strip(self):
+        return np.array([np.random.random_sample(1)[0] * (self.bd_size[0]/2) + self.bd_point[0]
+                         + self.bd_size[0]/2, self.bd_point[1] + self.wall_size[1]/2])
+
+    def plot_vertical_walls(self, N):
+        const_arr = np.ones((N,))
+
+        # walls
+        outer_walls = []
+        inner_walls = []
+        door_walls = []
+
+        # outer walls
+        outer_walls.append(np.linspace(0, self.vdoor[0], N))
+        outer_walls.append(np.linspace(self.vdoor[1], self.full_size[1], N))
+
+        # inner walls
+        inner_walls.append(np.linspace(self.wall_size[1], self.vdoor[0], N))
+        inner_walls.append(np.linspace(self.vdoor[1], self.partition_size[1], N))
+
+        # door walls
+        door_walls.append(np.linspace(0, self.wall_size[1], N))
+        door_walls.append(np.linspace(self.partition_size[1], self.full_size[1], N))
+
+        for w in outer_walls:
+            plt.plot(0*const_arr, w, color='black')
+            plt.plot(self.full_size[0]*const_arr, w, color='black')
+
+        for w in inner_walls:
+            plt.plot(self.wall_size[0]*const_arr, w, color='black')
+            plt.plot(self.partition_size[0]*const_arr, w, color='black')
+
+        for w in door_walls:
+            plt.plot(self.hdoor[0]*const_arr, w, color='black')
+            plt.plot(self.hdoor[1]*const_arr, w, color='black')
+
+    def plot_horizontal_walls(self, N):
+        const_arr = np.ones((N,))
+
+        # walls
+        outer_walls = []
+        inner_walls = []
+        door_walls = []
+
+        # outer walls
+        outer_walls.append(np.linspace(0, self.hdoor[0], N))
+        outer_walls.append(np.linspace(self.hdoor[1], self.full_size[0], N))
+
+        # inner walls
+        inner_walls.append(np.linspace(self.wall_size[0], self.hdoor[0], N))
+        inner_walls.append(np.linspace(self.hdoor[1], self.partition_size[0], N))
+
+        # door walls
+        door_walls.append(np.linspace(0, self.wall_size[0], N))
+        door_walls.append(np.linspace(self.partition_size[0], self.full_size[0], N))
+
+        for w in outer_walls:
+            plt.plot(w, 0*const_arr, color='black')
+            plt.plot(w, self.full_size[1]*const_arr, color='black')
+
+        for w in inner_walls:
+            plt.plot(w, self.wall_size[1]*const_arr, color='black')
+            plt.plot(w, self.partition_size[1]*const_arr, color='black')
+
+        for w in door_walls:
+            plt.plot(w, self.vdoor[0]*const_arr, color='black')
+            plt.plot(w, self.vdoor[1]*const_arr, color='black')
+
+    def plot_room(self):
+        N = 10000
+        ax = plt.gca()
+        ax.set_aspect(1)
+        self.plot_vertical_walls(N)
+        self.plot_horizontal_walls(N)
+
+        # exit obstacle
+        obstacle = np.linspace(self.hdoor[0], self.exit_wall, N)
+        plt.plot(obstacle, np.ones((N,))*self.wall_size[1], color='red')
+
 
 class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
-    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = False):
+    def __init__(self, grid_params: GridParams, name: str, bottom_start: bool = True):
         self.grid_params = grid_params
         self.bottom_start = bottom_start
         self._goal = self._get_goal(name)
         self._reward_scale = np.mean(self.grid_params.partition_size)
 
         # Compute scaling of action for normalization
-        max_vel = np.amin(self.grid_params.wall_size) / 2
+        max_vel1 = np.amin(self.grid_params.wall_size) / 2
+        max_vel2 = np.amin(self.grid_params.center_size) / 2
+        max_vel = min(max_vel1, max_vel2)
         self.action_scale = np.array([max_vel, np.pi/2])
 
         # Define action space
@@ -79,7 +164,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def end_to_end_reset(self):
         if self.bottom_start:
-            pos = tuple(self.grid_params.sample_bottom_center())
+            pos = tuple(self.grid_params.sample_bottom_strip())
         else:
             pos = tuple(self.grid_params.sample_center())
         return (pos, pos)
@@ -135,10 +220,8 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         if (np.any(p1 >= params.partition_size) or np.any(p1 <= params.wall_size)) \
                 and (np.any(p2 >= params.partition_size) or np.any(p2 <= params.wall_size)):
             # p2 outside the room
-            if np.any(p2 <= 0.) or np.any(p2 >= params.full_size):
-                direction = self.compute_direction(s2)
-                return self.is_safe((self.change_of_coordinates(s1, direction),
-                                     self.change_of_coordinates(s2, direction)))
+            if np.any(p2 < 0.) or np.any(p2 > params.full_size):
+                return False
             # both states in door area
             else:
                 return True
@@ -178,7 +261,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             if p1[1] < self.grid_params.wall_size[1] and p2[1] >= self.grid_params.wall_size[1]:
                 x = ((p2[0] - p1[0]) * (self.grid_params.wall_size[1] - p1[1]) / (p2[1] - p1[1])) \
                     + p1[0]
-                return x < (self.grid_params.full_size[0]/2 - self.grid_params.center_size[0]/4)
+                return x < self.grid_params.exit_wall
         return False
 
     # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
@@ -193,30 +276,15 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         x = ((p2[0] - p1[0]) * (y - p1[1]) / (p2[1] - p1[1])) + p1[0]
         return (self.grid_params.hdoor[0] <= x and x <= self.grid_params.hdoor[1])
 
-    def compute_direction(self, s):
-        p = s + (self.grid_params.full_size / 2)
-        if p[0] <= 0.:
-            return 'left'
-        if p[0] >= self.grid_params.full_size[0]:
-            return 'right'
-        if p[1] <= 0.:
-            return 'down'
-        if p[1] >= self.grid_params.full_size[1]:
-            return 'up'
-        return None
-
-    def change_of_coordinates(self, s, direction):
-        return s - (2*self._get_goal(direction))
-
     def completed_task(self, s):
         p = s + (self.grid_params.full_size / 2)
-        if p[0] < self.grid_params.wall_size[0]:
+        if p[0] < self.grid_params.wall_size[0] / 2:
             return 'left'
-        if p[0] > self.grid_params.partition_size[0]:
+        if p[0] > self.grid_params.partition_size[0] + self.grid_params.wall_size[0] / 2:
             return 'right'
-        if p[1] < self.grid_params.wall_size[1]:
+        if p[1] < self.grid_params.wall_size[1] / 2:
             return 'down'
-        if p[1] > self.grid_params.partition_size[1]:
+        if p[1] > self.grid_params.partition_size[1] + self.grid_params.wall_size[1] / 2:
             return 'up'
         return None
 
@@ -233,8 +301,9 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
     def get_init_pre(self):
         if self.bottom_start:
-            low = self.grid_params.bd_point + (self.grid_params.bd_size/4)
-            high = low + (self.grid_params.bd_size/2)
+            low = self.grid_params.bd_point + \
+                np.array([self.grid_params.bd_size[0]/2, self.grid_params.wall_size[1]/2])
+            high = low + np.array([self.grid_params.bd_size[0]/2, 0])
         else:
             low = self.grid_params.center_start
             high = low + self.grid_params.center_size
@@ -253,4 +322,4 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             goal = [0, -1]
         else:
             raise ValueError('Invalid mode name/direction!')
-        return np.array(goal) * (self.grid_params.partition_size/2)
+        return np.array(goal) * (self.grid_params.full_size/2)

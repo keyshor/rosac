@@ -7,9 +7,9 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 from matplotlib import pyplot as plt
 from hybrid_gym.util.io import parse_command_line_options, plot_learning_curve, save_plot
 
-ALGO_NAMES = ['basic', 'dagger', 'falsify', 'cegrl', 'basic_large']
-COLORS = ['pink', 'blue', 'green', 'orange', 'red']
-NUM_RUNS = 2
+ALGO_NAMES = ['basic', 'dagger', 'falsify', 'synthesis']
+COLORS = ['pink', 'blue', 'green', 'orange']
+NUM_RUNS = 5
 
 
 if __name__ == '__main__':

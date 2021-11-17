@@ -61,23 +61,32 @@ def cegrl(automaton: HybridAutomaton,
           num_synth_iter: int = 10,
           n_synth_samples: int = 50,
           abstract_synth_samples: int = 0,
-          num_falsification_iter: int = 100,
+          num_falsification_iter: int = 200,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
           falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
-          sb3_train_kwargs: Dict[str, Any] = dict(),
-          init_check_train_timesteps: int = 1000,
+          dagger: bool = False,
+          full_reset: bool = False,
           init_check_min_reward: float = -np.inf,
           init_check_min_episode_length: float = 0.0,
+          init_check_train_timesteps: int = 1000,
           init_check_eval_episodes: int = 100,
-          full_reset: bool = False,
-          dagger: bool = False,
+          sb3_train_kwargs: Dict[str, Any] = dict(),
           num_sb3_processes: int = 3,
           plot_synthesized_regions: bool = False,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
     Train policies for all modes
+
+    * Set 'full_reset' to True to use reset() instead of end_to_end_reset()
+        as default sampling method.
+    * Set 'num_synth_iter' to 0 to not use synthesis (counterexample guided learning).
+        Optionally set 'dagger' to True to use dataset aggregation.
+    * When synthesis is enabled, optionally provide 'falsify_func' to be used
+        CE method to find bad states.
+    * 'abstract_synth_samples' denotes the number of states sampled from the synthesized
+        abstract states (using the corresponding sampling function of the domain).
     '''
 
     log_info = []
@@ -153,7 +162,6 @@ def cegrl(automaton: HybridAutomaton,
                     **sb3_train_kwargs,
                 )
 
-
         if algo_name == 'ars':
             for g in range(len(mode_groups)):
                 while True:
@@ -189,7 +197,7 @@ def cegrl(automaton: HybridAutomaton,
         # evaluating controllers
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
         mcts_prob, _ = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
-                                 mcts_rollouts=500, eval_rollouts=100)
+                                 mcts_rollouts=2000, eval_rollouts=100)
         rs_prob, collected_states = random_selector_eval(automaton, mode_controllers, time_limits,
                                                          max_jumps=max_jumps, eval_rollouts=100)
         log_info.append([steps_taken, rs_prob, mcts_prob])
