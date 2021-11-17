@@ -322,4 +322,4 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             goal = [0, -1]
         else:
             raise ValueError('Invalid mode name/direction!')
-        return np.array(goal) * (self.grid_params.full_size/2)
+        return np.array(goal) * (self.grid_params.partition_size / 2)
