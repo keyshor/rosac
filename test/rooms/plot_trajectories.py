@@ -57,4 +57,4 @@ def plot_trajectories(automaton, name, path):
 if __name__ == '__main__':
     flags = parse_command_line_options()
     automaton = make_rooms_model()
-    plot_trajectories(automaton, 'left', flags['path'])
+    plot_trajectories(automaton, flags['mode'], flags['path'])

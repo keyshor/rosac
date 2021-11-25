@@ -33,7 +33,9 @@ class GridParams:
         self.bd_size = np.array([self.center_size[0], self.wall_size[1]/2])
         self.bd_point = np.array([self.hdoor[0], self.wall_size[1]/2]) - (self.full_size/2)
         self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
-        self.exit_wall = self.full_size[0]/2  # + self.bd_size[0]/4
+        self.exit_wall_size = self.bd_size[0]/2
+        self.exit_opening_size = self.bd_size[0] - self.exit_wall_size
+        self.exit_wall = self.hdoor[0] + self.exit_wall_size
 
     def sample_full(self):
         if np.random.binomial(1, 0.75):
@@ -51,8 +53,8 @@ class GridParams:
         return (np.random.random_sample(2) * (self.bd_size/2)) + (self.bd_point + (self.bd_size/4))
 
     def sample_bottom_strip(self):
-        return np.array([np.random.random_sample(1)[0] * (self.bd_size[0]/2) + self.bd_point[0]
-                         + self.bd_size[0]/2, self.bd_point[1] + self.wall_size[1]/2])
+        return np.array([np.random.random_sample(1)[0] * (self.exit_opening_size) + self.bd_point[0]
+                         + self.exit_wall_size, self.bd_point[1] + self.wall_size[1]/2])
 
     def plot_vertical_walls(self, N):
         const_arr = np.ones((N,))
@@ -302,8 +304,8 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
     def get_init_pre(self):
         if self.bottom_start:
             low = self.grid_params.bd_point + \
-                np.array([self.grid_params.bd_size[0]/2, self.grid_params.wall_size[1]/2])
-            high = low + np.array([self.grid_params.bd_size[0]/2, 0])
+                np.array([self.grid_params.exit_wall_size, self.grid_params.wall_size[1]/2])
+            high = low + np.array([self.grid_params.exit_opening_size, 0])
         else:
             low = self.grid_params.center_start
             high = low + self.grid_params.center_size
