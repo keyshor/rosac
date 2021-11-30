@@ -10,5 +10,5 @@ sb3-contrib
 tensorflow<2.0.0
 scikit-learn
 mpi4py
-git+https://github.com/openai/mujoco-py
+mujoco_py>=2.1.0
 torch
