@@ -44,7 +44,8 @@ def run_cegrl(automaton: HybridAutomaton,
 
     falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()} \
         if procedure == 'falsify' else None
-    num_synth_iter = 15 if procedure == 'falsify' or procedure == 'cegrl' else 0
+    #num_synth_iter = 15 if procedure == 'falsify' or procedure == 'cegrl' else 0
+    num_synth_iter = 10 if procedure == 'falsify' or procedure == 'cegrl' else 0
 
     pre = {}
     for m in automaton.modes:
@@ -60,6 +61,7 @@ def run_cegrl(automaton: HybridAutomaton,
         automaton, pre, time_limits, mode_groups=mode_groups,
         algo_name='tqc', policy='MultiInputPolicy',
         num_iter=num_iter, num_synth_iter=num_synth_iter, abstract_synth_samples=0,
+        num_falsification_iter=50,
         falsify_func=falsify_func,
         gamma=0.95, buffer_size=1000000,
         batch_size=2048, learning_rate=0.001,
