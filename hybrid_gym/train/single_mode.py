@@ -36,6 +36,8 @@ from hybrid_gym.util.wrappers import (
 )
 
 from hybrid_gym.rl.ars import NNParams, ARSParams, ARSModel
+from hybrid_gym.rl.ddpg import DDPG as MyDDPG
+from hybrid_gym.rl.ddpg import DDPGParams
 
 
 # BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
@@ -459,6 +461,13 @@ def make_ars_model(
     return ARSModel(nn_params, ars_params, use_gpu=use_gpu)
 
 
+def make_ddpg_model(
+        ddpg_params: DDPGParams,
+        use_gpu: bool = False,
+        **kwargs) -> MyDDPG:
+    return MyDDPG(ddpg_params, use_gpu)
+
+
 def learn_ars_model(model: ARSModel,
                     raw_mode_info: List[Tuple[
                         Mode[StateType],
@@ -478,6 +487,17 @@ def learn_ars_model(model: ARSModel,
     return log_info
 
 
+def learn_ddpg_model(model: MyDDPG,
+                     raw_mode_info: List[Tuple[
+                         Mode[StateType],
+                         Iterable[Transition],
+                         Optional[Callable[[], StateType]],
+                         Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                     ]]) -> None:
+    env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
+    return model.train(env_list)
+
+
 def parallel_ars(model, mode_info, save_path, ret_queue, req_queue, verbose, use_gpu):
     if use_gpu:
         model.gpu()
@@ -486,3 +506,14 @@ def parallel_ars(model, mode_info, save_path, ret_queue, req_queue, verbose, use
         model.cpu()
     while req_queue.get() is not None:
         ret_queue.put((model, log_info[-1][0]))
+
+
+def parallel_ddpg(model, mode_info, ret_queue, req_queue, use_gpu):
+    # For now does not support best policy computation
+    if use_gpu:
+        model.set_use_gpu()
+    steps = learn_ddpg_model(model, mode_info)
+    if use_gpu:
+        model.set_use_cpu()
+    while req_queue.get() is not None:
+        ret_queue.put((model, steps))
