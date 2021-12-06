@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 
 
 def parse_command_line_options(print_options=False):
-    optval = getopt.getopt(sys.argv[1:], 'n:d:a:m:fbstrgc', [])
+    optval = getopt.getopt(sys.argv[1:], 'n:d:a:m:fbstrgci', [])
     itno = -1
     path = '.'
     falsify = False
@@ -16,6 +16,7 @@ def parse_command_line_options(print_options=False):
     synthesize = False
     no_throttle = False
     render = False
+    inductive_ce = False
     abstract_samples = 0
     use_gpu = False
     dagger = False
@@ -43,6 +44,8 @@ def parse_command_line_options(print_options=False):
             use_gpu = True
         if option[0] == '-m':
             mode = option[1]
+        if option[0] == '-i':
+            inductive_ce = True
     if itno != -1:
         path = os.path.join(path, 'run{}'.format(itno))
     flags = {'path': path,
@@ -54,7 +57,8 @@ def parse_command_line_options(print_options=False):
              'abstract_samples': abstract_samples,
              'gpu': use_gpu,
              'dagger': dagger,
-             'mode': mode}
+             'mode': mode,
+             'inductive_ce': inductive_ce}
     if print_options:
         print('**** Command Line Options ****')
         for key in flags:

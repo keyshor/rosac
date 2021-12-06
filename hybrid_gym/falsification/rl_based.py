@@ -256,23 +256,27 @@ class MCTS_Selector(ModeSelector):
     env: SelectorEnv
     mname: str
 
-    def __init__(self, root: MCTS_Node, env: SelectorEnv):
+    def __init__(self, root: MCTS_Node, env: SelectorEnv, max_jumps: int):
         self.root = root
         self.env = env
+        self.max_jumps = max_jumps
 
     def next_mode(self, transition: Transition, state: Any) -> Tuple[str, bool]:
         if self.node.children is None:
-            return self.mname, True
-        mode_idx = self.node.get_best_child()
-        self.node = self.node.children[mode_idx]
-        mode_idx = mode_idx % len(transition.targets)
-        self.mname = transition.targets[mode_idx]
-        return self.mname, False
+            self.mname = random.choice(transition.targets)
+        else:
+            mode_idx = self.node.get_best_child()
+            self.node = self.node.children[mode_idx]
+            mode_idx = mode_idx % len(transition.targets)
+            self.mname = transition.targets[mode_idx]
+        self.jumps += 1
+        return self.mname, self.jumps > self.max_jumps
 
     def reset(self) -> str:
         mode_idx = self.root.get_best_child()
         self.mname = self.env.init_transition.targets[mode_idx]
         self.node = self.root.children[mode_idx]
+        self.jumps = 0
         return self.mname
 
 
@@ -352,4 +356,4 @@ def mcts_adversary(automaton: HybridAutomaton,
 
     print('Completed MCTS in {} secs'.format(time.time() - start_time))
     # return mcts based selector
-    return MCTS_Selector(root, env)
+    return MCTS_Selector(root, env, max_jumps)

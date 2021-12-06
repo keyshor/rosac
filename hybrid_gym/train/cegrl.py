@@ -61,6 +61,7 @@ def cegrl(automaton: HybridAutomaton,
           num_synth_iter: int = 10,
           n_synth_samples: int = 50,
           abstract_synth_samples: int = 0,
+          inductive_ce: bool = False,
           num_falsification_iter: int = 200,
           num_falsification_samples: int = 20,
           num_falsification_top_samples: int = 10,
@@ -197,7 +198,7 @@ def cegrl(automaton: HybridAutomaton,
         # evaluating controllers
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
         mcts_prob, _ = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
-                                 mcts_rollouts=2000, eval_rollouts=100)
+                                 mcts_rollouts=500, eval_rollouts=100)
         rs_prob, collected_states = random_selector_eval(automaton, mode_controllers, time_limits,
                                                          max_jumps=max_jumps, eval_rollouts=100)
         log_info.append([steps_taken, rs_prob, mcts_prob])
@@ -208,7 +209,7 @@ def cegrl(automaton: HybridAutomaton,
             pre_copy = {name: astate.copy() for name, astate in pre.items()}
             ces, steps = synthesize(automaton, mode_controllers, pre_copy, time_limits,
                                     num_synth_iter, n_synth_samples, abstract_synth_samples,
-                                    print_debug)
+                                    print_debug, inductive_ce=inductive_ce)
             steps_taken += steps
 
             if falsify_func is not None:
