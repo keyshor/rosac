@@ -42,9 +42,9 @@ if __name__ == '__main__':
     num_synth_iter = 0
     if flags['falsify']:
         falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()}
-        num_synth_iter = 15
+        num_synth_iter = 5
     if flags['synthesize']:
-        num_synth_iter = 15
+        num_synth_iter = 5
     use_full_reset = (not flags['dagger']) and (num_synth_iter == 0)
 
     nn_params = NNParams(2, 2, 1.0, 32)
@@ -62,7 +62,7 @@ if __name__ == '__main__':
                                   use_best_model=flags['best'], falsify_func=falsify_func,
                                   save_path=flags['path'], algo_name='my_ddpg', nn_params=nn_params,
                                   ars_params=ars_params, ddpg_params=ddpg_params, use_gpu=flags['gpu'],
-                                  max_jumps=15, dagger=flags['dagger'], full_reset=use_full_reset,
+                                  max_jumps=5, dagger=flags['dagger'], full_reset=use_full_reset,
                                   inductive_ce=flags['inductive_ce'])
 
     # save the controllers
