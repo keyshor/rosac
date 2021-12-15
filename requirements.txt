@@ -7,8 +7,7 @@ git+https://github.com/numpy/numpy-stubs.git
 stable-baselines[mpi]
 stable-baselines3
 sb3-contrib
-tensorflow<2.0.0
 scikit-learn
 mpi4py
-mujoco_py>=2.1.0
+mujoco-py<2.2,>=2.1
 torch

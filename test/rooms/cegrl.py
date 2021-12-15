@@ -48,7 +48,7 @@ if __name__ == '__main__':
     use_full_reset = (not flags['dagger']) and (num_synth_iter == 0)
 
     nn_params = NNParams(2, 2, 1.0, 32)
-    ars_params = ARSParams(300, 30, 15, 0.05, 0.3, 0.95, 25)
+    ars_params = ARSParams(500, 30, 15, 0.05, 0.3, 0.95, 25)
     action_bound = np.ones((2,))
     ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.01, critic_lr=0.003, minibatch_size=64,
                              num_episodes=500, buffer_size=100000, discount=0.95,
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=300, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], falsify_func=falsify_func,
-                                  save_path=flags['path'], algo_name='my_ddpg', nn_params=nn_params,
+                                  save_path=flags['path'], algo_name='ars', nn_params=nn_params,
                                   ars_params=ars_params, ddpg_params=ddpg_params, use_gpu=flags['gpu'],
                                   max_jumps=5, dagger=flags['dagger'], full_reset=use_full_reset,
                                   inductive_ce=flags['inductive_ce'])
