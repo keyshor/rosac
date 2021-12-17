@@ -19,6 +19,7 @@ import numpy as np
 import random
 import os
 import matplotlib.pyplot as plt
+import multiprocessing as mp
 
 
 class ResetFunc:
@@ -93,6 +94,7 @@ def cegrl(automaton: HybridAutomaton,
 
     log_info = []
     steps_taken = 0
+    mp.set_start_method('spawn')
 
     # define reset functions
     reset_funcs = {name: ResetFunc(mode, full_reset=full_reset)

@@ -50,7 +50,7 @@ class DDPGParams:
                  action_bound,
                  actor_lr=0.0001,
                  critic_lr=0.001,
-                 minibatch_size=100,
+                 minibatch_size=128,
                  num_episodes=10000,
                  mu=0,
                  sigma=0.1,
@@ -341,5 +341,5 @@ if __name__ == '__main__':
                         steps_per_update=100, gradients_per_update=100,
                         discount=0.95)
     agent = DDPG(params)
-    agent.train(env)
+    agent.train([env])
     get_rollout(env, agent.get_policy(), True)
