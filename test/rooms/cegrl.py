@@ -57,10 +57,10 @@ if __name__ == '__main__':
                              actor_hidden_dim=32, critic_hidden_dim=32, max_timesteps=25,
                              test_max_timesteps=25, sigma=0.2)
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=300, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=500, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], falsify_func=falsify_func,
-                                  save_path=flags['path'], algo_name='ddpg', nn_params=nn_params,
+                                  save_path=flags['path'], algo_name='my_ddpg', nn_params=nn_params,
                                   ars_params=ars_params, ddpg_params=ddpg_params, use_gpu=flags['gpu'],
                                   max_jumps=5, dagger=flags['dagger'], full_reset=use_full_reset,
                                   inductive_ce=flags['inductive_ce'])
