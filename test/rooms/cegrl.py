@@ -34,6 +34,8 @@ if __name__ == '__main__':
     if not os.path.exists(flags['path']):
         os.makedirs(flags['path'])
 
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(flags['gpu_num'])
+
     automaton = make_rooms_model()
     pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
     time_limits = {m: 25 for m in automaton.modes}

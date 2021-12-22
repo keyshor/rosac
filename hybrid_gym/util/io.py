@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 
 
 def parse_command_line_options(print_options=False):
-    optval = getopt.getopt(sys.argv[1:], 'n:d:a:m:fbstrgci', [])
+    optval = getopt.getopt(sys.argv[1:], 'n:d:a:v:m:fbstrgci', [])
     itno = -1
     path = '.'
     falsify = False
@@ -21,9 +21,12 @@ def parse_command_line_options(print_options=False):
     use_gpu = False
     dagger = False
     mode = ''
+    gpu_num = 0
     for option in optval[0]:
         if option[0] == '-n':
             itno = int(option[1])
+        if option[0] == '-v':
+            gpu_num = int(option[1])
         if option[0] == '-d':
             path = option[1]
         if option[0] == '-s':
@@ -49,6 +52,7 @@ def parse_command_line_options(print_options=False):
     if itno != -1:
         path = os.path.join(path, 'run{}'.format(itno))
     flags = {'path': path,
+             'gpu_num': gpu_num,
              'synthesize': synthesize,
              'falsify': falsify,
              'best': use_best,
