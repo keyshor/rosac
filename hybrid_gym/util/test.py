@@ -15,6 +15,9 @@ def get_rollout(mode: Mode, transitions: List[Transition], controller: Controlle
     if state is None:
         state = mode.reset()
 
+    if render:
+        mode.render(state)
+
     sass = []
     info: Dict[str, Any] = {'safe': True, 'jump': None}
 

@@ -270,7 +270,7 @@ class MCTS_Selector(ModeSelector):
             mode_idx = mode_idx % len(transition.targets)
             self.mname = transition.targets[mode_idx]
         self.jumps += 1
-        return self.mname, self.jumps > self.max_jumps
+        return self.mname, self.jumps >= self.max_jumps
 
     def reset(self) -> str:
         mode_idx = self.root.get_best_child()

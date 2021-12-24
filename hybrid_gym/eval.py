@@ -25,9 +25,10 @@ def mcts_eval(automaton: HybridAutomaton,
               max_jumps: int = 10,
               mcts_rollouts: int = 500,
               eval_rollouts: int = 100,
-              print_debug: bool = False):
+              print_debug: bool = False,
+              render: bool = False):
     selector = mcts_adversary(automaton, controllers, time_limits, max_jumps=max_jumps,
                               num_rollouts=mcts_rollouts, print_debug=print_debug)
     return end_to_end_test(automaton, selector, controllers, time_limits,
                            num_rollouts=eval_rollouts, max_jumps=max_jumps,
-                           print_debug=print_debug)
+                           print_debug=print_debug, render=render)
