@@ -493,7 +493,7 @@ def learn_ddpg_model(model: MyDDPG,
                          Iterable[Transition],
                          Optional[Callable[[], StateType]],
                          Optional[Callable[[StateType, np.ndarray, StateType], float]],
-                     ]]) -> None:
+                     ]]) -> int:
     env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
     return model.train(env_list)
 

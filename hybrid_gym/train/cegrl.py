@@ -4,7 +4,7 @@ CounterExample Guided Reinforcement Learning
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
 from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
-                                          make_ars_model, parallel_ars, parallel_ddpg,
+                                          make_ars_model, parallel_ars, learn_ddpg_model,
                                           make_ddpg_model)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
@@ -19,7 +19,6 @@ import numpy as np
 import random
 import os
 import matplotlib.pyplot as plt
-import multiprocessing as mp
 
 
 class ResetFunc:
@@ -94,7 +93,6 @@ def cegrl(automaton: HybridAutomaton,
 
     log_info = []
     steps_taken = 0
-    mp.set_start_method('spawn')
 
     # define reset functions
     reset_funcs = {name: ResetFunc(mode, full_reset=full_reset)
@@ -144,15 +142,15 @@ def cegrl(automaton: HybridAutomaton,
         print('\n**** Iteration {} ****'.format(i))
 
         # parallelize learning
-        if algo_name == 'ars' or algo_name == 'my_ddpg':
+        if algo_name == 'ars':
             ret_queues: List[Queue] = []
             req_queues: List[Queue] = []
             processes = []
 
         # train agents
         for g in range(len(mode_groups)):
+            print('\n---- Training controller for modes {} ----'.format(group_names[g]))
             if algo_name == 'ars':
-                print('\n---- Training controller for modes {} ----'.format(group_names[g]))
                 ret_queues.append(Queue())
                 req_queues.append(Queue())
                 if use_gpu:
@@ -161,14 +159,7 @@ def cegrl(automaton: HybridAutomaton,
                     group_info[g]), save_path, ret_queues[g], req_queues[g], print_debug, use_gpu)))
                 processes[g].start()
             elif algo_name == 'my_ddpg':
-                print('\n---- Training controller for modes {} ----'.format(group_names[g]))
-                ret_queues.append(Queue())
-                req_queues.append(Queue())
-                if use_gpu:
-                    models[g].set_use_cpu()
-                processes.append(Process(target=parallel_ddpg, args=(models[g], list(
-                    group_info[g]), ret_queues[g], req_queues[g], use_gpu)))
-                processes[g].start()
+                steps_taken += learn_ddpg_model(models[g], list(group_info[g]))
             else:
                 steps_taken += train_sb3(
                     model=models[g],
@@ -181,17 +172,14 @@ def cegrl(automaton: HybridAutomaton,
                 )
 
         # retrieve new controllers
-        if algo_name == 'ars' or algo_name == 'my_ddpg':
+        if algo_name == 'ars':
             for g in range(len(mode_groups)):
                 while True:
                     try:
                         req_queues[g].put(1)
                         models[g], steps = ret_queues[g].get()
                         if use_gpu:
-                            if algo_name == 'ars':
-                                models[g].gpu()
-                            else:
-                                models[g].set_use_gpu()
+                            models[g].gpu()
                         break
                     except RuntimeError:
                         print('Runtime Error occured while retrieving policy! Retrying...')
@@ -201,16 +189,13 @@ def cegrl(automaton: HybridAutomaton,
                 req_queues[g].put(None)
                 processes[g].join()
 
-                if use_best_model and algo_name == 'ars':
+                if use_best_model:
                     nn_policy = NNPolicy.load(group_names[g][0], save_path, **kwargs)
                     models[g].nn_policy = nn_policy
 
-                if algo_name == 'ars':
-                    controllers[g] = models[g].nn_policy
-                else:
-                    controllers[g] = models[g].get_policy()
+                controllers[g] = models[g].nn_policy
                 steps_taken += steps
-        else:
+        elif algo_name != 'my_ddpg':
             if use_best_model:
                 for g in range(len(mode_groups)):
                     ctrl = Sb3CtrlWrapper.load(
