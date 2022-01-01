@@ -33,7 +33,7 @@ class GridParams:
         self.bd_size = np.array([self.center_size[0], self.wall_size[1]/2])
         self.bd_point = np.array([self.hdoor[0], self.wall_size[1]/2]) - (self.full_size/2)
         self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
-        self.exit_wall_size = self.bd_size[0]/3
+        self.exit_wall_size = self.bd_size[0]/2
         self.exit_opening_size = self.bd_size[0] - self.exit_wall_size
         self.exit_wall = self.hdoor[0] + self.exit_wall_size
 
