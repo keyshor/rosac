@@ -206,11 +206,12 @@ def cegrl(automaton: HybridAutomaton,
 
         # evaluating controllers
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
-        mcts_prob, _ = mcts_eval(automaton, mode_controllers, time_limits, max_jumps=max_jumps,
-                                 mcts_rollouts=500, eval_rollouts=100)
-        rs_prob, collected_states = random_selector_eval(automaton, mode_controllers, time_limits,
-                                                         max_jumps=max_jumps, eval_rollouts=100)
-        log_info.append([steps_taken, rs_prob, mcts_prob])
+        mcts_prob, mcts_avg_jmps, _ = mcts_eval(
+            automaton, mode_controllers, time_limits, max_jumps=max_jumps, mcts_rollouts=1000,
+            eval_rollouts=100)
+        rs_prob, avg_jmps, collected_states = random_selector_eval(
+            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=100)
+        log_info.append([steps_taken, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
 
         # synthesis
         if num_synth_iter > 0:
