@@ -3,6 +3,7 @@ Utility functions for testing/simulation.
 '''
 from hybrid_gym.model import Mode, Transition, Controller, ModeSelector
 from hybrid_gym.hybrid_env import HybridAutomaton
+from hybrid_gym.rl.util import discounted_reward
 from typing import List, Any, Dict, Union
 
 
@@ -54,7 +55,7 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                     controller: Union[Controller, Dict[str, Controller]],
                     time_limits: Dict[str, int], num_rollouts: int = 100,
                     max_jumps: int = 100, print_debug: bool = False,
-                    render: bool = False):
+                    render: bool = False, gamma: float = 0.95):
     '''
     Measure success of trained controllers w.r.t. a given mode selector.
     Success only when selector signals completion (returns done).
@@ -91,6 +92,7 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                                       cur_controller, state, time_limits[mname],
                                       reset_controller=(not isinstance(controller, Controller)),
                                       render=render)
+            collected_states[mname].append((state, discounted_reward(sarss, gamma)))
             steps += len(sarss)
 
             # terminate rollout if unsafe
@@ -110,7 +112,6 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
             # update start state
             if not done:
                 state = info['jump'].jump(mname, sarss[-1][-1])
-                collected_states[mname].append(state)
                 num_jumps += 1
 
             # count success

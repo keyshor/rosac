@@ -7,6 +7,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 # flake8: noqa
 from hybrid_gym import Controller
 from hybrid_gym.envs import make_rooms_model
+from hybrid_gym.envs.rooms.mode import RewardFunc
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
 from hybrid_gym.util.io import parse_command_line_options, save_log_info
@@ -42,6 +43,7 @@ if __name__ == '__main__':
     pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
     time_limits = {m: 25 for m in automaton.modes}
 
+    # state distribution update
     falsify_func = None
     num_synth_iter = 0
     if flags['falsify']:
@@ -51,8 +53,13 @@ if __name__ == '__main__':
         num_synth_iter = MAX_JUMPS
     use_full_reset = (not flags['dagger']) and (num_synth_iter == 0)
 
+    # reward update
+    reward_funcs = None
+    if flags['dynamic_rew']:
+        reward_funcs = {m: RewardFunc(mode) for m, mode in automaton.modes.items()}
+
     nn_params = NNParams(2, 2, 1.0, 32)
-    ars_params = ARSParams(600, 30, 15, 0.05, 0.3, 0.95, 25)
+    ars_params = ARSParams(200, 30, 15, 0.05, 0.3, 0.95, 25)
     action_bound = np.ones((2,))
     ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.003, critic_lr=0.0001, minibatch_size=64,
                              num_episodes=3000, buffer_size=200000, discount=0.95,
@@ -64,10 +71,10 @@ if __name__ == '__main__':
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], falsify_func=falsify_func,
-                                  save_path=flags['path'], algo_name='my_ddpg', nn_params=nn_params,
+                                  save_path=flags['path'], algo_name='ars', nn_params=nn_params,
                                   ars_params=ars_params, ddpg_params=ddpg_params, use_gpu=flags['gpu'],
                                   max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
-                                  inductive_ce=flags['inductive_ce'])
+                                  inductive_ce=flags['inductive_ce'], reward_funcs=reward_funcs)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

@@ -13,16 +13,23 @@ class ARSModel:
     def __init__(self, nn_params, ars_params, use_gpu=False):
         self.nn_policy = NNPolicy(nn_params, use_gpu)
         self.ars_params = ars_params
+        self.mu_sum = None
+        self.sigma_sq_sum = None
+        self.n_states = 0
 
     def learn(self, env_list, verbose=False, eval_automaton=None, max_jumps=10, time_limits=None):
-        return ars(env_list, self.nn_policy, self.ars_params, verbose=verbose,
-                   eval_automaton=eval_automaton, max_jumps=max_jumps, time_limits=time_limits)
+        best_policy, log_info, self.mu_sum, self.sigma_sq_sum, self.n_states = ars(
+            env_list, self.nn_policy, self.ars_params, verbose=verbose,
+            eval_automaton=eval_automaton, max_jumps=max_jumps, time_limits=time_limits,
+            mu_sum=self.mu_sum, sigma_sq_sum=self.sigma_sq_sum, n_states=self.n_states)
+        return best_policy, log_info
 
     def cpu(self):
         self.nn_policy = self.nn_policy.set_use_cpu()
 
     def gpu(self):
         self.nn_policy = self.nn_policy.set_use_gpu()
+
 
 # Parameters for training a policy neural net.
 #
@@ -31,8 +38,6 @@ class ARSModel:
 # hidden_dim: int
 # dir: str
 # fname: str
-
-
 class NNParams:
     def __init__(self, state_dim, action_dim, action_bound, hidden_dim):
         self.state_dim = state_dim
@@ -180,7 +185,8 @@ class NNPolicy(Controller):
 #                  use_envs_cum_reward has to be False)
 # process_id: string to distiguish console ouputs for simultaneous executions
 def ars(env, nn_policy, params, multi_env=True, verbose=False,
-        eval_automaton=None, max_jumps=10, time_limits=None):
+        eval_automaton=None, max_jumps=10, time_limits=None,
+        mu_sum=None, sigma_sq_sum=None, n_states=0):
     # Step 1: Save original policy
     nn_policy_orig = nn_policy
     log_info = []
@@ -189,9 +195,9 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
     num_transitions = 0
 
     # Step 2: Initialize state distribution estimates
-    mu_sum = np.zeros(nn_policy.params.state_dim)
-    sigma_sq_sum = np.zeros(nn_policy.params.state_dim)
-    n_states = 0
+    if mu_sum is None:
+        mu_sum = np.zeros(nn_policy.params.state_dim)
+        sigma_sq_sum = np.zeros(nn_policy.params.state_dim)
 
     if multi_env:
         env_list = env
@@ -295,7 +301,7 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
     nn_policy_orig.mu = nn_policy.mu
     nn_policy_orig.sigma_inv = nn_policy.sigma_inv
 
-    return best_policy, np.array(log_info)
+    return best_policy, np.array(log_info), mu_sum, sigma_sq_sum, n_states
 
 
 # Construct random perturbations to neural network parameters.

@@ -5,7 +5,7 @@ import math
 from hybrid_gym.model import Mode
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from matplotlib import pyplot as plt
-from typing import Tuple
+from typing import Tuple, Any, Optional
 
 
 class GridParams:
@@ -185,7 +185,10 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         return np.array(state[1])
 
     def _reward_fn(self, state, action, next_state):
-        reach_reward = -np.linalg.norm(self._goal - np.array(next_state[1])) \
+        return self.reward_fn_goal(state, action, next_state, self._goal)
+
+    def reward_fn_goal(self, state, action, next_state, goal):
+        reach_reward = -np.linalg.norm(goal - np.array(next_state[1])) \
             / self._reward_scale
         safety_reward = 0.
         if not self.is_safe(next_state):
@@ -325,3 +328,29 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         else:
             raise ValueError('Invalid mode name/direction!')
         return np.array(goal) * (self.grid_params.partition_size / 2)
+
+
+class RewardFunc:
+    '''
+    Reward function used for training mode controllers.
+    '''
+    mode: RoomsMode
+    goal_state: Any
+
+    def __init__(self, mode, top_samples=0.4):
+        self.mode = mode
+        self.goal = Optional[np.ndarray]
+        self.top_samples = top_samples
+
+    def __call__(self, state: Tuple[Tuple, Tuple], action: np.ndarray,
+                 next_state: Tuple[Tuple, Tuple]) -> float:
+        if self.goal is None:
+            return self.mode.reward(state, action, next_state)
+        else:
+            return self.mode.reward_fn_goal(state, action, next_state, self.goal)
+
+    def update(self, collected_states):
+        collected_states = sorted(collected_states, key=lambda x: -x[1])
+        top_idx = self.top_samples / len(collected_states)
+        top_states = np.array([s[1] for s, _ in collected_states[:top_idx]])
+        self.goal = np.mean(top_states, axis=1)

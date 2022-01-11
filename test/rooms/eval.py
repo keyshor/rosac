@@ -37,16 +37,16 @@ if __name__ == '__main__':
 
     if flags['falsify']:
         print('\nEvaluating with MCTS adversary')
-        prob, _ = mcts_eval(automaton, controllers, time_limits, max_jumps=5,
-                            mcts_rollouts=500, eval_rollouts=100, print_debug=True, render=True)
+        prob, _, _ = mcts_eval(automaton, controllers, time_limits, max_jumps=5,
+                               mcts_rollouts=500, eval_rollouts=100, print_debug=True, render=True)
     elif flags['synthesize']:
         print('\nEvaluating with fixed adversary')
         selector = FixedSequenceSelector([automaton.modes['left'] for _ in range(5)])
-        prob, _ = end_to_end_test(automaton, selector, controllers, time_limits,
-                                  num_rollouts=100, max_jumps=5, print_debug=True, render=True)
+        prob, _, _ = end_to_end_test(automaton, selector, controllers, time_limits,
+                                     num_rollouts=100, max_jumps=5, print_debug=True, render=True)
     else:
         print('\nEvaluating with random adversary')
-        prob, _ = random_selector_eval(automaton, controllers, time_limits, max_jumps=5,
-                                       eval_rollouts=100, print_debug=True)
+        prob, _, _ = random_selector_eval(automaton, controllers, time_limits, max_jumps=5,
+                                          eval_rollouts=100, print_debug=True)
 
     print('Probability of successful completion: {}'.format(prob))

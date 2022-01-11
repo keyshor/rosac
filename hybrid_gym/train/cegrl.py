@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 class ResetFunc:
     '''
-    Reset function used to sample start states in training
+    Reset function used to sample start states in training.
     '''
     mode: Mode
     states: List[Any]
@@ -76,6 +76,7 @@ def cegrl(automaton: HybridAutomaton,
           sb3_train_kwargs: Dict[str, Any] = dict(),
           num_sb3_processes: int = 3,
           plot_synthesized_regions: bool = False,
+          reward_funcs: Optional[Dict[str, Any]] = None,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -97,6 +98,8 @@ def cegrl(automaton: HybridAutomaton,
     # define reset functions
     reset_funcs = {name: ResetFunc(mode, full_reset=full_reset)
                    for (name, mode) in automaton.modes.items()}
+    if reward_funcs is None:
+        reward_funcs = {name: None for name in automaton.modes}
 
     # Add each mode into its own group if no grouping is given
     if len(mode_groups) == 0:
@@ -110,7 +113,8 @@ def cegrl(automaton: HybridAutomaton,
             group_map[name] = g
 
     # all necessary information about all groups
-    group_info = [[(mode, automaton.transitions[mode.name], reset_funcs[mode.name], None)
+    group_info = [[(mode, automaton.transitions[mode.name],
+                    reset_funcs[mode.name], reward_funcs[mode.name])
                    for mode in modes] for modes in mode_groups]
 
     use_gpu = False
@@ -240,7 +244,12 @@ def cegrl(automaton: HybridAutomaton,
         # dataset aggregation using random selector
         elif dagger:
             for m in collected_states:
-                reset_funcs[m].add_states(collected_states[m])
+                reset_funcs[m].add_states([s for s, _ in collected_states[m]])
+
+        # change reward function based on collected states
+        for m in reward_funcs:
+            if reward_funcs[m] is not None:
+                reward_funcs[m].update(collected_states[m])
 
         if plot_synthesized_regions:
             for (name, rf) in reset_funcs.items():

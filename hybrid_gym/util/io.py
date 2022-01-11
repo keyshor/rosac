@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 
 
 def parse_command_line_options(print_options=False):
-    optval = getopt.getopt(sys.argv[1:], 'n:d:a:v:m:fbstrgci', [])
+    optval = getopt.getopt(sys.argv[1:], 'n:d:a:v:m:fbstrgciz', [])
     itno = -1
     path = '.'
     falsify = False
@@ -20,6 +20,7 @@ def parse_command_line_options(print_options=False):
     abstract_samples = 0
     use_gpu = False
     dagger = False
+    dynamic_rew = False
     mode = ''
     gpu_num = 0
     for option in optval[0]:
@@ -40,6 +41,8 @@ def parse_command_line_options(print_options=False):
         if option[0] == '-t':
             no_throttle = True
         if option[0] == '-r':
+            render = True
+        if option[0] == '-z':
             render = True
         if option[0] == '-a':
             abstract_samples = int(option[1])
@@ -62,7 +65,8 @@ def parse_command_line_options(print_options=False):
              'gpu': use_gpu,
              'dagger': dagger,
              'mode': mode,
-             'inductive_ce': inductive_ce}
+             'inductive_ce': inductive_ce,
+             'dynamic_rew': dynamic_rew}
     if print_options:
         print('**** Command Line Options ****')
         for key in flags:
