@@ -59,17 +59,17 @@ if __name__ == '__main__':
         reward_funcs = {m: RewardFunc(mode, automaton, time_limits)
                         for m, mode in automaton.modes.items()}
 
-    nn_params = NNParams(2, 2, 1.0, 32)
-    ars_params = ARSParams(200, 30, 15, 0.05, 0.3, 0.95, 25)
+    nn_params = NNParams(2, 2, 1.0, 64)
+    ars_params = ARSParams(400, 30, 10, 0.03, 0.1, 0.95, 25)
     action_bound = np.ones((2,))
-    ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.003, critic_lr=0.0001, minibatch_size=64,
+    ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.001, critic_lr=0.0001, minibatch_size=128,
                              num_episodes=3000, buffer_size=200000, discount=0.95,
                              epsilon_decay=0., epsilon_min=0.1,
                              steps_per_update=100, gradients_per_update=100,
                              actor_hidden_dim=64, critic_hidden_dim=64, max_timesteps=25,
                              test_max_timesteps=25, sigma=0.15)
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=200, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], falsify_func=falsify_func,
                                   save_path=flags['path'], algo_name='ars', nn_params=nn_params,
