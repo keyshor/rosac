@@ -44,11 +44,7 @@ if __name__ == '__main__':
     time_limits = {m: 25 for m in automaton.modes}
 
     # state distribution update
-    falsify_func = None
     num_synth_iter = 0
-    if flags['falsify']:
-        falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()}
-        num_synth_iter = MAX_JUMPS
     if flags['synthesize']:
         num_synth_iter = MAX_JUMPS
     use_full_reset = (not flags['dagger']) and (num_synth_iter == 0)
@@ -56,7 +52,7 @@ if __name__ == '__main__':
     # reward update
     reward_funcs = None
     if flags['dynamic_rew']:
-        reward_funcs = {m: RewardFunc(mode, automaton, time_limits)
+        reward_funcs = {m: RewardFunc(mode, automaton, time_limits, use_classifier=flags['falsify'])
                         for m, mode in automaton.modes.items()}
 
     nn_params = NNParams(2, 2, 1.0, 64)
@@ -71,11 +67,11 @@ if __name__ == '__main__':
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=200, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
-                                  use_best_model=flags['best'], falsify_func=falsify_func,
-                                  save_path=flags['path'], algo_name='ars', nn_params=nn_params,
-                                  ars_params=ars_params, ddpg_params=ddpg_params, use_gpu=flags['gpu'],
-                                  max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
-                                  inductive_ce=flags['inductive_ce'], reward_funcs=reward_funcs)
+                                  use_best_model=flags['best'], save_path=flags['path'], algo_name='ars',
+                                  nn_params=nn_params, ars_params=ars_params, ddpg_params=ddpg_params,
+                                  use_gpu=flags['gpu'], max_jumps=MAX_JUMPS, dagger=flags['dagger'],
+                                  full_reset=use_full_reset, inductive_ce=flags['inductive_ce'],
+                                  reward_funcs=reward_funcs)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

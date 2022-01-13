@@ -7,6 +7,7 @@ from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.util.test import get_rollout
 from matplotlib import pyplot as plt
 from typing import Tuple, Any
+from sklearn import svm
 
 
 class GridParams:
@@ -338,29 +339,65 @@ class RewardFunc:
     mode: RoomsMode
     goal_state: Any
 
-    def __init__(self, mode, automaton, time_limits, top_samples=0.4, discount=0.95):
+    def __init__(self, mode, automaton, time_limits, use_classifier=False,
+                 top_samples=0.4, discount=0.95):
         self.mode = mode
         self.automaton = automaton
+        self.use_classifier = use_classifier
         self.goal = None
         self.top_samples = top_samples
         self.time_limits = time_limits
         self.discount = 0.95
+        if self.use_classifier:
+            self.svm_model = None
 
     def __call__(self, state: Tuple[Tuple, Tuple], action: np.ndarray,
                  next_state: Tuple[Tuple, Tuple]) -> float:
+        reward = 0.
+
+        # compute goal based reward
         if self.goal is None:
-            return self.mode.reward(state, action, next_state)
+            reward += self.mode.reward(state, action, next_state)
         else:
-            return self.mode.reward_fn_goal(state, action, next_state, self.goal)
+            reward += self.mode.reward_fn_goal(state, action, next_state, self.goal)
+
+        # compute classifier bonus
+        if self.svm_model is not None:
+            pred_y = self.svm_model.predict(np.array([next_state[1]]))[0]
+            reward += (25. * pred_y)
+
+        return reward
 
     def update(self, collected_states, controllers):
-        state_value_pairs = []
+        state_value_success = self._evaluate_states(collected_states, controllers)
+
+        if not self.use_classifier:
+            # compute top states
+            svss = sorted(state_value_success, key=lambda x: -x[1])
+            top_idx = int(self.top_samples * len(svss))
+            top_states = np.array([s[1] for s, _, _ in svss[:top_idx]])
+
+            # update goal
+            self.goal = np.mean(top_states, axis=1)
+
+        else:
+            # form training data
+            X = np.array([s[1] for s, _, _ in state_value_success])
+            Y = np.array([label for _, _, label in state_value_success], dtype=np.int32)
+
+            # train SVM model
+            self.svm_model = svm.LinearSVC()
+            self.svm_model.fit(X, Y)
+
+    def __evaluate_states(self, collected_states, controllers):
+        state_value_success = []
 
         # compute values for all end states
         for start_state, end_state, transition in collected_states:
 
             if transition is not None:
                 value = 1e9
+                success = True
 
                 # evaluate end state
                 for target in transition.targets:
@@ -380,12 +417,9 @@ class RewardFunc:
                         reward = self.__call__(*sas) + self.discount * reward
                     value = min(value, reward)
 
-                state_value_pairs.append((end_state, value))
+                    # evaluate success
+                    success = success and info['safe'] and (info['jump'] is not None)
 
-        # compute top states
-        state_value_pairs = sorted(state_value_pairs, key=lambda x: -x[1])
-        top_idx = int(self.top_samples * len(state_value_pairs))
-        top_states = np.array([s[1] for s, _ in state_value_pairs[:top_idx]])
+                state_value_success.append((end_state, value, success))
 
-        # update goal
-        self.goal = np.mean(top_states, axis=1)
+        return state_value_success
