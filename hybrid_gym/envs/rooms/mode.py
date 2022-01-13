@@ -4,8 +4,9 @@ import math
 
 from hybrid_gym.model import Mode
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
+from hybrid_gym.util.test import get_rollout
 from matplotlib import pyplot as plt
-from typing import Tuple, Any, Optional
+from typing import Tuple, Any
 
 
 class GridParams:
@@ -337,10 +338,13 @@ class RewardFunc:
     mode: RoomsMode
     goal_state: Any
 
-    def __init__(self, mode, top_samples=0.4):
+    def __init__(self, mode, automaton, time_limits, top_samples=0.4, discount=0.95):
         self.mode = mode
-        self.goal = Optional[np.ndarray]
+        self.automaton = automaton
+        self.goal = None
         self.top_samples = top_samples
+        self.time_limits = time_limits
+        self.discount = 0.95
 
     def __call__(self, state: Tuple[Tuple, Tuple], action: np.ndarray,
                  next_state: Tuple[Tuple, Tuple]) -> float:
@@ -349,8 +353,39 @@ class RewardFunc:
         else:
             return self.mode.reward_fn_goal(state, action, next_state, self.goal)
 
-    def update(self, collected_states):
-        collected_states = sorted(collected_states, key=lambda x: -x[1])
-        top_idx = self.top_samples / len(collected_states)
-        top_states = np.array([s[1] for s, _ in collected_states[:top_idx]])
+    def update(self, collected_states, controllers):
+        state_value_pairs = []
+
+        # compute values for all end states
+        for start_state, end_state, transition in collected_states:
+
+            if transition is not None:
+                value = 1e9
+
+                # evaluate end state
+                for target in transition.targets:
+
+                    # Get next mode and starting state
+                    next_mode = self.automaton.modes[target]
+                    state = transition.jump(target, end_state)
+
+                    # obtain rollout
+                    sass, info = get_rollout(
+                        next_mode, self.automaton.transitions[target], controllers[target],
+                        state, max_timesteps=self.time_limits[target])
+
+                    # compute discounted reward
+                    reward = 0
+                    for sas in reversed(sass):
+                        reward = self.__call__(*sas) + self.discount * reward
+                    value = min(value, reward)
+
+                state_value_pairs.append((end_state, value))
+
+        # compute top states
+        state_value_pairs = sorted(state_value_pairs, key=lambda x: -x[1])
+        top_idx = int(self.top_samples * len(state_value_pairs))
+        top_states = np.array([s[1] for s, _ in state_value_pairs[:top_idx]])
+
+        # update goal
         self.goal = np.mean(top_states, axis=1)

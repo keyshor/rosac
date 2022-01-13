@@ -56,7 +56,8 @@ if __name__ == '__main__':
     # reward update
     reward_funcs = None
     if flags['dynamic_rew']:
-        reward_funcs = {m: RewardFunc(mode) for m, mode in automaton.modes.items()}
+        reward_funcs = {m: RewardFunc(mode, automaton, time_limits)
+                        for m, mode in automaton.modes.items()}
 
     nn_params = NNParams(2, 2, 1.0, 32)
     ars_params = ARSParams(200, 30, 15, 0.05, 0.3, 0.95, 25)

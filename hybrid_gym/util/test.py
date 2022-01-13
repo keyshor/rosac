@@ -3,7 +3,6 @@ Utility functions for testing/simulation.
 '''
 from hybrid_gym.model import Mode, Transition, Controller, ModeSelector
 from hybrid_gym.hybrid_env import HybridAutomaton
-from hybrid_gym.rl.util import discounted_reward
 from typing import List, Any, Dict, Union
 
 
@@ -55,7 +54,7 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                     controller: Union[Controller, Dict[str, Controller]],
                     time_limits: Dict[str, int], num_rollouts: int = 100,
                     max_jumps: int = 100, print_debug: bool = False,
-                    render: bool = False, gamma: float = 0.95):
+                    render: bool = False, return_steps: bool = False):
     '''
     Measure success of trained controllers w.r.t. a given mode selector.
     Success only when selector signals completion (returns done).
@@ -67,10 +66,10 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
     '''
     num_success = 0
     num_jumps = 0
+    steps = 0
     collected_states: Dict[str, List] = {m: [] for m in automaton.modes}
 
     for _ in range(num_rollouts):
-        steps = 0
         mname = selector.reset()
         state = automaton.modes[mname].end_to_end_reset()
         if isinstance(controller, Controller):
@@ -88,15 +87,18 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
 
             if render:
                 print('Rollout in mode {}'.format(mname))
-            sarss, info = get_rollout(automaton.modes[mname], automaton.transitions[mname],
-                                      cur_controller, state, time_limits[mname],
-                                      reset_controller=(not isinstance(controller, Controller)),
-                                      render=render)
-            collected_states[mname].append((state, discounted_reward(sarss, gamma)))
-            steps += len(sarss)
+            sass, info = get_rollout(automaton.modes[mname], automaton.transitions[mname],
+                                     cur_controller, state, time_limits[mname],
+                                     reset_controller=(not isinstance(controller, Controller)),
+                                     render=render)
+            steps += len(sass)
+
+            # collect high-level steps
+            success = info['safe'] and (info['jump'] is not None)
+            collected_states[mname].append((state, sass[-1][-1], info['jump']))
 
             # terminate rollout if unsafe
-            if info['jump'] is None or not info['safe']:
+            if not success:
                 if print_debug:
                     if info['safe']:
                         print('Failed to make progress in mode {} after {} jumps'.format(
@@ -107,11 +109,11 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                 break
 
             # select next mode
-            mname, done = selector.next_mode(info['jump'], sarss[-1][-1])
+            mname, done = selector.next_mode(info['jump'], sass[-1][-1])
 
             # update start state
             if not done:
-                state = info['jump'].jump(mname, sarss[-1][-1])
+                state = info['jump'].jump(mname, sass[-1][-1])
                 num_jumps += 1
 
             # count success
@@ -119,4 +121,6 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                 num_success += 1
                 break
 
+    if return_steps:
+        return num_success / num_rollouts, num_jumps / num_rollouts, collected_states, steps
     return num_success / num_rollouts, num_jumps / num_rollouts, collected_states

@@ -213,8 +213,9 @@ def cegrl(automaton: HybridAutomaton,
         mcts_prob, mcts_avg_jmps, _ = mcts_eval(
             automaton, mode_controllers, time_limits, max_jumps=max_jumps, mcts_rollouts=1000,
             eval_rollouts=100)
-        rs_prob, avg_jmps, collected_states = random_selector_eval(
-            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=100)
+        rs_prob, avg_jmps, collected_states, eval_steps = random_selector_eval(
+            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=100,
+            return_steps=True)
         log_info.append([steps_taken, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
 
         # synthesis
@@ -243,13 +244,14 @@ def cegrl(automaton: HybridAutomaton,
 
         # dataset aggregation using random selector
         elif dagger:
+            steps_taken += eval_steps
             for m in collected_states:
-                reset_funcs[m].add_states([s for s, _ in collected_states[m]])
+                reset_funcs[m].add_states([s[0] for s in collected_states[m]])
 
         # change reward function based on collected states
         for m in reward_funcs:
             if reward_funcs[m] is not None:
-                reward_funcs[m].update(collected_states[m])
+                reward_funcs[m].update(collected_states[m], mode_controllers)
 
         if plot_synthesized_regions:
             for (name, rf) in reset_funcs.items():
