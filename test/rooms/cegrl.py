@@ -55,8 +55,8 @@ if __name__ == '__main__':
         reward_funcs = {m: RewardFunc(mode, automaton, time_limits, use_classifier=flags['falsify'])
                         for m, mode in automaton.modes.items()}
 
-    nn_params = NNParams(2, 2, 1.0, 64)
-    ars_params = ARSParams(400, 30, 10, 0.03, 0.1, 0.95, 25)
+    nn_params = NNParams(2, 2, 1.0, 100)
+    ars_params = ARSParams(800, 30, 10, 0.02, 0.1, 0.95, 25, track_best=True)
     action_bound = np.ones((2,))
     ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.001, critic_lr=0.0001, minibatch_size=128,
                              num_episodes=3000, buffer_size=200000, discount=0.95,

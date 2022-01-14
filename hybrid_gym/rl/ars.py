@@ -55,7 +55,7 @@ class NNParams:
 # lr: float (alpha)
 class ARSParams:
     def __init__(self, n_iters, n_samples, n_top_samples, delta_std, lr,
-                 gamma, max_timesteps):
+                 gamma, max_timesteps, track_best=False):
         self.n_iters = n_iters
         self.n_samples = n_samples
         self.n_top_samples = n_top_samples
@@ -63,6 +63,7 @@ class ARSParams:
         self.lr = lr
         self.gamma = gamma
         self.timesteps = max_timesteps
+        self.track_best = track_best
 
 
 # Neural network policy.
@@ -272,18 +273,23 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
         # Step 3h: Logging
         if i % (20 * len(env_list)) == 0:
             cum_rewards = []
+            sim_total_steps = 0
             for test_env in env_list:
-                cum_rewards.append(test_policy(
+                cum_rew, sim_steps = test_policy(
                     test_env, nn_policy, 20, gamma=params.gamma, max_timesteps=params.timesteps,
-                    use_cum_reward=False))
+                    use_cum_reward=False, get_steps=True)
+                cum_rewards.append(cum_rew)
+                sim_total_steps += sim_steps
             if verbose:
                 print('Expected rewards at iteration {}: {}'.format(i, cum_rewards))
 
-        # Step 3i: Save best policy
+            # Step 3i: Save best policy
             cum_reward = np.mean(cum_rewards)
             if best_reward <= cum_reward:
                 best_policy = nn_policy
                 best_reward = cum_reward
+            if params.track_best:
+                num_transitions += sim_total_steps
 
         if eval_automaton is not None and i % 500 == 0:
             mode_controllers = {mname: best_policy for mname in eval_automaton.modes}
@@ -296,6 +302,8 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
             log_info.append([num_transitions, cum_reward])
 
     # Step 4: Copy new weights and normalization parameters to original policy
+    if params.track_best:
+        nn_policy = best_policy
     for param, param_orig in zip(nn_policy.parameters(), nn_policy_orig.parameters()):
         param_orig.data.copy_(param.data)
     nn_policy_orig.mu = nn_policy.mu

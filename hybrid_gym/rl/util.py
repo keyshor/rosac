@@ -49,7 +49,8 @@ def discounted_reward(sarss, gamma):
     return reward
 
 
-def test_policy(env, policy, n_rollouts, gamma=1, use_cum_reward=False, max_timesteps=10000):
+def test_policy(env, policy, n_rollouts, gamma=1, use_cum_reward=False, max_timesteps=10000,
+                get_steps=False):
     '''
     Estimate the cumulative reward of the policy.
 
@@ -67,6 +68,8 @@ def test_policy(env, policy, n_rollouts, gamma=1, use_cum_reward=False, max_time
             cum_reward += env.cum_reward(sarss)
         else:
             cum_reward += discounted_reward(sarss, gamma)
+    if get_steps:
+        return cum_reward / n_rollouts, num_steps
     return cum_reward / n_rollouts
 
 

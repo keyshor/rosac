@@ -479,11 +479,7 @@ def learn_ars_model(model: ARSModel,
                     custom_best_model_path: Optional[str] = None,
                     verbose=False) -> None:
     env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
-    best_policy, log_info = model.learn(env_list, verbose=verbose)
-
-    first_mode, _, _, _ = raw_mode_info[0]
-    best_model_path = custom_best_model_path or first_mode.name
-    best_policy.save(best_model_path, save_path)
+    _, log_info = model.learn(env_list, verbose=verbose)
     return log_info
 
 
