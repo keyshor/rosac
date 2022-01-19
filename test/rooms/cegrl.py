@@ -52,11 +52,12 @@ if __name__ == '__main__':
     # reward update
     reward_funcs = None
     if flags['dynamic_rew']:
-        reward_funcs = {m: RewardFunc(mode, automaton, time_limits, use_classifier=flags['falsify'])
+        reward_funcs = {m: RewardFunc(mode, automaton, time_limits, use_classifier=flags['falsify'],
+                                      top_samples=0.3)
                         for m, mode in automaton.modes.items()}
 
-    nn_params = NNParams(2, 2, 1.0, 100)
-    ars_params = ARSParams(800, 30, 10, 0.02, 0.1, 0.95, 25, track_best=True)
+    nn_params = NNParams(2, 2, 1.0, 64)
+    ars_params = ARSParams(400, 30, 10, 0.03, 0.1, 0.95, 25, track_best=True)
     action_bound = np.ones((2,))
     ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.001, critic_lr=0.0001, minibatch_size=128,
                              num_episodes=3000, buffer_size=200000, discount=0.95,
@@ -65,7 +66,7 @@ if __name__ == '__main__':
                              actor_hidden_dim=64, critic_hidden_dim=64, max_timesteps=25,
                              test_max_timesteps=25, sigma=0.15)
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=200, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=300, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], save_path=flags['path'], algo_name='ars',
                                   nn_params=nn_params, ars_params=ars_params, ddpg_params=ddpg_params,
