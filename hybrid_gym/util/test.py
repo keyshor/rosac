@@ -110,11 +110,11 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
 
             # select next mode
             mname, done = selector.next_mode(info['jump'], sass[-1][-1])
+            num_jumps += 1
 
             # update start state
             if not done:
                 state = info['jump'].jump(mname, sass[-1][-1])
-                num_jumps += 1
 
             # count success
             else:
