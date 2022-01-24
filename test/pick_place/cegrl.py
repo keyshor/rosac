@@ -18,6 +18,41 @@ from hybrid_gym.selectors import FixedSequenceSelector
 from hybrid_gym.util.io import save_log_info
 from hybrid_gym.envs.pick_place.mode import ModeType
 
+sb2_hyperparams = dict(
+    algo_name='sac', policy='MultiInputPolicy',
+    gamma=0.95, buffer_size=1000000,
+    batch_size=256, learning_rate=0.001,
+    replay_buffer_class=HerReplayBuffer,
+    replay_buffer_kwargs=dict(
+        n_sampled_goal=4,
+        goal_selection_strategy='future',
+        online_sampling=True,
+        max_episode_length=50,
+    ),
+    policy_kwargs=dict(
+        net_arch=[64, 64],
+    ),
+    train_freq=1, learning_starts=1000,
+)
+
+sb3_hyperparams = dict(
+    algo_name='tqc', policy='MultiInputPolicy',
+    gamma=0.95, buffer_size=1000000,
+    batch_size=2048, learning_rate=0.001,
+    replay_buffer_class=HerReplayBuffer,
+    replay_buffer_kwargs=dict(
+        n_sampled_goal=4,
+        goal_selection_strategy='future',
+        online_sampling=True,
+        max_episode_length=50,
+    ),
+    policy_kwargs=dict(
+        net_arch=[512, 512, 512],
+        n_critics=2,
+    ),
+    train_freq=1, learning_starts=1000,
+)
+
 class FalsifyFunc:
     '''
     Evaluation function used by the falsification algorithm.
@@ -44,8 +79,8 @@ def run_cegrl(automaton: HybridAutomaton,
 
     falsify_func = {name: FalsifyFunc(mode) for name, mode in automaton.modes.items()} \
         if procedure == 'falsify' else None
-    #num_synth_iter = 15 if procedure == 'falsify' or procedure == 'cegrl' else 0
-    num_synth_iter = 10 if procedure == 'falsify' or procedure == 'cegrl' else 0
+    num_synth_iter = 15 if procedure == 'falsify' or procedure == 'cegrl' else 0
+    #num_synth_iter = 2 if procedure == 'falsify' or procedure == 'cegrl' else 0
 
     pre = {}
     for m in automaton.modes:
@@ -59,37 +94,24 @@ def run_cegrl(automaton: HybridAutomaton,
 
     controllers, log_info = cegrl(
         automaton, pre, time_limits, mode_groups=mode_groups,
-        algo_name='tqc', policy='MultiInputPolicy',
         num_iter=num_iter, num_synth_iter=num_synth_iter, abstract_synth_samples=0,
         num_falsification_iter=50,
         falsify_func=falsify_func,
-        gamma=0.95, buffer_size=1000000,
-        batch_size=2048, learning_rate=0.001,
         reward_offset=0.0,
-        replay_buffer_class=HerReplayBuffer,
-        replay_buffer_kwargs=dict(
-            n_sampled_goal=4,
-            goal_selection_strategy='future',
-            online_sampling=True,
-            max_episode_length=50,
-        ),
-        policy_kwargs=dict(
-            net_arch=[512, 512, 512],
-            n_critics=2,
-        ),
         is_goal_env=True,
         sb3_train_kwargs=dict(
-            total_timesteps=200,
+            total_timesteps=timesteps,
             is_goal_env=True,
             reward_offset=0.0,
         ),
-        train_freq=1, learning_starts=1000,
         print_debug=False, verbose=verbose,
         use_best_model=False, save_path=save_path,
         init_check_train_timesteps=0,
         init_check_eval_episodes=1,
         dagger=(procedure == 'dagger'),
-        full_reset=full_reset, plot_synthesized_regions=False)
+        full_reset=full_reset, plot_synthesized_regions=False,
+        **sb2_hyperparams
+    )
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():
@@ -106,7 +128,7 @@ if __name__ == '__main__':
                     help='reward type')
     ap.add_argument('--timesteps', type=int, default=100000,
                     help='number of timesteps to train each controller in each iteration')
-    ap.add_argument('--iter-scale', type=int, default=2,
+    ap.add_argument('--iter-scale', type=int, default=1,
                     help='multiplier for number of iterations for each procedure')
     ap.add_argument('--num-runs', type=int, default=5,
                     help='number of runs for each procedure')
@@ -124,7 +146,7 @@ if __name__ == '__main__':
     num_iter = dict(
         basic=5 * args.iter_scale,
         dagger=4 * args.iter_scale,
-        cegrl=4 * args.iter_scale,
+        synthesis=4 * args.iter_scale,
         falsify=3 * args.iter_scale,
     )
 
