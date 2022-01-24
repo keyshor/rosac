@@ -10,26 +10,44 @@ import numpy as np
 import gym
 import joblib
 
-from hybrid_gym.train.single_mode import make_spectrl_model, train_spectrl
+from hybrid_gym.train.single_mode import (
+        make_ddpg_model, learn_ddpg_model, env_from_mode_info,
+)
+from hybrid_gym.rl.ddpg import DDPGParams
 from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.envs.pick_place.mode import ModeType
 
+max_episode_steps: int = 20
 
 def train_single(automaton, names, num_episodes, save_path, mt):
     mode_info = [(automaton.modes[n], automaton.transitions[n], None, None)
                  for n in names]
-    model = make_spectrl_model(
-        mode_info,
-        minibatch_size=256, num_episodes=num_episodes,
-        discount=0.95, actor_hidden_dim=256,
-        critic_hidden_dim=256, epsilon_decay=3e-6,
-        decay_function='linear', steps_per_update=100,
-        gradients_per_update=100, buffer_size=200000,
-        sigma=0.15, epsilon_min=0.3, target_noise=0.0003,
-        target_clip=0.003, warmup=1000,
+    env = env_from_mode_info(
+            raw_mode_info=mode_info,
+            algo_name='ddpg',
+            max_episode_steps=max_episode_steps,
+            reward_offset=0.0,
+            is_goal_env=False,
     )
-    train_spectrl(model, mode_info)
-    joblib.dump(model, os.path.join(save_path, mt + '.spectrl'))
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+    action_bound = env.action_space.high
+    params = DDPGParams(
+            state_dim, action_dim, action_bound,
+            minibatch_size=256, num_episodes=num_episodes,
+            discount=0.95, actor_hidden_dim=256,
+            critic_hidden_dim=256, epsilon_decay=3e-6,
+            decay_function='linear', steps_per_update=100,
+            gradients_per_update=100, buffer_size=200000,
+            sigma=0.15, epsilon_min=0.3, target_noise=0.0003,
+            target_clip=0.003, warmup=1000,
+            max_timesteps=max_episode_steps,
+            test_freq=1000,
+            test_n_rollouts=100,
+    )
+    model = make_ddpg_model(params, use_gpu=True)
+    learn_ddpg_model(model, mode_info)
+    joblib.dump(model, os.path.join(save_path, mt + '.ddpg'))
 
 
 if __name__ == '__main__':

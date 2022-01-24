@@ -66,12 +66,24 @@ if __name__ == '__main__':
                     help='mode types for which controllers will be trained')
     args = ap.parse_args()
 
-    automaton = make_pick_place_model(num_objects=args.num_objects, reward_type='dense')
+    automaton = make_pick_place_model(
+        num_objects=args.num_objects, reward_type='dense', fixed_tower_height=True,
+    )
     mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
     for mt in mode_type_list:
         print(f'training mode type {mt}')
         names = [f'{mt}_{i}' for i in range(args.num_objects)]
-        train_single(
-            automaton, names, args.timesteps,
-            args.path, mt,
-        )
+        if mt == 'MOVE_WITH_OBJ':
+            for j in range(args.num_objects):
+                print(f'training mode set {mt}_h{j}')
+                train_single(
+                    automaton,
+                    [f'{mt}_h{j}_{i}' for i in range(args.num_objects)],
+                    args.timesteps,
+                    args.path, f'{mt}_h{j}',
+                )
+        else:
+            train_single(
+                automaton, names, args.timesteps,
+                args.path, mt,
+            )

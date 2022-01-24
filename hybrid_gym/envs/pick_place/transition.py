@@ -21,6 +21,10 @@ class PickPlaceTrans(Transition):
     def guard(self, st: State) -> bool:
         self.source_mode.set_state(st)
         multi_obj = self.source_mode.multi_obj
+        tgt_multi_obj = self.target_mode.multi_obj
+        if tgt_multi_obj.fixed_tower_height is not None \
+                and len(multi_obj.tower_set) != tgt_multi_obj.fixed_tower_height:
+            return False
         if multi_obj.next_obj_index in multi_obj.tower_set:
             return True
         obs_dict = self.source_mode.multi_obj._get_obs()

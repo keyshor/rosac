@@ -69,7 +69,9 @@ class DDPGParams:
                  critic_hidden_dim=100,
                  noise='normal',
                  max_timesteps=1000,
-                 test_max_timesteps=1000):
+                 test_max_timesteps=1000,
+                 test_freq=5,
+                 test_n_rollouts=10):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_bound = action_bound
@@ -95,6 +97,8 @@ class DDPGParams:
         self.noise = noise
         self.max_timesteps = max_timesteps
         self.test_max_timesteps = test_max_timesteps
+        self.test_freq = test_freq
+        self.test_n_rollouts = test_n_rollouts
 
 
 class DDPG:
@@ -288,9 +292,9 @@ class DDPG:
                 ep_steps += 1
 
             print('Reward at episode {}: {}'.format(i, ep_reward))
-            if i % 5 == 4:
+            if i % self.params.test_freq == self.params.test_freq - 1:
                 avg_reward = test_policy(
-                    env, self.actor, 10, max_timesteps=self.params.test_max_timesteps)
+                    env, self.actor, self.params.test_n_rollouts, max_timesteps=self.params.test_max_timesteps)
                 print('Expected reward after {} episodes: {}'.format(i, avg_reward))
 
         return num_steps

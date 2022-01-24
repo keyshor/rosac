@@ -6,7 +6,7 @@ import mujoco_py
 from copy import deepcopy
 from hybrid_gym.model import Mode
 from gym.envs.robotics import rotations, robot_env, utils
-from typing import List, Tuple, Dict, FrozenSet, Union, NamedTuple, Any
+from typing import List, Tuple, Dict, FrozenSet, Union, Optional, NamedTuple, Any
 
 pick_height_offset: float = 0.05
 object_length: float = 0.05  # each object is a object_length x object_length x object_length cube
@@ -43,6 +43,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
     gripper_extra_height: float
     block_gripper: bool
     num_objects: int
+    fixed_tower_height: Optional[int]
     target_offset: Union[float, np.ndarray]
     obj_range: float
     target_range: float
@@ -56,7 +57,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
 
     def __init__(
         self, model_path: str, n_substeps: int, gripper_extra_height: float,
-        block_gripper: bool, num_objects: int,
+        block_gripper: bool, num_objects: int, fixed_tower_height: Optional[int],
         target_offset: Union[float, np.ndarray], obj_range: float,
         target_range: float, distance_threshold: float, initial_qpos: Dict,
         reward_type: str, mode_type: ModeType, next_obj_index: int,
@@ -81,6 +82,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
         self.gripper_extra_height = gripper_extra_height
         self.block_gripper = block_gripper
         self.num_objects = num_objects
+        self.fixed_tower_height = fixed_tower_height
         self.target_offset = target_offset
         self.obj_range = obj_range
         self.target_range = target_range
@@ -105,9 +107,11 @@ class MultiObjectEnv(robot_env.RobotEnv):
         if self.reward_type == 'sparse':
             return float(self._is_success(achieved_goal, goal))
         else:
-            reward = -d
+            reward = -d + obj_pos_tolerance
             if not self.is_safe():
                reward += unsafe_reward
+            if self._is_success(achieved_goal, goal):
+                reward += 1000.0
             return reward
 
     # RobotEnv methods
@@ -163,7 +167,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
 
         achieved_goal = np.concatenate(
             [self.arm_position(), finger_pos_scale * self.gripper_fingers()] +
-            [x.ravel() for x in object_pos]
+            [self.object_position(i) for i in range(self.num_objects)]
         )
         object_pos_cat = np.concatenate([x.ravel() for x in object_pos])
         object_rot_cat = np.concatenate([x.ravel() for x in object_rot])
@@ -310,7 +314,8 @@ class MultiObjectEnv(robot_env.RobotEnv):
         self.sim.data.set_joint_qpos(object_name, object_qpos)
 
     def _reset_sim(self) -> bool:
-        tower_height = self.np_random.randint(self.num_objects)
+        tower_height = self.np_random.randint(self.num_objects) \
+                if self.fixed_tower_height is None else self.fixed_tower_height
         self.initialize_positions(tower_height=tower_height)
         return True
 
@@ -479,6 +484,7 @@ class PickPlaceMode(Mode[State]):
                  mode_type: ModeType,
                  next_obj_index: int,
                  num_objects: int = 3,
+                 fixed_tower_height: Optional[int] = None,
                  reward_type: str = 'sparse',
                  distance_threshold: float = 0.005):
         model_xml_path = os.path.join(
@@ -494,14 +500,18 @@ class PickPlaceMode(Mode[State]):
             'robot0:slide2': 0.0,
         })
         self.multi_obj = MultiObjectEnv(
-            model_path=model_xml_path, num_objects=num_objects, block_gripper=False, n_substeps=20,
+            model_path=model_xml_path, num_objects=num_objects,
+            fixed_tower_height=fixed_tower_height,
+            block_gripper=False, n_substeps=20,
             gripper_extra_height=0.2, target_offset=0.0,
             obj_range=0.15, target_range=0.15, distance_threshold=distance_threshold,
             initial_qpos=initial_qpos, reward_type=reward_type, mode_type=mode_type,
             next_obj_index=next_obj_index,
         )
         super().__init__(
-            name=f'{mode_type.name}_{next_obj_index}',
+            name=f'{mode_type.name}_{next_obj_index}' \
+                    if fixed_tower_height is None \
+                    else f'{mode_type.name}_h{fixed_tower_height}_{next_obj_index}',
             action_space=self.multi_obj.action_space,
             observation_space=self.multi_obj.observation_space,
         )

@@ -3,11 +3,11 @@ matplotlib
 mypy
 gym
 pyyaml
-git+https://github.com/numpy/numpy-stubs.git
-stable-baselines[mpi]
+stable-baselines
 stable-baselines3
 sb3-contrib
 scikit-learn
 mpi4py
 mujoco-py<2.2,>=2.1
+tensorflow<=1.14
 torch
