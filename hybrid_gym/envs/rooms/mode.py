@@ -155,10 +155,10 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
         # Define observation space
         observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2,))
-        self._set_exit_norm_factors()
 
         # Initialize super
         super().__init__(name, action_space, observation_space)
+        self._set_exit_norm_factors()
 
     def reset(self):
         if self.bottom_start:
