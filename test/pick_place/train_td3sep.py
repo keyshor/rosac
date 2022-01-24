@@ -20,13 +20,11 @@ from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.envs.pick_place.mode import PickPlaceMode, ModeType
 from hybrid_gym.util.wrappers import DoneOnSuccessWrapper
 
+
 max_episode_steps=20
 
-
-def train_single(automaton, names, total_timesteps, save_path, model_path):
-    modes = [automaton.modes[n] for n in names]
-    mode_info = [(automaton.modes[n], automaton.transitions[n], None, None)
-                 for n in names]
+def train_single(automaton, name, total_timesteps, save_path, model_path):
+    mode_info = [(automaton.modes[name], automaton.transitions[name], None, None)]
     model = make_sb3_model(
         mode_info,
         algo_name='td3',
@@ -37,7 +35,7 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
         gamma=0.95,
         learning_rate=1e-4,
         policy_kwargs=dict(
-            net_arch=[512, 512, 512],
+            net_arch=[1024, 1024, 1024],
         ),
         target_policy_noise=3e-4,
         target_noise_clip=3e-3,
@@ -70,8 +68,10 @@ if __name__ == '__main__':
     mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
     for mt in mode_type_list:
         print(f'training mode type {mt}')
-        names = [f'{mt}_{i}' for i in range(args.num_objects)]
-        train_single(
-            automaton, names, args.timesteps,
-            args.path, mt,
-        )
+        for i in range(args.num_objects):
+            name = f'{mt}_{i}'
+            print(f'training mode {name}')
+            train_single(
+                automaton, name, args.timesteps,
+                args.path, name,
+            )

@@ -262,7 +262,7 @@ class BaselineCtrlWrapper(Controller):
         action, _ = self.model.predict(observation)
         return action
 
-    def save(self, path: str) -> None:
+    def save(self, name: str, path: str) -> None:
         self.model.save(path)
 
     @classmethod
@@ -317,7 +317,7 @@ class Sb3CtrlWrapper(Controller):
         action, _ = self.model.predict(observation, deterministic=True)
         return action
 
-    def save(self, path: str) -> None:
+    def save(self, name: str, path: str) -> None:
         self.model.save(path)
 
     @classmethod
@@ -355,7 +355,7 @@ class SpectrlCtrlWrapper(Controller):
     def get_action(self, observation: np.ndarray) -> np.ndarray:
         return self.model.actor.get_action(observation)
 
-    def save(self, path: str) -> None:
+    def save(self, name: str, path: str) -> None:
         self.model.save(path)
 
     @classmethod

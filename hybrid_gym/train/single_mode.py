@@ -32,7 +32,8 @@ from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 
 from hybrid_gym.model import Mode, Transition, StateType
 from hybrid_gym.util.wrappers import (
-    GymMultiEnvWrapper, GymMultiGoalEnvWrapper, BaselineCtrlWrapper, GymEnvWrapper
+    GymMultiEnvWrapper, GymMultiGoalEnvWrapper, GymEnvWrapper,
+    BaselineCtrlWrapper,
 )
 
 from hybrid_gym.rl.ars import NNParams, ARSParams, ARSModel
@@ -66,16 +67,19 @@ def env_from_mode_info(
                          max_episode_steps=max_episode_steps)
 
 
-def make_spectrl_model(modes: Iterable[Mode[StateType]],
+def make_spectrl_model(raw_mode_info: Iterable[Tuple[
+                           Mode[StateType],
+                           Iterable[Transition],
+                           Optional[Callable[[], StateType]],
+                           Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                       ]],
                        max_episode_steps: int = 50,
                        **kwargs,
                        ) -> SpectrlDdpg:
-    mode_info: List[Tuple[
-        Mode[StateType],
-        List[Transition],
-        Optional[Callable[[], StateType]],
-        Optional[Callable[[StateType, np.ndarray, StateType], float]],
-    ]] = [(m, [], None, None) for m in modes]
+    mode_info = [
+        (mode, list(transitions), reset_fn, reward_fn)
+        for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
+    ]
     env = TimeLimit(GymMultiEnvWrapper(mode_info, flatten_obs=True),
                     max_episode_steps=max_episode_steps)
     state_dim = env.observation_space.shape[0]
@@ -234,7 +238,7 @@ def make_sb_model_init_check(
     if not init_ok:
         print(f'failed to achieve suitable initialization after {max_init_retries}')
     ctrl = BaselineCtrlWrapper(model)
-    ctrl.save(os.path.join(save_path, f'{first_mode.name}.{algo_name}'))
+    ctrl.save('name', os.path.join(save_path, f'{first_mode.name}.{algo_name}'))
     ctrl = BaselineCtrlWrapper.load(os.path.join(save_path, f'{first_mode.name}.{algo_name}'),
                                     algo_name=algo_name, env=env)
     return ctrl.model
@@ -490,7 +494,7 @@ def learn_ddpg_model(model: MyDDPG,
                          Optional[Callable[[], StateType]],
                          Optional[Callable[[StateType, np.ndarray, StateType], float]],
                      ]]) -> int:
-    env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
+    env_list = [GymEnvWrapper(*mode_info, flatten_obs=True) for mode_info in raw_mode_info]
     return model.train(env_list)
 
 
