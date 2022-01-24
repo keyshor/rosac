@@ -246,7 +246,8 @@ class MultiObjectEnv(robot_env.RobotEnv):
                 or self.mode_type == ModeType.PICK_OBJ_PT3:
             gripper_target = object_xpos[self.next_obj_index]
         elif self.mode_type == ModeType.MOVE_WITH_OBJ:
-            gripper_target = object_xpos[self.next_obj_index]
+            gripper_target = object_xpos[self.next_obj_index] \
+                + np.array([0, 0, pick_height_offset])
         elif self.mode_type == ModeType.PLACE_OBJ_PT1 \
                 or self.mode_type == ModeType.MOVE_WITHOUT_OBJ:
             gripper_target = self.top_tower_block_pos() \

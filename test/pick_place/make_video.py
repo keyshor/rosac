@@ -5,38 +5,48 @@ import sys
 import gym
 import numpy as np
 from stable_baselines.her import HERGoalEnvWrapper
-import torch
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.util.wrappers import Sb3CtrlWrapper, SpectrlCtrlWrapper, DdpgCtrlWrapper, GymEnvWrapper, GymGoalEnvWrapper
+from hybrid_gym.util.wrappers import Sb3CtrlWrapper, SpectrlCtrlWrapper, GymEnvWrapper, GymGoalEnvWrapper
 from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.envs.pick_place.mode import ModeType
 from hybrid_gym.hybrid_env import HybridEnv, HybridGoalEnv
 from hybrid_gym.selectors import UniformSelector
 
+from stable_baselines3.common.vec_env import VecVideoRecorder, DummyVecEnv
 
 
-def eval_single(automaton, controllers, name, trials_per_mode, steps_per_trial, render, print_reward):
+def eval_single(automaton, controllers, name, trials_per_mode, steps_per_trial, render):
     mode = automaton.modes[name]
     mode_env = GymEnvWrapper(mode, automaton.transitions[name], flatten_obs=True)
     #mode_env = GymGoalEnvWrapper(mode, automaton.transitions[name])
+
     ctrl = controllers[name]
     num_successes = 0
-    for _ in range(trials_per_mode):
-        obs = mode_env.reset()
+    #for _ in range(trials_per_mode):
+    for _ in range(1):
+        video_env = DummyVecEnv([lambda: mode_env])
+        video_env.reset()
+        recorder = VecVideoRecorder(
+            video_env, 'videos', record_video_trigger=lambda x: x == 0,
+            video_length=steps_per_trial, name_prefix=name,
+        )
+        vec_obs = video_env.reset()
+        obs = vec_obs[0, :]
         done = False
-        for j in range(steps_per_trial):
+        for _ in range(steps_per_trial):
             if not done:
                 action = ctrl.get_action(obs)
-                obs, reward, done, _ = mode_env.step(action)
-            if render:
-                mode_env.render()
-            if print_reward:
-                print(f'reward at step {j} is {reward}')
-        if mode.is_success(mode_env.state):
-            num_successes += 1
+                vec_action = action[np.newaxis, :]
+                vec_obs, _, done, _ = video_env.step(vec_action)
+                obs = vec_obs[0, :]
+            video_env.render()
+        #if mode.is_success(video_env.state):
+        #    num_successes += 1
+        #video_env.close()
+        mode.multi_obj.close()
     print(f'success rate for mode {name} is {num_successes}/{trials_per_mode}')
 
 
@@ -91,19 +101,16 @@ if __name__ == '__main__':
                     help='maximum number of steps per mode in end-to-end evaluation')
     ap.add_argument('--render', action='store_true',
                     help='use this flag to render the environment at each time-step')
-    ap.add_argument('--print-reward', action='store_true',
-                    help='use this flag to print the reward at each time-step')
     ap.add_argument('--all', action='store_true',
                     help='use this flag to train all modes instead of specifying a list')
     ap.add_argument('mode_types', type=str, nargs='*',
                     help='mode types for which controllers will be evaluated')
     args = ap.parse_args()
     automaton = make_pick_place_model(num_objects=args.num_objects,
-                                      reward_type='dense',
+                                      reward_type='sparse',
                                       distance_threshold=args.goal_tolerance)
     mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
 
-    #env = HybridGoalEnv(
     env = HybridEnv(
         automaton=automaton,
         selector=UniformSelector(modes=[
@@ -113,35 +120,16 @@ if __name__ == '__main__':
         flatten_obs=True,
     )
     controllers: dict = {}
-    #for mt in ModeType:
-    for mt_name in mode_type_list:
-        #ctrl = Sb3CtrlWrapper.load(
-        #    os.path.join(args.path, mt_name, 'best_model.zip'),
-        #    algo_name='td3',
-        #    #algo_name='sac',
-        #    env=env,
-        #)
+    for mt in ModeType:
         ctrl = Sb3CtrlWrapper.load(
-            os.path.join(args.path, f'{mt_name}_1', 'best_model.zip'),
+            os.path.join(args.path, mt.name, 'best_model.zip'),
             algo_name='td3',
-            #algo_name='sac',
             env=env,
         )
-        #ctrl = DdpgCtrlWrapper.load(
-        #    os.path.join(args.path, f'{mt_name}.ddpg'),
-        #    map_location=torch.device('cpu'),
-        #)
         for i in range(args.num_objects):
-            name = f'{mt_name}_{i}'
-            controllers[name] = ctrl
-            #controllers[name] = Sb3CtrlWrapper.load(
-            #    os.path.join(args.path, name, 'best_model.zip'),
-            #    algo_name='td3',
-            #    #algo_name='sac',
-            #    env=env,
-            #)
+            controllers[f'{mt.name}_{i}'] = ctrl
     for mt_name in mode_type_list:
-        for i in range(args.num_objects):
-            name = f'{mt_name}_{i}'
-            eval_single(automaton, controllers, name, args.trials_per_mode, args.steps_per_trial, args.render, args.print_reward)
-    eval_end_to_end(automaton, controllers, args.end_to_end_trials, args.steps_per_mode)
+        i = np.random.choice(args.num_objects)
+        name = f'{mt_name}_{i}'
+        eval_single(automaton, controllers, name, args.trials_per_mode, args.steps_per_trial, args.render)
+    #eval_end_to_end(automaton, controllers, args.end_to_end_trials, args.steps_per_mode)

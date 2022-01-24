@@ -8,7 +8,9 @@ from stable_baselines3 import (
     PPO as SB3_PPO, SAC as SB3_SAC, TD3 as SB3_TD3,
 )
 from stable_baselines3.common.base_class import BaseAlgorithm
+import torch
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg
+from hybrid_gym.rl.ddpg import DDPG as RlDdpg
 from typing import (Iterable, List, Tuple, Dict, Optional,
                     Callable, Generic, NoReturn, Type, TypeVar, Union, Any)
 from hybrid_gym.model import Mode, Transition, Controller, StateType
@@ -64,7 +66,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
         done = not self.mode.is_safe(self.state) or is_success
         return self.observe(), reward, done, {'is_success': is_success}
 
-    def render(self) -> None:
+    def render(self, mode: str = 'human') -> None:
         self.mode.render(self.state)
 
 
@@ -313,6 +315,12 @@ class Sb3CtrlWrapper(Controller):
     def get_action(self, observation: Any) -> np.ndarray:
         m_obs_sp = self.model.observation_space
         if m_obs_sp:
+            #print(np.can_cast(observation.dtype, m_obs_sp.dtype))
+            #print(observation.shape == m_obs_sp.shape)
+            #print(np.all(observation >= m_obs_sp.low))
+            #print(np.all(observation <= m_obs_sp.high))
+            #print(observation.shape)
+            #print(m_obs_sp.shape)
             assert m_obs_sp.contains(observation)
         action, _ = self.model.predict(observation, deterministic=True)
         return action
@@ -365,6 +373,30 @@ class SpectrlCtrlWrapper(Controller):
              **kwargs,
              ) -> SpectrlCtrlWrapperType:
         return cls(joblib.load(path))
+
+
+DdpgCtrlWrapperType = TypeVar('DdpgCtrlWrapperType', bound='DdpgCtrlWrapper')
+
+
+class DdpgCtrlWrapper(Controller):
+    model: RlDdpg
+
+    def __init__(self, model: RlDdpg) -> None:
+        self.model = model
+
+    def get_action(self, observation: np.ndarray) -> np.ndarray:
+        return self.model.actor.get_action(observation)
+
+    def save(self, path: str) -> None:
+        torch.save(self.model, path)
+
+    @classmethod
+    def load(cls: Type[DdpgCtrlWrapperType],
+             path: str,
+             algo_name: str = 'ddpg',
+             **kwargs,
+             ) -> DdpgCtrlWrapperType:
+        return torch.load(path, **kwargs)
 
 
 class DoneOnSuccessWrapper(gym.Wrapper):

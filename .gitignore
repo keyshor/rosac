@@ -134,3 +134,7 @@ dmypy.json
 # output files
 *out.txt
 *.pkl
+
+*.pdf
+*.ddpg
+*.npy

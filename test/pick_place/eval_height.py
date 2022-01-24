@@ -85,7 +85,7 @@ if __name__ == '__main__':
                     help='number of trials for each mode in single-mode evaluation')
     ap.add_argument('--steps-per-trial', type=int, default=100,
                     help='maximum number of steps per trial in single-mode evaluation')
-    ap.add_argument('--end-to-end-trials', type=int, default=100,
+    ap.add_argument('--end-to-end-trials', type=int, default=0,
                     help='number of end-to-end trials')
     ap.add_argument('--steps-per-mode', type=int, default=100,
                     help='maximum number of steps per mode in end-to-end evaluation')
@@ -95,13 +95,19 @@ if __name__ == '__main__':
                     help='use this flag to print the reward at each time-step')
     ap.add_argument('--all', action='store_true',
                     help='use this flag to train all modes instead of specifying a list')
-    ap.add_argument('mode_types', type=str, nargs='*',
-                    help='mode types for which controllers will be evaluated')
+    #ap.add_argument('mode_types', type=str, nargs='*',
+    #                help='mode types for which controllers will be evaluated')
+    ap.add_argument('modes', type=str, nargs='*',
+                    help='modes for which controllers will be evaluated')
     args = ap.parse_args()
-    automaton = make_pick_place_model(num_objects=args.num_objects,
-                                      reward_type='dense',
-                                      distance_threshold=args.goal_tolerance)
-    mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
+    automaton = make_pick_place_model(
+        num_objects=args.num_objects,
+        reward_type='dense',
+        distance_threshold=args.goal_tolerance,
+        fixed_tower_height=True,
+    )
+    #mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
+    mode_list = list(automaton.modes.keys()) if args.all else args.modes
 
     #env = HybridGoalEnv(
     env = HybridEnv(
@@ -113,35 +119,27 @@ if __name__ == '__main__':
         flatten_obs=True,
     )
     controllers: dict = {}
-    #for mt in ModeType:
-    for mt_name in mode_type_list:
-        #ctrl = Sb3CtrlWrapper.load(
-        #    os.path.join(args.path, mt_name, 'best_model.zip'),
-        #    algo_name='td3',
-        #    #algo_name='sac',
-        #    env=env,
-        #)
-        ctrl = Sb3CtrlWrapper.load(
-            os.path.join(args.path, f'{mt_name}_1', 'best_model.zip'),
-            algo_name='td3',
-            #algo_name='sac',
-            env=env,
-        )
-        #ctrl = DdpgCtrlWrapper.load(
-        #    os.path.join(args.path, f'{mt_name}.ddpg'),
-        #    map_location=torch.device('cpu'),
-        #)
-        for i in range(args.num_objects):
-            name = f'{mt_name}_{i}'
-            controllers[name] = ctrl
-            #controllers[name] = Sb3CtrlWrapper.load(
-            #    os.path.join(args.path, name, 'best_model.zip'),
-            #    algo_name='td3',
-            #    #algo_name='sac',
-            #    env=env,
-            #)
-    for mt_name in mode_type_list:
-        for i in range(args.num_objects):
-            name = f'{mt_name}_{i}'
-            eval_single(automaton, controllers, name, args.trials_per_mode, args.steps_per_trial, args.render, args.print_reward)
+    #for mt_name in mode_type_list:
+    for mt in ModeType:
+        if mt.name == 'MOVE_WITH_OBJ':
+            for j in range(args.num_objects):
+                name = f'{mt.name}_h{j}'
+                ctrl = Sb3CtrlWrapper.load(
+                    os.path.join(args.path, name, 'best_model.zip'),
+                    algo_name='td3',
+                    env=env,
+                )
+                for i in range(args.num_objects):
+                    controllers[f'{mt.name}_h{j}_{i}'] = ctrl
+        #else:
+        #    ctrl = Sb3CtrlWrapper.load(
+        #        os.path.join(args.path, mt.name, 'best_model.zip'),
+        #        algo_name='td3',
+        #        env=env,
+        #    )
+        #    for i in range(args.num_objects):
+        #        controllers[f'{mt.name}_{i}'] = ctrl
+    for mode in mode_list:
+        #print(f'evaluating mode {mode}')
+        eval_single(automaton, controllers, mode, args.trials_per_mode, args.steps_per_trial, args.render, args.print_reward)
     eval_end_to_end(automaton, controllers, args.end_to_end_trials, args.steps_per_mode)
