@@ -35,7 +35,7 @@ class GridParams:
         self.bd_size = np.array([self.center_size[0], self.wall_size[1]/2])
         self.bd_point = np.array([self.hdoor[0], self.wall_size[1]/2]) - (self.full_size/2)
         self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
-        self.exit_wall_size = self.bd_size[0]/3
+        self.exit_wall_size = self.bd_size[0]/2
         self.exit_opening_size = self.bd_size[0] - self.exit_wall_size
         self.exit_wall = self.hdoor[0] + self.exit_wall_size
 
@@ -364,7 +364,7 @@ class RewardFunc:
         # compute classifier bonus
         if self.svm_model is not None:
             pred_y = self.svm_model.predict(np.array([next_state[1]]))[0]
-            reward += (25. * pred_y)
+            reward += (30. * pred_y)
 
         return reward
 
@@ -389,7 +389,7 @@ class RewardFunc:
             self.svm_model = svm.LinearSVC()
             self.svm_model.fit(X, Y)
 
-    def __evaluate_states(self, collected_states, controllers):
+    def _evaluate_states(self, collected_states, controllers):
         state_value_success = []
 
         # compute values for all end states

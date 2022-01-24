@@ -214,7 +214,7 @@ def cegrl(automaton: HybridAutomaton,
             automaton, mode_controllers, time_limits, max_jumps=max_jumps, mcts_rollouts=1000,
             eval_rollouts=100)
         rs_prob, avg_jmps, collected_states, eval_steps = random_selector_eval(
-            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=100,
+            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=200,
             return_steps=True)
         log_info.append([steps_taken, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
 
