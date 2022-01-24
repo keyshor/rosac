@@ -54,7 +54,8 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                     controller: Union[Controller, Dict[str, Controller]],
                     time_limits: Dict[str, int], num_rollouts: int = 100,
                     max_jumps: int = 100, print_debug: bool = False,
-                    render: bool = False, return_steps: bool = False):
+                    render: bool = False, return_steps: bool = False,
+                    conditional_prob_log=None):
     '''
     Measure success of trained controllers w.r.t. a given mode selector.
     Success only when selector signals completion (returns done).
@@ -68,6 +69,9 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
     num_jumps = 0
     steps = 0
     collected_states: Dict[str, List] = {m: [] for m in automaton.modes}
+    if conditional_prob_log is not None:
+        total_runs = [0] * max_jumps
+        successful_runs = [0] * max_jumps
 
     for _ in range(num_rollouts):
         mname = selector.reset()
@@ -96,6 +100,10 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
             # collect high-level steps
             success = info['safe'] and (info['jump'] is not None)
             collected_states[mname].append((state, sass[-1][-1], info['jump']))
+            if conditional_prob_log is not None:
+                total_runs[j] += 1
+                if success:
+                    successful_runs[j] += 1
 
             # terminate rollout if unsafe
             if not success:
@@ -120,6 +128,10 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
             else:
                 num_success += 1
                 break
+
+    if conditional_prob_log is not None:
+        log_str = str(['{}/{}'.format(sr, tr) for sr, tr in zip(successful_runs, total_runs)])
+        conditional_prob_log.write(log_str)
 
     if return_steps:
         return num_success / num_rollouts, num_jumps / num_rollouts, collected_states, steps

@@ -155,6 +155,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
 
         # Define observation space
         observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2,))
+        self._set_exit_norm_factors()
 
         # Initialize super
         super().__init__(name, action_space, observation_space)
@@ -318,6 +319,27 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         high = np.concatenate([high, high])
         return StateWrapper(self, Box(low=low, high=high))
 
+    def _set_exit_norm_factors(self):
+        mean = np.zeros((2,))
+        std = np.ones((2,))
+        if self.name == 'left':
+            mean[0] = -self.grid_params.partition_size[0]/2
+            std[0] = self.grid_params.wall_size[0]/2
+            std[1] = self.grid_params.center_size[1]/2
+        elif self.name == 'right':
+            mean[0] = self.grid_params.partition_size[0]/2
+            std[0] = self.grid_params.wall_size[0]/2
+            std[1] = self.grid_params.center_size[1]/2
+        elif self.name == 'up':
+            mean[1] = self.grid_params.partition_size[1]/2
+            std[0] = self.grid_params.center_size[0]/2
+            std[1] = self.grid_params.wall_size[1]/2
+        self.exit_mean = mean
+        self.exit_std = std
+
+    def normalize_exit(self, s):
+        return (np.array(s) - self.exit_mean) / self.exit_std
+
     def _get_goal(self, name):
         if name == 'left':
             goal = [-1, 0]
@@ -362,8 +384,8 @@ class RewardFunc:
             reward += self.mode.reward_fn_goal(state, action, next_state, self.goal)
 
         # compute classifier bonus
-        if self.svm_model is not None:
-            pred_y = self.svm_model.predict(np.array([next_state[1]]))[0]
+        if self.svm_model is not None and self._reached_exit(state, action, next_state):
+            pred_y = self.svm_model.predict(np.array([self.mode.normalize_exit(next_state[1])]))[0]
             reward += (30. * pred_y)
 
         return reward
@@ -382,12 +404,20 @@ class RewardFunc:
 
         else:
             # form training data
-            X = np.array([s[1] for s, _, _ in state_value_success])
+            X = np.array([self.mode.normalize_exit(s[1]) for s, _, _ in state_value_success])
             Y = np.array([label for _, _, label in state_value_success], dtype=np.int32)
 
             # train SVM model
             self.svm_model = svm.LinearSVC()
             self.svm_model.fit(X, Y)
+
+    def _reached_exit(self, state, action, next_state):
+        transitions = self.automaton.transitions[self.mode.name]
+        if self.mode.is_safe(next_state):
+            for t in transitions:
+                if t.guard(next_state):
+                    return True
+        return False
 
     def _evaluate_states(self, collected_states, controllers):
         state_value_success = []

@@ -94,6 +94,7 @@ def cegrl(automaton: HybridAutomaton,
 
     log_info = []
     steps_taken = 0
+    cond_prob_file = open(os.path.join(save_path, 'cond_probs.txt'), 'w')
 
     # define reset functions
     reset_funcs = {name: ResetFunc(mode, full_reset=full_reset)
@@ -215,7 +216,7 @@ def cegrl(automaton: HybridAutomaton,
             eval_rollouts=100)
         rs_prob, avg_jmps, collected_states, eval_steps = random_selector_eval(
             automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=200,
-            return_steps=True)
+            return_steps=True, conditional_prob_log=cond_prob_file)
         log_info.append([steps_taken, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
 
         # synthesis
@@ -260,5 +261,7 @@ def cegrl(automaton: HybridAutomaton,
                 ax.set_title(f'start_{name}_iter{i}')
                 ax.set_aspect('equal')
                 fig.savefig(os.path.join(save_path, f'start_{name}_iter{i}.png'))
+
+        cond_prob_file.close()
 
     return mode_controllers, np.array(log_info)
