@@ -262,6 +262,6 @@ def cegrl(automaton: HybridAutomaton,
                 ax.set_aspect('equal')
                 fig.savefig(os.path.join(save_path, f'start_{name}_iter{i}.png'))
 
-        cond_prob_file.close()
+    cond_prob_file.close()
 
     return mode_controllers, np.array(log_info)
