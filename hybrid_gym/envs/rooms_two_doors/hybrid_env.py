@@ -1,6 +1,6 @@
 from hybrid_gym.hybrid_env import HybridAutomaton
-from hybrid_gym.envs.rooms.mode import RoomsMode, GridParams
-from hybrid_gym.envs.rooms.transition import RoomsTrans
+from hybrid_gym.envs.rooms_two_doors.mode import RoomsMode, GridParams
+from hybrid_gym.envs.rooms_two_doors.transition import RoomsTrans
 from matplotlib import pyplot as plt
 
 DEFAULT_GRID_PARAMS = GridParams((8, 8), (2, 2), [(1, 3), (5, 7)], (3, 5))

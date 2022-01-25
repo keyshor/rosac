@@ -2,7 +2,7 @@ import numpy as np
 from typing import Dict, Tuple
 
 from hybrid_gym.model import Transition
-from hybrid_gym.envs.rooms.mode import RoomsMode
+from hybrid_gym.envs.rooms_two_doors.mode import RoomsMode
 
 
 class RoomsTrans(Transition):
