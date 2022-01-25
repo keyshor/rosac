@@ -293,8 +293,8 @@ class DDPG:
 
             print('Reward at episode {}: {}'.format(i, ep_reward))
             if i % self.params.test_freq == self.params.test_freq - 1:
-                avg_reward = test_policy(
-                    env, self.actor, self.params.test_n_rollouts, max_timesteps=self.params.test_max_timesteps)
+                avg_reward = test_policy(env, self.actor, self.params.test_n_rollouts,
+                                         max_timesteps=self.params.test_max_timesteps)
                 print('Expected reward after {} episodes: {}'.format(i, avg_reward))
 
         return num_steps
