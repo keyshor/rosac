@@ -56,7 +56,7 @@ if __name__ == '__main__':
                                       top_samples=0.25)
                         for m, mode in automaton.modes.items()}
 
-    nn_params = NNParams(2, 2, 1.0, 100)
+    nn_params = NNParams(2, 2, 1.0, 128)
     ars_params = ARSParams(600, 30, 10, 0.025, 0.08, 0.95, 25, track_best=True)
     action_bound = np.ones((2,))
     ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.001, critic_lr=0.0001, minibatch_size=128,

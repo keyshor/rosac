@@ -130,7 +130,8 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
                 break
 
     if conditional_prob_log is not None:
-        log_str = str(['{}/{}'.format(sr, tr) for sr, tr in zip(successful_runs, total_runs)])
+        log_str = str(['{}/{}'.format(sr, tr)
+                      for sr, tr in zip(successful_runs, total_runs)]) + '\n'
         conditional_prob_log.write(log_str)
 
     if return_steps:
