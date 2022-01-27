@@ -185,7 +185,7 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         return (state[1], next_state)
 
     def _observation_fn(self, state):
-        return np.array(state[1])
+        return 2 * np.array(state[1]) / self.grid_params.full_size
 
     def _reward_fn(self, state, action, next_state):
         return self.reward_fn_goal(state, action, next_state, self._goal)
@@ -362,7 +362,7 @@ class RewardFunc:
     goal_state: Any
 
     def __init__(self, mode, automaton, time_limits, use_classifier=False,
-                 top_samples=0.4, discount=0.95):
+                 top_samples=0.4, discount=0.95, svm_penalty_factor=1.):
         self.mode = mode
         self.automaton = automaton
         self.use_classifier = use_classifier
@@ -370,8 +370,9 @@ class RewardFunc:
         self.top_samples = top_samples
         self.time_limits = time_limits
         self.discount = 0.95
-        if self.use_classifier:
-            self.svm_model = None
+        self.svm_model = None
+        self.num_updates = 0
+        self.svm_penalty_factor = svm_penalty_factor
 
     def __call__(self, state: Tuple[Tuple, Tuple], action: np.ndarray,
                  next_state: Tuple[Tuple, Tuple]) -> float:
@@ -386,7 +387,7 @@ class RewardFunc:
         # compute classifier bonus
         if self.svm_model is not None and self._reached_exit(state, action, next_state):
             pred_y = self.svm_model.predict(np.array([self.mode.normalize_exit(next_state[1])]))[0]
-            reward += (30. * pred_y)
+            reward += ((30. * pred_y) - (self.num_updates * self.svm_penalty_factor * (1 - pred_y)))
 
         return reward
 
@@ -410,6 +411,8 @@ class RewardFunc:
             # train SVM model
             self.svm_model = svm.LinearSVC()
             self.svm_model.fit(X, Y)
+
+        self.num_updates += 1
 
     def _reached_exit(self, state, action, next_state):
         transitions = self.automaton.transitions[self.mode.name]
