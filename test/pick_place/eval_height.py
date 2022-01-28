@@ -24,20 +24,26 @@ def eval_single(automaton, controllers, name, trials_per_mode, steps_per_trial, 
     #mode_env = GymGoalEnvWrapper(mode, automaton.transitions[name])
     ctrl = controllers[name]
     num_successes = 0
+    min_success_time = steps_per_trial + 1
+    max_success_time = -1
     for _ in range(trials_per_mode):
         obs = mode_env.reset()
         done = False
+        num_steps = 0
         for j in range(steps_per_trial):
             if not done:
                 action = ctrl.get_action(obs)
                 obs, reward, done, _ = mode_env.step(action)
+                num_steps += 1
             if render:
                 mode_env.render()
             if print_reward:
                 print(f'reward at step {j} is {reward}')
         if mode.is_success(mode_env.state):
             num_successes += 1
-    print(f'success rate for mode {name} is {num_successes}/{trials_per_mode}')
+            min_success_time = min(min_success_time, num_steps)
+            max_success_time = max(max_success_time, num_steps)
+    print(f'{name}: success {num_successes}/{trials_per_mode}, success time [{min_success_time}, {max_success_time}]')
 
 
 def eval_end_to_end(automaton, controllers, end_to_end_trials, steps_per_mode):
@@ -107,7 +113,9 @@ if __name__ == '__main__':
         fixed_tower_height=True,
     )
     #mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
-    mode_list = list(automaton.modes.keys()) if args.all else args.modes
+    mode_list = [name for name in automaton.modes.keys()
+                 if 'MOVE_WITH_OBJ_' in name] \
+        if args.all else args.modes
 
     #env = HybridGoalEnv(
     env = HybridEnv(
@@ -118,27 +126,40 @@ if __name__ == '__main__':
         ]),
         flatten_obs=True,
     )
-    controllers: dict = {}
+    #controllers: dict = {}
     #for mt_name in mode_type_list:
-    for mt in ModeType:
-        if mt.name == 'MOVE_WITH_OBJ':
-            for j in range(args.num_objects):
-                name = f'{mt.name}_h{j}'
-                ctrl = Sb3CtrlWrapper.load(
-                    os.path.join(args.path, name, 'best_model.zip'),
-                    algo_name='td3',
-                    env=env,
-                )
-                for i in range(args.num_objects):
-                    controllers[f'{mt.name}_h{j}_{i}'] = ctrl
-        #else:
-        #    ctrl = Sb3CtrlWrapper.load(
-        #        os.path.join(args.path, mt.name, 'best_model.zip'),
-        #        algo_name='td3',
-        #        env=env,
-        #    )
-        #    for i in range(args.num_objects):
-        #        controllers[f'{mt.name}_{i}'] = ctrl
+    #for mt in ModeType:
+    #    if mt.name == 'MOVE_WITH_OBJ':
+    #        for j in range(args.num_objects):
+    #            #name = f'{mt.name}_h{j}'
+    #            #ctrl = Sb3CtrlWrapper.load(
+    #            #    os.path.join(args.path, name, 'best_model.zip'),
+    #            #    algo_name='td3',
+    #            #    env=env,
+    #            #)
+    #            for i in range(args.num_objects):
+    #                name = f'{mt.name}_h{j}_{i}'
+    #                controllers[name] = Sb3CtrlWrapper.load(
+    #                    os.path.join(args.path, name, 'best_model.zip'),
+    #                    algo_name='td3',
+    #                    env=env,
+    #                )
+    #    #else:
+    #    #    ctrl = Sb3CtrlWrapper.load(
+    #    #        os.path.join(args.path, mt.name, 'best_model.zip'),
+    #    #        algo_name='td3',
+    #    #        env=env,
+    #    #    )
+    #    #    for i in range(args.num_objects):
+    #    #        controllers[f'{mt.name}_{i}'] = ctrl
+    controllers = {
+        name: Sb3CtrlWrapper.load(
+            os.path.join(args.path, name, 'best_model.zip'),
+            algo_name='td3',
+            env=env,
+        )
+        for name in mode_list
+    }
     for mode in mode_list:
         #print(f'evaluating mode {mode}')
         eval_single(automaton, controllers, mode, args.trials_per_mode, args.steps_per_trial, args.render, args.print_reward)
