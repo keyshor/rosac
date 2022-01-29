@@ -1,0 +1,7 @@
+*.her
+*.td3
+*.spectrl
+*.ddpg
+ModeType.*
+*.zip
+*.npz
