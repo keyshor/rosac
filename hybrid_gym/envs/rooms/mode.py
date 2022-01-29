@@ -414,6 +414,11 @@ class RewardFunc:
 
         self.num_updates += 1
 
+    def obs_reward(self, obs, action, next_obs):
+        obs = tuple(obs * self.mode.grid_params.full_size / 2)
+        next_obs = tuple(next_obs * self.mode.grid_params.full_size / 2)
+        return self.__call__((obs, obs), action, (obs, next_obs))
+
     def _reached_exit(self, state, action, next_state):
         transitions = self.automaton.transitions[self.mode.name]
         if self.mode.is_safe(next_state):

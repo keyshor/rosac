@@ -5,12 +5,11 @@ CounterExample Guided Reinforcement Learning
 from hybrid_gym import HybridAutomaton, Mode, Controller
 from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
                                           make_ars_model, parallel_ars, learn_ddpg_model,
-                                          make_ddpg_model)
+                                          make_ddpg_model, make_sac_model, parallel_sac)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
 from hybrid_gym.falsification.single_mode import falsify
-from hybrid_gym.rl.ars import NNPolicy
 from hybrid_gym.eval import mcts_eval, random_selector_eval
 from typing import List, Dict, Any, Iterable, Callable, Optional, Tuple
 from multiprocessing import Process, Queue
@@ -130,6 +129,11 @@ def cegrl(automaton: HybridAutomaton,
     elif algo_name == 'my_ddpg':
         models = [make_ddpg_model(**kwargs) for _ in mode_groups]
         controllers = [model.get_policy() for model in models]
+    elif algo_name == 'my_sac':
+        models = [make_sac_model(automaton.observation_space, automaton.action_space,
+                                 **kwargs['sac_kwargs']) for _ in mode_groups]
+        controllers = [model.get_policy() for model in models]
+        stochastic_controllers = [model.get_policy(deterministic=False) for model in models]
     else:
         models = [make_sb3_model_init_check(
             group_info[g],
@@ -146,8 +150,8 @@ def cegrl(automaton: HybridAutomaton,
     for i in range(num_iter):
         print('\n**** Iteration {} ****'.format(i))
 
-        # parallelize learning
-        if algo_name == 'ars':
+        # parallelize learning, initialize list of queues to retrieve trained models
+        if algo_name == 'ars' or algo_name == 'my_sac':
             ret_queues: List[Queue] = []
             req_queues: List[Queue] = []
             processes = []
@@ -155,14 +159,32 @@ def cegrl(automaton: HybridAutomaton,
         # train agents
         for g in range(len(mode_groups)):
             print('\n---- Training controller for modes {} ----'.format(group_names[g]))
-            if algo_name == 'ars':
+
+            # ARS and SAC support parallelization
+            if algo_name == 'ars' or algo_name == 'my_sac':
+
+                # Initialize return and request queue for models[g]
                 ret_queues.append(Queue())
                 req_queues.append(Queue())
+
+                # move everything to CPU since multiprocessing library doesn't handle GPU resources
                 if use_gpu:
                     models[g].cpu()
-                processes.append(Process(target=parallel_ars, args=(models[g], list(
-                    group_info[g]), save_path, ret_queues[g], req_queues[g], print_debug, use_gpu)))
+
+                # set the correspondning training functions
+                if algo_name == 'ars':
+                    processes.append(Process(target=parallel_ars, args=(models[g], list(
+                        group_info[g]), save_path, ret_queues[g], req_queues[g],
+                        print_debug, use_gpu)))
+                else:
+                    processes.append(Process(target=parallel_sac, args=(models[g], list(
+                        group_info[g]), ret_queues[g], req_queues[g],
+                        print_debug, (i > 0), use_gpu)))
+
+                # start the training process
                 processes[g].start()
+
+            # sequential training for ddpg and stable_baselines
             elif algo_name == 'my_ddpg':
                 steps_taken += learn_ddpg_model(models[g], list(group_info[g]))
             else:
@@ -177,7 +199,7 @@ def cegrl(automaton: HybridAutomaton,
                 )
 
         # retrieve new controllers
-        if algo_name == 'ars':
+        if algo_name == 'ars' or algo_name == 'my_sac':
             for g in range(len(mode_groups)):
                 while True:
                     try:
@@ -194,12 +216,14 @@ def cegrl(automaton: HybridAutomaton,
                 req_queues[g].put(None)
                 processes[g].join()
 
-                if use_best_model:
-                    nn_policy = NNPolicy.load(group_names[g][0], save_path, **kwargs)
-                    models[g].nn_policy = nn_policy
+                # set the new controllers
+                controllers[g] = models[g].get_policy()
+                if algo_name == 'my_sac':
+                    stochastic_controllers[g] = models[g].get_policy(deterministic=False)
 
-                controllers[g] = models[g].nn_policy
                 steps_taken += steps
+
+        # ddpg, sequential
         elif algo_name != 'my_ddpg':
             if use_best_model:
                 for g in range(len(mode_groups)):
@@ -215,9 +239,17 @@ def cegrl(automaton: HybridAutomaton,
             automaton, mode_controllers, time_limits, max_jumps=max_jumps, mcts_rollouts=1000,
             eval_rollouts=100)
         rs_prob, avg_jmps, collected_states, eval_steps = random_selector_eval(
-            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=200,
+            automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=100,
             return_steps=True, conditional_prob_log=cond_prob_file)
         log_info.append([steps_taken, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
+
+        # probabilistic policies for exploration
+        if algo_name == 'my_sac':
+            stochastic_mode_controllers = {
+                name: stochastic_controllers[g] for name, g in group_map.items()}
+            _, _, collected_states, eval_steps = random_selector_eval(
+                automaton, stochastic_mode_controllers, time_limits, max_jumps=max_jumps,
+                eval_rollouts=200, return_steps=True)
 
         # synthesis
         if num_synth_iter > 0:

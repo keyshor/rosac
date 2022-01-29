@@ -353,7 +353,7 @@ class RewardFunc:
     goal_state: Any
 
     def __init__(self, mode, automaton, time_limits, use_classifier=False,
-                 top_samples=0.4, discount=0.95, alpha=0.3,
+                 top_samples=0.4, discount=0.95, alpha=0.5,
                  svm_penalty_factor=1.):
         self.mode = mode
         self.automaton = automaton
@@ -406,6 +406,11 @@ class RewardFunc:
             self.svm_model.fit(X, Y)
 
         self.num_updates += 1
+
+    def obs_reward(self, obs, action, next_obs):
+        obs = tuple(obs * self.mode.grid_params.full_size / 2)
+        next_obs = tuple(next_obs * self.mode.grid_params.full_size / 2)
+        return self.__call__((obs, obs), action, (obs, next_obs))
 
     def _reached_exit(self, state, action, next_state):
         transitions = self.automaton.transitions[self.mode.name]

@@ -30,6 +30,9 @@ class ARSModel:
     def gpu(self):
         self.nn_policy = self.nn_policy.set_use_gpu()
 
+    def get_policy(self):
+        return self.nn_policy
+
 
 # Parameters for training a policy neural net.
 #

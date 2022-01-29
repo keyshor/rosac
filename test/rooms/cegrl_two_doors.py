@@ -52,6 +52,8 @@ if __name__ == '__main__':
                              steps_per_update=100, gradients_per_update=100,
                              actor_hidden_dim=64, critic_hidden_dim=64, max_timesteps=25,
                              test_max_timesteps=25, sigma=0.15)
+    sac_kwargs = dict(hidden_dims=(64, 64), episodes_per_epoch=15, max_ep_len=25, test_ep_len=25,
+                      alpha=0.4)
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
@@ -59,7 +61,7 @@ if __name__ == '__main__':
                                   nn_params=nn_params, ars_params=ars_params, ddpg_params=ddpg_params,
                                   use_gpu=flags['gpu'], max_jumps=MAX_JUMPS, dagger=flags['dagger'],
                                   full_reset=use_full_reset, inductive_ce=flags['inductive_ce'],
-                                  reward_funcs=reward_funcs)
+                                  reward_funcs=reward_funcs, sac_kwargs=sac_kwargs)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

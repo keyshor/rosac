@@ -39,6 +39,7 @@ from hybrid_gym.util.wrappers import (
 from hybrid_gym.rl.ars import NNParams, ARSParams, ARSModel
 from hybrid_gym.rl.ddpg import DDPG as MyDDPG
 from hybrid_gym.rl.ddpg import DDPGParams
+from hybrid_gym.rl.sac import MySAC
 
 
 # BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
@@ -68,14 +69,14 @@ def env_from_mode_info(
 
 
 def make_spectrl_model(raw_mode_info: Iterable[Tuple[
-                           Mode[StateType],
-                           Iterable[Transition],
-                           Optional[Callable[[], StateType]],
-                           Optional[Callable[[StateType, np.ndarray, StateType], float]],
-                       ]],
-                       max_episode_steps: int = 50,
-                       **kwargs,
-                       ) -> SpectrlDdpg:
+    Mode[StateType],
+    Iterable[Transition],
+    Optional[Callable[[], StateType]],
+    Optional[Callable[[StateType, np.ndarray, StateType], float]],
+]],
+    max_episode_steps: int = 50,
+    **kwargs,
+) -> SpectrlDdpg:
     mode_info = [
         (mode, list(transitions), reset_fn, reward_fn)
         for (mode, transitions, reset_fn, reward_fn) in raw_mode_info
@@ -472,6 +473,10 @@ def make_ddpg_model(
     return MyDDPG(ddpg_params, use_gpu)
 
 
+def make_sac_model(obs_space, act_space, **kwargs) -> MySAC:
+    return MySAC(obs_space, act_space, **kwargs)
+
+
 def learn_ars_model(model: ARSModel,
                     raw_mode_info: List[Tuple[
                         Mode[StateType],
@@ -481,10 +486,25 @@ def learn_ars_model(model: ARSModel,
                     ]],
                     save_path: str = '.',
                     custom_best_model_path: Optional[str] = None,
-                    verbose=False) -> None:
+                    verbose=False):
     env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
     _, log_info = model.learn(env_list, verbose=verbose)
     return log_info
+
+
+def learn_sac_model(model: MySAC,
+                    raw_mode_info: List[Tuple[
+                        Mode[StateType],
+                        Iterable[Transition],
+                        Optional[Callable[[], StateType]],
+                        Optional[Callable[[StateType, np.ndarray, StateType], float]],
+                    ]],
+                    verbose=False,
+                    retrain=False) -> int:
+    env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
+    reward_fns = [mode_info[3] for mode_info in raw_mode_info]
+    steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns)
+    return steps_taken
 
 
 def learn_ddpg_model(model: MyDDPG,
@@ -515,5 +535,16 @@ def parallel_ddpg(model, mode_info, ret_queue, req_queue, use_gpu):
     steps = learn_ddpg_model(model, mode_info)
     if use_gpu:
         model.set_use_cpu()
+    while req_queue.get() is not None:
+        ret_queue.put((model, steps))
+
+
+def parallel_sac(model, mode_info, ret_queue, req_queue, verbose, retrain, use_gpu):
+    # For now does not support best policy computation
+    if use_gpu:
+        model.gpu()
+    steps = learn_sac_model(model, mode_info, verbose, retrain)
+    if use_gpu:
+        model.cpu()
     while req_queue.get() is not None:
         ret_queue.put((model, steps))
