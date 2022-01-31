@@ -8,7 +8,7 @@ import random
 import os
 import pickle
 # import time
-import hybrid_gym.rl.sac.core as core
+from hybrid_gym.rl.sac.core import MLPActorCritic, combined_shape
 from hybrid_gym.model import Controller
 
 
@@ -18,9 +18,9 @@ class ReplayBuffer:
     """
 
     def __init__(self, obs_dim, act_dim, size):
-        self.obs_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
-        self.obs2_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
-        self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
+        self.obs_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
+        self.obs2_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
+        self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
         self.ptr, self.size, self.max_size = 0, 0, size
@@ -157,7 +157,7 @@ class MySAC:
         act_dim = act_space.shape[0]
 
         # initialize networks
-        self.ac = core.MLPActorCritic(obs_space, act_space, hidden_dims)
+        self.ac = MLPActorCritic(obs_space, act_space, hidden_dims)
         self.ac_targ = deepcopy(self.ac)
 
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
@@ -364,7 +364,7 @@ class MySAC:
 
 class SACController(Controller):
 
-    def __init__(self, ac: core.MLPActorCritic, deterministic=True):
+    def __init__(self, ac: MLPActorCritic, deterministic=True):
         self.ac = ac
         self.deterministic = deterministic
 
