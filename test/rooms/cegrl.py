@@ -65,10 +65,10 @@ if __name__ == '__main__':
                              steps_per_update=100, gradients_per_update=100,
                              actor_hidden_dim=64, critic_hidden_dim=64, max_timesteps=25,
                              test_max_timesteps=25, sigma=0.15)
-    sac_kwargs = dict(hidden_dims=(64, 64), episodes_per_epoch=15, max_ep_len=25, test_ep_len=25,
-                      alpha=0.4)
+    sac_kwargs = dict(hidden_dims=(64, 64), episodes_per_epoch=20, max_ep_len=25, test_ep_len=25,
+                      alpha=0.08, min_alpha=0.04, alpha_decay=0.002)
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=150, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=50, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   use_best_model=flags['best'], save_path=flags['path'], algo_name='my_sac',
                                   nn_params=nn_params, ars_params=ars_params, ddpg_params=ddpg_params,

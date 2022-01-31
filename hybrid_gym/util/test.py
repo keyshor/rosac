@@ -133,6 +133,7 @@ def end_to_end_test(automaton: HybridAutomaton, selector: ModeSelector,
         log_str = str(['{}/{}'.format(sr, tr)
                       for sr, tr in zip(successful_runs, total_runs)]) + '\n'
         conditional_prob_log.write(log_str)
+        conditional_prob_log.flush()
 
     if return_steps:
         return num_success / num_rollouts, num_jumps / num_rollouts, collected_states, steps

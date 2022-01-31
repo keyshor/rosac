@@ -315,12 +315,12 @@ class Sb3CtrlWrapper(Controller):
     def get_action(self, observation: Any) -> np.ndarray:
         m_obs_sp = self.model.observation_space
         if m_obs_sp:
-            #print(np.can_cast(observation.dtype, m_obs_sp.dtype))
-            #print(observation.shape == m_obs_sp.shape)
-            #print(np.all(observation >= m_obs_sp.low))
-            #print(np.all(observation <= m_obs_sp.high))
-            #print(observation.shape)
-            #print(m_obs_sp.shape)
+            # print(np.can_cast(observation.dtype, m_obs_sp.dtype))
+            # print(observation.shape == m_obs_sp.shape)
+            # print(np.all(observation >= m_obs_sp.low))
+            # print(np.all(observation <= m_obs_sp.high))
+            # print(observation.shape)
+            # print(m_obs_sp.shape)
             assert m_obs_sp.contains(observation)
         action, _ = self.model.predict(observation, deterministic=True)
         return action
@@ -387,7 +387,7 @@ class DdpgCtrlWrapper(Controller):
     def get_action(self, observation: np.ndarray) -> np.ndarray:
         return self.model.actor.get_action(observation)
 
-    def save(self, path: str) -> None:
+    def save(self, name: str, path: str) -> None:
         torch.save(self.model, path)
 
     @classmethod
