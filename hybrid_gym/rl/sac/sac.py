@@ -12,6 +12,22 @@ from hybrid_gym.rl.sac.core import MLPActorCritic, combined_shape
 from hybrid_gym.model import Controller
 
 
+def optimizer_to(optim, device):
+    device = torch.device(device)
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
+
+
 class ReplayBuffer:
     """
     A simple FIFO experience replay buffer for SAC agents.
@@ -24,6 +40,7 @@ class ReplayBuffer:
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
         self.ptr, self.size, self.max_size = 0, 0, size
+        self.device = 'cpu'
 
     def store(self, obs, act, rew, next_obs, done):
         self.obs_buf[self.ptr] = obs
@@ -45,7 +62,8 @@ class ReplayBuffer:
             for i in range(batch_size):
                 batch['rew'][i] = reward_fn.obs_reward(
                     batch['obs'][i], batch['act'][i], batch['obs2'][i])
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k, v in batch.items()}
+        return {k: torch.as_tensor(v, dtype=torch.float32, device=self.device)
+                for k, v in batch.items()}
 
 
 class MySAC:
@@ -150,7 +168,8 @@ class MySAC:
                  episodes_per_epoch=50, epochs=100, replay_size=int(1e6), gamma=0.99,
                  polyak=0.995, lr=1e-3, alpha=0.2, batch_size=100, start_steps=10000,
                  update_after=1000, update_every=50, num_test_episodes=10, max_ep_len=1000,
-                 test_ep_len=1000, log_interval=40, min_alpha=0.2, alpha_decay=0.01):
+                 test_ep_len=1000, log_interval=40, min_alpha=0.2, alpha_decay=0.01,
+                 gpu_device='cuda:0'):
 
         # compute dims
         obs_dim = obs_space.shape
@@ -190,6 +209,8 @@ class MySAC:
         self.test_ep_len = test_ep_len
         self.min_alpha = min_alpha
         self.alpha_decay = alpha_decay
+        self.gpu_device = gpu_device
+        self.device = 'cpu'
 
     # Set up function for computing SAC Q-losses
     def compute_loss_q(self, data):
@@ -215,8 +236,8 @@ class MySAC:
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
-        q_info = dict(Q1Vals=q1.detach().numpy(),
-                      Q2Vals=q2.detach().numpy())
+        q_info = dict(Q1Vals=q1.detach().cpu().numpy(),
+                      Q2Vals=q2.detach().cpu().numpy())
 
         return loss_q, q_info
 
@@ -232,7 +253,7 @@ class MySAC:
         loss_pi = (self.alpha * logp_pi - q_pi).mean()
 
         # Useful info for logging
-        pi_info = dict(LogPi=logp_pi.detach().numpy())
+        pi_info = dict(LogPi=logp_pi.detach().cpu().numpy())
 
         return loss_pi, pi_info
 
@@ -267,7 +288,7 @@ class MySAC:
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
     def get_action(self, o, deterministic=False):
-        return self.ac.act(torch.as_tensor(o, dtype=torch.float32),
+        return self.ac.act(torch.as_tensor(o, dtype=torch.float32, device=self.device),
                            deterministic)
 
     def test_agent(self, env_list, ep_num):
@@ -352,27 +373,43 @@ class MySAC:
 
         return steps
 
+    def to(self, device):
+        self.ac = self.ac.to(device=device)
+        self.ac_targ = self.ac_targ.to(device=device)
+        self.q_params = itertools.chain(self.ac.q1.parameters(), self.ac.q2.parameters())
+        self.replay_buffer.device = device
+        self.device = device
+        optimizer_to(self.pi_optimizer, device)
+        optimizer_to(self.q_optimizer, device)
+
     def gpu(self):
-        pass
+        self.to(self.gpu_device)
 
     def cpu(self):
-        pass
+        self.to('cpu')
 
     def get_policy(self, deterministic=True):
-        return SACController(self.ac, deterministic)
+        return SACController(self.ac, deterministic, self.device)
 
 
 class SACController(Controller):
 
-    def __init__(self, ac: MLPActorCritic, deterministic=True):
+    def __init__(self, ac: MLPActorCritic, deterministic=True, device='cpu'):
         self.ac = ac
         self.deterministic = deterministic
 
+        # device is fixed to that of ac, needs to be manually updated if ac's device is changed.
+        self.device = device
+
     def get_action(self, o: np.ndarray) -> np.ndarray:
-        return self.ac.act(torch.as_tensor(o, dtype=torch.float32),
+        return self.ac.act(torch.as_tensor(o, dtype=torch.float32, device=self.device),
                            self.deterministic)
 
     def save(self, name: str, path: str) -> None:
+        # modifies device of ac, might affect other code depending on ac.
+        if self.device != 'cpu':
+            self.ac = self.ac.to('cpu')
+            self.device = 'cpu'
         fh = open(os.path.join(path, name + '.pkl'), 'wb')
         pickle.dump(self, fh)
 
@@ -385,6 +422,7 @@ if __name__ == '__main__':
     parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--device', type=str, default='cpu')
     args = parser.parse_args()
 
     torch.set_num_threads(torch.get_num_threads())

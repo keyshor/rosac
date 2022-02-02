@@ -17,6 +17,7 @@ from multiprocessing import Process, Queue
 import numpy as np
 import random
 import os
+import time
 import matplotlib.pyplot as plt
 
 
@@ -148,7 +149,8 @@ def cegrl(automaton: HybridAutomaton,
         controllers = [Sb3CtrlWrapper(model) for model in models]
 
     for i in range(num_iter):
-        print('\n**** Iteration {} ****'.format(i))
+        start_time = time.time()
+        print('\nStarting to train individual controllers in iteration {} ...'.format(i))
 
         # parallelize learning, initialize list of queues to retrieve trained models
         if algo_name == 'ars' or algo_name == 'my_sac':
@@ -158,7 +160,8 @@ def cegrl(automaton: HybridAutomaton,
 
         # train agents
         for g in range(len(mode_groups)):
-            print('\n---- Training controller for modes {} ----'.format(group_names[g]))
+            if print_debug:
+                print('Training controller for modes {}'.format(group_names[g]))
 
             # ARS and SAC support parallelization
             if algo_name == 'ars' or algo_name == 'my_sac':
@@ -233,7 +236,13 @@ def cegrl(automaton: HybridAutomaton,
                     )
                     models[g].set_parameters(ctrl.model.get_parameters())
 
+        print('Completed training individual controllers in {} mins'.format(
+            (time.time() - start_time) / 60))
+
         # evaluating controllers
+        start_time = time.time()
+        print('\nEvaluating controllers in iteration {} ...'.format(i))
+
         mode_controllers = {name: controllers[g] for name, g in group_map.items()}
         mcts_prob, mcts_avg_jmps, _ = mcts_eval(
             automaton, mode_controllers, time_limits, max_jumps=max_jumps, mcts_rollouts=1000,
@@ -251,9 +260,13 @@ def cegrl(automaton: HybridAutomaton,
                 automaton, stochastic_mode_controllers, time_limits, max_jumps=max_jumps,
                 eval_rollouts=200, return_steps=True)
 
+        print('Completed evaluation of controllers in {} secs'.format(time.time() - start_time))
+
         # synthesis
         if num_synth_iter > 0:
-            print('\n---- Running synthesis ----')
+            start_time = time.time()
+            print('\nRunning synthesis in iteration {} ...'.format(i))
+
             pre_copy = {name: astate.copy() for name, astate in pre.items()}
             ces, steps = synthesize(automaton, mode_controllers, pre_copy, time_limits,
                                     num_synth_iter, n_synth_samples, abstract_synth_samples,
@@ -275,6 +288,8 @@ def cegrl(automaton: HybridAutomaton,
                 for ce in ces:
                     reset_funcs[ce.m].add_states([ce.s])
 
+            print('Completed synthesis in {} secs'.format(time.time() - start_time))
+
         # dataset aggregation using random selector
         elif dagger:
             steps_taken += eval_steps
@@ -282,9 +297,12 @@ def cegrl(automaton: HybridAutomaton,
                 reset_funcs[m].add_states([s[0] for s in collected_states[m]])
 
         # change reward function based on collected states
+        start_time = time.time()
+        print('\nUpdatign rewards in iteration {} ...'.format(i))
         for m in reward_funcs:
-            if reward_funcs[m] is not None:
+            if reward_funcs[m] is not None and len(collected_states[m] > 10):
                 reward_funcs[m].update(collected_states[m], mode_controllers)
+        print('Completed updating rewards in {} secs'.format(time.time() - start_time))
 
         if plot_synthesized_regions:
             for (name, rf) in reset_funcs.items():

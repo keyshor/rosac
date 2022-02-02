@@ -35,7 +35,7 @@ class SquashedGaussianMLPActor(nn.Module):
         self.net = mlp([obs_dim] + list(hidden_sizes), activation, activation)
         self.mu_layer = nn.Linear(hidden_sizes[-1], act_dim)
         self.log_std_layer = nn.Linear(hidden_sizes[-1], act_dim)
-        self.act_limit = act_limit
+        self.act_limit = torch.as_tensor(act_limit, dtype=torch.float32)
 
     def forward(self, obs, deterministic=False, with_logprob=True):
         net_out = self.net(obs)
@@ -68,6 +68,11 @@ class SquashedGaussianMLPActor(nn.Module):
 
         return pi_action, logp_pi
 
+    def to(self, *args, **kwargs):
+        self = super().to(*args, **kwargs)
+        self.act_limit.to(*args, **kwargs)
+        return self
+
 
 class MLPQFunction(nn.Module):
 
@@ -98,4 +103,10 @@ class MLPActorCritic(nn.Module):
     def act(self, obs, deterministic=False):
         with torch.no_grad():
             a, _ = self.pi(obs, deterministic, False)
-            return a.numpy()
+            return a.cpu().numpy()
+
+    def to(self, *args, **kwargs):
+        self.pi = self.pi.to(*args, **kwargs)
+        self.q1 = self.q1.to(*args, **kwargs)
+        self.q2 = self.q2.to(*args, **kwargs)
+        return self

@@ -1,5 +1,6 @@
 import os
 import sys
+import torch
 import numpy as np
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
@@ -24,7 +25,8 @@ if __name__ == '__main__':
     if not os.path.exists(flags['path']):
         os.makedirs(flags['path'])
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(flags['gpu_num'])
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(flags['gpu_num'])
+    num_gpus = max(torch.cuda.device_count(), 1)
 
     automaton = make_rooms_model()
     pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
@@ -53,7 +55,8 @@ if __name__ == '__main__':
                              actor_hidden_dim=64, critic_hidden_dim=64, max_timesteps=25,
                              test_max_timesteps=25, sigma=0.15)
     sac_kwargs = dict(hidden_dims=(64, 64), episodes_per_epoch=20, max_ep_len=25, test_ep_len=25,
-                      alpha=0.08, min_alpha=0.04, alpha_decay=0.002)
+                      alpha=0.08, min_alpha=0.04, alpha_decay=0.002,
+                      gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus))
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
