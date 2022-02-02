@@ -134,7 +134,7 @@ def cegrl(automaton: HybridAutomaton,
     elif algo_name == 'my_ddpg':
         models = [make_ddpg_model(**kwargs) for _ in mode_groups]
         controllers = [model.get_policy() for model in models]
-    elif algo_name == 'my_sac':
+    elif algo_name[:6] == 'my_sac':
         models = [make_sac_model(automaton.observation_space, automaton.action_space,
                                  **kwargs['sac_kwargs']) for _ in mode_groups]
         controllers = [model.get_policy() for model in models]
