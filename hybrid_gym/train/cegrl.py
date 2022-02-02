@@ -50,6 +50,14 @@ class ResetFunc:
     def add_states(self, states: Iterable[Any]) -> None:
         self.states.extend(states)
 
+    def make_serializable(self):
+        self.mode = self.mode.name
+        return self
+
+    def set_automaton(self, automaton):
+        self.mode = automaton.modes[self.mode]
+        return self
+
 
 def cegrl(automaton: HybridAutomaton,
           pre: Dict[str, AbstractState],
@@ -79,6 +87,7 @@ def cegrl(automaton: HybridAutomaton,
           num_sb3_processes: int = 3,
           plot_synthesized_regions: bool = False,
           reward_funcs: Optional[Dict[str, Any]] = None,
+          env_name: Optional[str] = None,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -184,8 +193,15 @@ def cegrl(automaton: HybridAutomaton,
                         group_info[g]), save_path, ret_queues[g], req_queues[g],
                         print_debug, use_gpu)))
                 else:
-                    processes.append(Process(target=parallel_sac, args=(models[g], list(
-                        group_info[g]), ret_queues[g], req_queues[g],
+                    serializable_info = [(mode.name, reset_fn, reward_fn)
+                                         for mode, _, reset_fn, reward_fn in group_info[g]]
+                    for _, reward_fn, reset_fn in serializable_info:
+                        if reward_fn is not None:
+                            reward_fn.make_serializable()
+                        if reset_fn is not None:
+                            reset_fn.make_serializable()
+                    processes.append(Process(target=parallel_sac, args=(
+                        models[g], env_name, serializable_info, ret_queues[g], req_queues[g],
                         print_debug, (i > 0), use_gpu)))
 
                 # start the training process
@@ -231,6 +247,11 @@ def cegrl(automaton: HybridAutomaton,
                 controllers[g] = models[g].get_policy()
                 if algo_name == 'my_sac':
                     stochastic_controllers[g] = models[g].get_policy(deterministic=False)
+                    for _, _, reset_fn, reward_fn in group_info[g]:
+                        if reward_fn is not None:
+                            reward_fn.set_automaton(automaton)
+                        if reset_fn is not None:
+                            reset_fn.set_automaton(automaton)
 
                 steps_taken += steps
 

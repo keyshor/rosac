@@ -454,3 +454,13 @@ class RewardFunc:
                 state_value_success.append((end_state, value, success))
 
         return state_value_success
+
+    def make_serializable(self):
+        self.automaton = None
+        self.mode = self.mode.name
+        return self
+
+    def set_automaton(self, automaton):
+        self.automaton = automaton
+        self.mode = self.automaton.modes[self.mode]
+        return self

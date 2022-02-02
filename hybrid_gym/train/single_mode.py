@@ -40,6 +40,7 @@ from hybrid_gym.rl.ars import NNParams, ARSParams, ARSModel
 from hybrid_gym.rl.ddpg import DDPG as MyDDPG
 from hybrid_gym.rl.ddpg import DDPGParams
 from hybrid_gym.rl.sac import MySAC
+from hybrid_gym.envs import make_rooms_model, make_two_doors_model
 
 
 # BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
@@ -539,7 +540,25 @@ def parallel_ddpg(model, mode_info, ret_queue, req_queue, use_gpu):
         ret_queue.put((model, steps))
 
 
-def parallel_sac(model, mode_info, ret_queue, req_queue, verbose, retrain, use_gpu):
+def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retrain, use_gpu):
+    # create automaton
+    if env_name == 'rooms':
+        automaton = make_rooms_model()
+    elif env_name == 'two_doors':
+        automaton = make_two_doors_model()
+    else:
+        raise ValueError(
+            'Unsupported env_name used! Consider adding new environment support in parallel_sac().')
+
+    # recover full mode info
+    mode_info = [(automaton.modes[mname], automaton.transitions[mname], reset_fn, reward_fn)
+                 for mname, reset_fn, reward_fn in mode_info]
+    for _, _, reward_fn, reset_fn in mode_info:
+        if reward_fn is not None:
+            reward_fn.set_automaton(automaton)
+        if reset_fn is not None:
+            reset_fn.set_automaton(automaton)
+
     # For now does not support best policy computation
     if use_gpu:
         model.gpu()
