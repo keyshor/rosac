@@ -110,3 +110,10 @@ class MLPActorCritic(nn.Module):
         self.q1 = self.q1.to(*args, **kwargs)
         self.q2 = self.q2.to(*args, **kwargs)
         return self
+
+    def parameters(self):
+        parameters = []
+        parameters.extend(self.pi.parameters())
+        parameters.extend(self.q1.parameters())
+        parameters.extend(self.q2.parameters())
+        return parameters
