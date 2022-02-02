@@ -13,6 +13,7 @@ from hybrid_gym.falsification.single_mode import falsify
 from hybrid_gym.eval import mcts_eval, random_selector_eval
 from typing import List, Dict, Any, Iterable, Callable, Optional, Tuple
 from multiprocessing import Process, Queue
+import multiprocessing as mp
 
 import numpy as np
 import random
@@ -95,6 +96,8 @@ def cegrl(automaton: HybridAutomaton,
     log_info = []
     steps_taken = 0
     cond_prob_file = open(os.path.join(save_path, 'cond_probs.txt'), 'w')
+
+    mp.set_start_method('spawn')
 
     # define reset functions
     reset_funcs = {name: ResetFunc(mode, full_reset=full_reset)
