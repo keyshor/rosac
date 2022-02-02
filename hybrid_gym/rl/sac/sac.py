@@ -376,7 +376,7 @@ class MySAC:
     def to(self, device):
         self.ac = self.ac.to(device=device)
         self.ac_targ = self.ac_targ.to(device=device)
-        self.q_params = itertools.chain(self.ac.q1.parameters(), self.ac.q2.parameters())
+        self.q_params = list(itertools.chain(self.ac.q1.parameters(), self.ac.q2.parameters()))
         self.replay_buffer.device = device
         self.device = device
         optimizer_to(self.pi_optimizer, device)
