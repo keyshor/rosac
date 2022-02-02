@@ -48,8 +48,10 @@ def print_env_info():
 
 if __name__ == '__main__':
     m = AntMode(mode_type=ModeType.STRAIGHT)
-    print(m.observation_space.shape)
-    #st = m.reset()
+    #print(m.ant.dt)
+    #print(m.observation_space.shape)
+    st = m.reset()
+    print(st.qpos[:3])
     #st.qpos[:2] = [0, -6]
     #for _ in range(10):
     #    a = m.action_space.sample()

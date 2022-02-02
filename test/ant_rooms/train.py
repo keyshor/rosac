@@ -36,6 +36,7 @@ def train_single(automaton, name,
         policy_kwargs=dict(
             net_arch=net_arch,
         ),
+        learning_starts=10000,
         action_noise_scale=0.1,
         verbose=verbose,
         #max_episode_steps=100,
@@ -45,7 +46,7 @@ def train_single(automaton, name,
     )
     train_sb3(model, mode_info,
               total_timesteps=total_timesteps, algo_name='td3',
-              max_episode_steps=100, save_path=save_path)
+              eval_freq=100000, max_episode_steps=1000, save_path=save_path)
 
 def train_monolithic(mono_automaton, total_timesteps, net_arch, save_path, verbose):
     env = HybridEnv(
@@ -55,7 +56,7 @@ def train_monolithic(mono_automaton, total_timesteps, net_arch, save_path, verbo
             max_jumps=100
         ),
         max_timesteps=1000000000000000000000000,
-        max_timesteps_per_mode=100,
+        max_timesteps_per_mode=1000,
     )
     action_shape = env.action_space.shape
     action_noise = NormalActionNoise(
@@ -64,6 +65,7 @@ def train_monolithic(mono_automaton, total_timesteps, net_arch, save_path, verbo
     )
     model = TD3(
         'MlpPolicy', env,
+        learning_starts=10000,
         action_noise=action_noise,
         policy_kwargs=dict(
             net_arch=net_arch,
@@ -105,10 +107,13 @@ if __name__ == '__main__':
     args.path.mkdir(parents=True, exist_ok=True)
     for name in mode_list:
         print(f'training mode {name}')
-        train_single(automaton, name, args.timesteps, args.max_init_retries, [64,64], args.path, args.verbose)
+        train_single(
+            automaton, name, args.timesteps, args.max_init_retries,
+            [256,256], args.path, args.verbose,
+        )
     if args.monolithic_timesteps > 0:
         print(f'training monolithic controller')
         train_monolithic(
-            make_f110_rooms_model(use_throttle=not args.no_throttle, observe_heading=True, observe_mode_onehot=True),
+            make_ant_model(),
             args.monolithic_timesteps, [256, 256], args.path, args.verbose,
         )

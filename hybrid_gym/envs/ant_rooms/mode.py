@@ -41,16 +41,23 @@ class AntMode(Mode[State]):
     mode_type: ModeType
     ant: AntEnv
     success_bonus: float
+    reward_progress_weight: float
 
     def __init__(self,
                  mode_type: ModeType,
                  xml_file: str = mujoco_xml_path,
-                 success_bonus: float = 1e3,
+                 success_bonus: float = 1e4,
+                 reward_progress_weight: float = 1.0,
                  **kwargs,
                  ) -> None:
         self.mode_type = mode_type
-        self.ant = AntEnv(xml_file=xml_file, **kwargs)
+        self.ant = AntEnv(
+            xml_file=xml_file,
+            terminate_when_unhealthy=False,
+            **kwargs,
+        )
         self.success_bonus = success_bonus
+        self.reward_progress_weight = reward_progress_weight
         super().__init__(
             name=mode_type.name,
             action_space=self.ant.action_space,
@@ -87,7 +94,9 @@ class AntMode(Mode[State]):
 
     def reset(self) -> State:
         obs = self.ant.reset()
-        return self.get_state(observation=obs)
+        st = self.get_state(observation=obs)
+        st.qpos[1] -= 6.0
+        return st
 
     def is_safe(self, st: State) -> bool:
         wrong_way = (
@@ -141,9 +150,10 @@ class AntMode(Mode[State]):
             st1.info['x_position'] - goal_x,
             st1.info['y_position'] - goal_y,
         ])
-        reward_progress = goal_dist0 - goal_dist1
+        progress_speed = (goal_dist0 - goal_dist1) / self.ant.dt
         return (
-            reward_progress + st1.info['reward_survive']
+            self.reward_progress_weight * progress_speed
+            + st1.info['reward_survive']
             + st1.info['reward_ctrl'] + st1.info['reward_contact']
             + (self.success_bonus if self.is_success(st1) else 0)
         )
