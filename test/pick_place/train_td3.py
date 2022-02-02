@@ -37,7 +37,7 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
         gamma=0.95,
         learning_rate=1e-4,
         policy_kwargs=dict(
-            net_arch=[512, 512, 512],
+            net_arch=[1024, 1024, 1024],
         ),
         target_policy_noise=3e-4,
         target_noise_clip=3e-3,
@@ -48,7 +48,8 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
     )
     train_sb3(model, mode_info,
               total_timesteps=total_timesteps, algo_name='td3',
-              reward_offset=0.0, is_goal_env=False, use_best_model=True,
+              reward_offset=0.0, is_goal_env=False,
+              use_best_model=True, eval_freq=40000,
               max_episode_steps=max_episode_steps,
               save_path=save_path, custom_best_model_path=model_path)
 
@@ -66,7 +67,11 @@ if __name__ == '__main__':
                     help='mode types for which controllers will be trained')
     args = ap.parse_args()
 
-    automaton = make_pick_place_model(num_objects=args.num_objects, reward_type='dense')
+    automaton = make_pick_place_model(
+        num_objects=args.num_objects,
+        reward_type='dense',
+        fixed_tower_height=False,
+    )
     mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
     for mt in mode_type_list:
         print(f'training mode type {mt}')

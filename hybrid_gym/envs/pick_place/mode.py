@@ -165,10 +165,11 @@ class MultiObjectEnv(robot_env.RobotEnv):
         gripper_state = robot_qpos[-2:]
         gripper_vel = robot_qvel[-2:] * dt  # change to a scalar if the gripper is made symmetric
 
-        achieved_goal = np.concatenate(
-            [self.arm_position(), finger_pos_scale * self.gripper_fingers()] +
-            [self.object_position(i) for i in range(self.num_objects)]
-        )
+        achieved_goal = np.concatenate([
+            self.arm_position(),
+            finger_pos_scale * self.gripper_fingers(),
+            self.object_position(self.next_obj_index),
+        ])
         object_pos_cat = np.concatenate([x.ravel() for x in object_pos])
         object_rot_cat = np.concatenate([x.ravel() for x in object_rot])
         object_velp_cat = np.concatenate([x.ravel() for x in object_velp])
@@ -358,18 +359,18 @@ class MultiObjectEnv(robot_env.RobotEnv):
         )
 
     def goal_vector(self, goal_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        return np.concatenate(
-            [goal_dict['arm'], finger_pos_scale * goal_dict['finger']] +
-            [goal_dict[f'obj{i}'].ravel()
-             for i in range(self.num_objects)]
-        )
+        return np.concatenate([
+            goal_dict['arm'],
+            finger_pos_scale * goal_dict['finger'],
+            goal_dict[f'obj{self.next_obj_index}'],
+        ])
 
-    def unvectorize_goal(self, vec: np.ndarray) -> Dict[str, np.ndarray]:
-        return dict(
-            [('arm', vec[0:3]), ('finger', vec[3:5])] +
-            [(f'obj{i}', vec[5 + 3*i : 8 + 3*i])
-             for i in range(self.num_objects)],
-        )
+    #def unvectorize_goal(self, vec: np.ndarray) -> Dict[str, np.ndarray]:
+    #    return dict(
+    #        [('arm', vec[0:3]), ('finger', vec[3:5])] +
+    #        [(f'obj{i}', vec[5 + 3*i : 8 + 3*i])
+    #         for i in range(self.num_objects)],
+    #    )
 
     def _sample_goal(self) -> np.ndarray:
         self.goal_dict = self.make_goal_dict()

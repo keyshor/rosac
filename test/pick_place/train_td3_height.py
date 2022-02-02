@@ -38,6 +38,7 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
         learning_rate=1e-4,
         policy_kwargs=dict(
             net_arch=[512, 512, 512],
+            #net_arch=[1024, 1024, 1024],
         ),
         target_policy_noise=3e-4,
         target_noise_clip=3e-3,
@@ -48,7 +49,8 @@ def train_single(automaton, names, total_timesteps, save_path, model_path):
     )
     train_sb3(model, mode_info,
               total_timesteps=total_timesteps, algo_name='td3',
-              reward_offset=0.0, is_goal_env=False, use_best_model=True,
+              reward_offset=0.0, is_goal_env=False,
+              use_best_model=True, eval_freq=50000,
               max_episode_steps=max_episode_steps,
               save_path=save_path, custom_best_model_path=model_path)
 
@@ -74,14 +76,21 @@ if __name__ == '__main__':
         print(f'training mode type {mt}')
         names = [f'{mt}_{i}' for i in range(args.num_objects)]
         if mt == 'MOVE_WITH_OBJ':
+            #for j in [1]:
             for j in range(args.num_objects):
-                print(f'training mode set {mt}_h{j}')
+                names = [f'{mt}_h{j}_{i}' for i in range(args.num_objects)]
+                print(f'training height {j}')
                 train_single(
-                    automaton,
-                    [f'{mt}_h{j}_{i}' for i in range(args.num_objects)],
-                    args.timesteps,
+                    automaton, names, args.timesteps,
                     args.path, f'{mt}_h{j}',
                 )
+                #for i in range(args.num_objects):
+                #    name = f'{mt}_h{j}_{i}'
+                #    print(f'training mode {name}')
+                #    train_single(
+                #        automaton, [name], args.timesteps,
+                #        args.path, name,
+                #    )
         else:
             train_single(
                 automaton, names, args.timesteps,
