@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
-                                  use_best_model=flags['best'], save_path=flags['path'], algo_name='ars',
+                                  use_best_model=flags['best'], save_path=flags['path'], algo_name='my_sac_seq',
                                   nn_params=nn_params, ars_params=ars_params, ddpg_params=ddpg_params,
                                   use_gpu=flags['gpu'], max_jumps=MAX_JUMPS, dagger=flags['dagger'],
                                   full_reset=use_full_reset, inductive_ce=flags['inductive_ce'],
