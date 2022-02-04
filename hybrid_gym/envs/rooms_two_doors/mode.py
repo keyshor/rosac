@@ -354,7 +354,7 @@ class RewardFunc:
 
     def __init__(self, mode, automaton, time_limits, use_classifier=False,
                  top_samples=0.4, discount=0.95, alpha=0.5,
-                 svm_penalty_factor=1.):
+                 svm_penalty_factor=2.):
         self.mode = mode
         self.automaton = automaton
         self.use_classifier = use_classifier
@@ -380,7 +380,8 @@ class RewardFunc:
         # compute classifier bonus
         if self.svm_model is not None and self._reached_exit(state, action, next_state):
             pred_y = self.svm_model.predict(np.array([self.mode.normalize_exit(next_state[1])]))[0]
-            reward += ((30. * pred_y) - (self.num_updates * self.svm_penalty_factor * (1 - pred_y)))
+            reward += ((100. * pred_y) - (self.num_updates *
+                       self.svm_penalty_factor * (1 - pred_y)))
 
         return reward
 
