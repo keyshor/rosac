@@ -8,21 +8,20 @@ from matplotlib import pyplot as plt
 
 
 def parse_command_line_options(print_options=False):
-    optval = getopt.getopt(sys.argv[1:], 'n:d:a:v:m:fbstrgciz', [])
+    optval = getopt.getopt(sys.argv[1:], 'n:d:a:v:m:e:srgfciz', [])
     itno = -1
     path = '.'
-    falsify = False
-    use_best = False
     synthesize = False
-    no_throttle = False
-    render = False
     inductive_ce = False
     abstract_samples = 0
     use_gpu = False
+    gpu_num = 0
     dagger = False
     dynamic_rew = False
+    render = False
     mode = ''
-    gpu_num = 0
+    ensemble = 1
+    falsify = False
     for option in optval[0]:
         if option[0] == '-n':
             itno = int(option[1])
@@ -30,26 +29,24 @@ def parse_command_line_options(print_options=False):
             gpu_num = int(option[1])
         if option[0] == '-d':
             path = option[1]
+        if option[0] == '-f':
+            falsify = True
         if option[0] == '-s':
             synthesize = True
         if option[0] == '-c':
             dagger = True
-        if option[0] == '-f':
-            falsify = True
-        if option[0] == '-b':
-            use_best = True
-        if option[0] == '-t':
-            no_throttle = True
         if option[0] == '-r':
             render = True
         if option[0] == '-z':
-            render = True
+            dynamic_rew = True
         if option[0] == '-a':
             abstract_samples = int(option[1])
         if option[0] == '-g':
             use_gpu = True
         if option[0] == '-m':
             mode = option[1]
+        if option[0] == '-e':
+            ensemble = int(option[1])
         if option[0] == '-i':
             inductive_ce = True
     if itno != -1:
@@ -57,16 +54,15 @@ def parse_command_line_options(print_options=False):
     flags = {'path': path,
              'gpu_num': gpu_num,
              'synthesize': synthesize,
-             'falsify': falsify,
-             'best': use_best,
-             'no_throttle': no_throttle,
              'render': render,
              'abstract_samples': abstract_samples,
              'gpu': use_gpu,
              'dagger': dagger,
              'mode': mode,
              'inductive_ce': inductive_ce,
-             'dynamic_rew': dynamic_rew}
+             'dynamic_rew': dynamic_rew,
+             'ensemble': ensemble,
+             'falsify': falsify}
     if print_options:
         print('**** Command Line Options ****')
         for key in flags:

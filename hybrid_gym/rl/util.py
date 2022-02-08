@@ -13,7 +13,7 @@ def get_rollout(env, policy, render, max_timesteps=10000):
     done = False
 
     # Step 2: Compute rollout
-    sarss = []
+    sardss = []
     steps = 0
     while (not done) and (steps < max_timesteps):
         # Step 2a: Render environment
@@ -24,10 +24,10 @@ def get_rollout(env, policy, render, max_timesteps=10000):
         action = policy.get_action(state)
 
         # Step 2c: Transition environment
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, info = env.step(action)
 
         # Step 2d: Rollout (s, a, r)
-        sarss.append((state, action, reward, next_state))
+        sardss.append((state, action, reward, info['is_success'], next_state))
 
         # Step 2e: Update state
         state = next_state
@@ -37,20 +37,22 @@ def get_rollout(env, policy, render, max_timesteps=10000):
     if render:
         env.render()
 
-    return sarss
+    return sardss
 
 
-def discounted_reward(sarss, gamma):
-    sarss_rev = sarss.copy()
-    sarss_rev.reverse()
+def discounted_reward(sardss, gamma, reward_fn=None):
+    sardss_rev = sardss.copy()
+    sardss_rev.reverse()
     reward = 0.0
-    for _, _, r, _ in sarss_rev:
+    for s, a, r, d, ns in sardss_rev:
+        if reward_fn is not None:
+            r = reward_fn.obs_reward(s, a, ns, r, d)
         reward = r + gamma*reward
     return reward
 
 
-def test_policy(env, policy, n_rollouts, gamma=1, use_cum_reward=False, max_timesteps=10000,
-                get_steps=False):
+def test_policy(env, policy, n_rollouts, gamma=1, max_timesteps=10000,
+                get_steps=False, reward_fn=None):
     '''
     Estimate the cumulative reward of the policy.
 
@@ -62,39 +64,9 @@ def test_policy(env, policy, n_rollouts, gamma=1, use_cum_reward=False, max_time
     cum_reward = 0.0
     num_steps = 0
     for _ in range(n_rollouts):
-        sarss = get_rollout(env, policy, False, max_timesteps=max_timesteps)
-        num_steps += len(sarss)
-        if use_cum_reward:
-            cum_reward += env.cum_reward(sarss)
-        else:
-            cum_reward += discounted_reward(sarss, gamma)
+        sardss = get_rollout(env, policy, False, max_timesteps=max_timesteps)
+        num_steps += len(sardss)
+        cum_reward += discounted_reward(sardss, gamma, reward_fn)
     if get_steps:
         return cum_reward / n_rollouts, num_steps
     return cum_reward / n_rollouts
-
-
-def get_reach_prob(env, policy, n_rollouts, max_timesteps=10000):
-    '''
-    Estimate the probability of reaching the goal.
-    Works only for 0-1 rewards.
-
-    env: Environment
-    policy: Policy
-    n_rollouts: int
-    return: float
-    '''
-    succesful_trials = 0
-    for _ in range(n_rollouts):
-        sarss = get_rollout(env, policy, False, max_timesteps=max_timesteps)
-        if discounted_reward(sarss, 1) > 0:
-            succesful_trials += 1
-    return succesful_trials / n_rollouts
-
-
-# print reward and reaching probability
-def print_performance(env, policy, gamma, n_rollouts=100, max_timesteps=10000):
-    reward = test_policy(env, policy, n_rollouts, gamma=gamma, max_timesteps=max_timesteps)
-    reach_prob = get_reach_prob(env, policy, n_rollouts, max_timesteps=max_timesteps)
-    print('\nEstimated Reward: {}'.format(reward))
-    print('Estimated Reaching Probability: {}'.format(reach_prob))
-    return reward, reach_prob

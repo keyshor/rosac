@@ -489,7 +489,8 @@ def learn_ars_model(model: ARSModel,
                     custom_best_model_path: Optional[str] = None,
                     verbose=False):
     env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
-    _, log_info = model.learn(env_list, verbose=verbose)
+    reward_fns = [mode_info[3] for mode_info in raw_mode_info]
+    _, log_info = model.learn(env_list, verbose=verbose, reward_fns=reward_fns)
     return log_info
 
 
@@ -519,7 +520,10 @@ def learn_ddpg_model(model: MyDDPG,
     return model.train(env_list)
 
 
-def parallel_ars(model, mode_info, save_path, ret_queue, req_queue, verbose, use_gpu):
+def parallel_ars(model, env_name, mode_info, save_path, ret_queue, req_queue, verbose, use_gpu):
+
+    mode_info = recover_full_mode_info(env_name, mode_info)
+
     if use_gpu:
         model.gpu()
     log_info = learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
@@ -529,35 +533,9 @@ def parallel_ars(model, mode_info, save_path, ret_queue, req_queue, verbose, use
         ret_queue.put((model, log_info[-1][0]))
 
 
-def parallel_ddpg(model, mode_info, ret_queue, req_queue, use_gpu):
-    # For now does not support best policy computation
-    if use_gpu:
-        model.set_use_gpu()
-    steps = learn_ddpg_model(model, mode_info)
-    if use_gpu:
-        model.set_use_cpu()
-    while req_queue.get() is not None:
-        ret_queue.put((model, steps))
-
-
 def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retrain, use_gpu):
-    # create automaton
-    if env_name == 'rooms':
-        automaton = make_rooms_model()
-    elif env_name == 'two_doors':
-        automaton = make_two_doors_model()
-    else:
-        raise ValueError(
-            'Unsupported env_name used! Consider adding new environment support in parallel_sac().')
 
-    # recover full mode info
-    mode_info = [(automaton.modes[mname], automaton.transitions[mname], reset_fn, reward_fn)
-                 for mname, reset_fn, reward_fn in mode_info]
-    for _, _, reward_fn, reset_fn in mode_info:
-        if reward_fn is not None:
-            reward_fn.set_automaton(automaton)
-        if reset_fn is not None:
-            reset_fn.set_automaton(automaton)
+    mode_info = recover_full_mode_info(env_name, mode_info)
 
     # For now does not support best policy computation
     if use_gpu:
@@ -567,3 +545,25 @@ def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retr
         model.cpu()
     while req_queue.get() is not None:
         ret_queue.put((model, steps))
+
+
+def recover_full_mode_info(env_name, mode_info):
+    # create automaton
+    if env_name == 'rooms':
+        automaton = make_rooms_model()
+    elif env_name == 'two_doors':
+        automaton = make_two_doors_model()
+    else:
+        raise ValueError(
+            'Unsupported env_name used! Consider adding new environment support in ' +
+            'recover_full_mode_info().')
+
+    # recover full mode info
+    mode_info = [(automaton.modes[mname], automaton.transitions[mname], reset_fn, reward_fn)
+                 for mname, reset_fn, reward_fn in mode_info]
+    for _, _, reward_fn, reset_fn in mode_info:
+        if reward_fn is not None:
+            reward_fn.recover_after_serialization(automaton)
+        if reset_fn is not None:
+            reset_fn.recover_after_serialization(automaton)
+    return mode_info

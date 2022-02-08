@@ -16,11 +16,7 @@ from hybrid_gym.rl.ars import NNPolicy
 
 import matplotlib.pyplot as plt
 
-
-def _get_suffix(use_best):
-    if use_best:
-        return ''
-    return '_final'
+MAX_JUMPS = 5
 
 
 if __name__ == '__main__':
@@ -29,7 +25,7 @@ if __name__ == '__main__':
     automaton = make_rooms_model()
 
     controllers = {
-        name: NNPolicy.load(name + _get_suffix(flags['best']), flags['path'], flags['gpu'])
+        name: NNPolicy.load(name + '_final', flags['path'], flags['gpu'])
         for name in automaton.modes
     }
 
@@ -37,16 +33,16 @@ if __name__ == '__main__':
 
     if flags['falsify']:
         print('\nEvaluating with MCTS adversary')
-        prob, _, _ = mcts_eval(automaton, controllers, time_limits, max_jumps=5,
+        prob, _, _ = mcts_eval(automaton, controllers, time_limits, max_jumps=MAX_JUMPS,
                                mcts_rollouts=500, eval_rollouts=100, print_debug=True, render=True)
     elif flags['synthesize']:
         print('\nEvaluating with fixed adversary')
         selector = FixedSequenceSelector([automaton.modes['left'] for _ in range(5)])
         prob, _, _ = end_to_end_test(automaton, selector, controllers, time_limits,
-                                     num_rollouts=100, max_jumps=5, print_debug=True, render=True)
+                                     num_rollouts=100, max_jumps=MAX_JUMPS, print_debug=True, render=True)
     else:
         print('\nEvaluating with random adversary')
-        prob, _, _ = random_selector_eval(automaton, controllers, time_limits, max_jumps=5,
+        prob, _, _ = random_selector_eval(automaton, controllers, time_limits, max_jumps=MAX_JUMPS,
                                           eval_rollouts=100, print_debug=True)
 
     print('Probability of successful completion: {}'.format(prob))

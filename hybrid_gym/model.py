@@ -4,44 +4,9 @@ from matplotlib.axes import Axes
 
 from typing import TypeVar, Generic, List, Any, Iterable, Tuple
 from abc import ABCMeta, abstractmethod
+from hybrid_gym.util.common import obs_shape, space_shape
 
 StateType = TypeVar('StateType')
-
-
-def obs_shape(obs: Any) -> Any:
-    if isinstance(obs, np.ndarray):
-        return obs.shape
-    elif isinstance(obs, dict):
-        return {k: obs_shape(v) for (k, v) in obs.items()}
-    else:
-        return 'unknown_obs'
-
-
-def space_shape(sp: gym.Space) -> Any:
-    if isinstance(sp, gym.spaces.Box):
-        return sp.shape
-    elif isinstance(sp, gym.spaces.Dict):
-        return {k: space_shape(v) for (k, v) in sp.spaces.items()}
-    else:
-        return 'unknown_space'
-
-
-def obs_dtype(obs: Any) -> Any:
-    if isinstance(obs, np.ndarray):
-        return obs.dtype
-    elif isinstance(obs, dict):
-        return {k: obs_dtype(v) for (k, v) in obs.items()}
-    else:
-        return 'unknown_obs'
-
-
-def space_dtype(sp: gym.Space) -> Any:
-    if isinstance(sp, gym.spaces.Box):
-        return sp.dtype
-    elif isinstance(sp, gym.spaces.Dict):
-        return {k: space_dtype(v) for (k, v) in sp.spaces.items()}
-    else:
-        return 'unknown_space'
 
 
 class Mode(Generic[StateType], metaclass=ABCMeta):
@@ -137,27 +102,33 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         '''
         pass
 
-    def compute_reward(self,
-                       achieved_goal: np.ndarray,
-                       desired_goal: np.ndarray,
-                       info: Any,
-                       ) -> float:
-        '''
-        for compatibility with GoalEnv
-        '''
-        raise NotImplementedError
-
     def end_to_end_reset(self) -> StateType:
         '''
         Allows change in distribution in end-to-end testing.
         '''
         return self.reset()
 
-    def plot_state_iterable(self, ax: Axes, sts: Iterable[StateType]) -> None:
+    def compute_reward(self,
+                       achieved_goal: np.ndarray,
+                       desired_goal: np.ndarray,
+                       info: Any,
+                       ) -> float:
         '''
-        plot a set of states
+        for compatibility with GoalEnv.
         '''
         raise NotImplementedError
+
+    def plot_state_iterable(self, ax: Axes, sts: Iterable[StateType]) -> None:
+        '''
+        plot a set of states.
+        '''
+        raise NotImplementedError
+
+    def normalize_exit_state(self, obs: np.ndarray) -> np.ndarray:
+        '''
+        Normalizes observations of terminal states in the mode.
+        '''
+        return obs
 
 
 class Transition(metaclass=ABCMeta):

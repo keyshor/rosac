@@ -1,5 +1,4 @@
 from hybrid_gym.rl.util import discounted_reward, get_rollout, test_policy
-from hybrid_gym.eval import mcts_eval, random_selector_eval
 from hybrid_gym.model import Controller
 
 import numpy as np
@@ -17,10 +16,9 @@ class ARSModel:
         self.sigma_sq_sum = None
         self.n_states = 0
 
-    def learn(self, env_list, verbose=False, eval_automaton=None, max_jumps=10, time_limits=None):
+    def learn(self, env_list, verbose=False, reward_fns=None):
         best_policy, log_info, self.mu_sum, self.sigma_sq_sum, self.n_states = ars(
-            env_list, self.nn_policy, self.ars_params, verbose=verbose,
-            eval_automaton=eval_automaton, max_jumps=max_jumps, time_limits=time_limits,
+            env_list, self.nn_policy, self.ars_params, verbose=verbose, reward_fns=reward_fns,
             mu_sum=self.mu_sum, sigma_sq_sum=self.sigma_sq_sum, n_states=self.n_states)
         return best_policy, log_info
 
@@ -188,8 +186,7 @@ class NNPolicy(Controller):
 #                 (works only for environments with sparse rewards and
 #                  use_envs_cum_reward has to be False)
 # process_id: string to distiguish console ouputs for simultaneous executions
-def ars(env, nn_policy, params, multi_env=True, verbose=False,
-        eval_automaton=None, max_jumps=10, time_limits=None,
+def ars(env_list, nn_policy, params, verbose=False, reward_fns=None,
         mu_sum=None, sigma_sq_sum=None, n_states=0):
     # Step 1: Save original policy
     nn_policy_orig = nn_policy
@@ -198,19 +195,19 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
     best_policy = nn_policy
     num_transitions = 0
 
+    if reward_fns is None:
+        reward_fns = [None for _ in range(len(env_list))]
+
     # Step 2: Initialize state distribution estimates
     if mu_sum is None:
         mu_sum = np.zeros(nn_policy.params.state_dim)
         sigma_sq_sum = np.zeros(nn_policy.params.state_dim)
 
-    if multi_env:
-        env_list = env
-    else:
-        env_list = [env]
-
     # Step 3: Training iterations
     for i in range(params.n_iters):
-        env = env_list[np.random.randint(0, len(env_list))]
+        env_num = np.random.randint(0, len(env_list))
+        env = env_list[env_num]
+        reward_fn = reward_fns[env_num]
 
         # Step 3a: Sample deltas
         deltas = []
@@ -223,19 +220,19 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
             nn_policy_minus = _get_delta_policy(nn_policy, delta, -params.delta_std)
 
             # iii) Get rollouts
-            sarss_plus = get_rollout(env, nn_policy_plus, False, params.timesteps)
-            sarss_minus = get_rollout(env, nn_policy_minus, False, params.timesteps)
-            num_transitions += (len(sarss_plus) + len(sarss_minus))
+            sardss_plus = get_rollout(env, nn_policy_plus, False, params.timesteps)
+            sardss_minus = get_rollout(env, nn_policy_minus, False, params.timesteps)
+            num_transitions += (len(sardss_plus) + len(sardss_minus))
 
             # iv) Estimate cumulative rewards
-            r_plus = discounted_reward(sarss_plus, params.gamma)
-            r_minus = discounted_reward(sarss_minus, params.gamma)
+            r_plus = discounted_reward(sardss_plus, params.gamma, reward_fn)
+            r_minus = discounted_reward(sardss_minus, params.gamma, reward_fn)
 
             # v) Save delta
             deltas.append((delta, r_plus, r_minus))
 
             # v) Update estimates of normalization parameters
-            states = np.array([state for state, _, _, _ in sarss_plus + sarss_minus])
+            states = np.array([state for state, _, _, _, _ in sardss_plus + sardss_minus])
             mu_sum += np.sum(states)
             sigma_sq_sum += np.sum(np.square(states))
             n_states += len(states)
@@ -277,10 +274,10 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
         if i % (20 * len(env_list)) == 0:
             cum_rewards = []
             sim_total_steps = 0
-            for test_env in env_list:
+            for test_env, test_reward_fn in zip(env_list, reward_fns):
                 cum_rew, sim_steps = test_policy(
                     test_env, nn_policy, 20, gamma=params.gamma, max_timesteps=params.timesteps,
-                    use_cum_reward=False, get_steps=True)
+                    get_steps=True, reward_fn=test_reward_fn)
                 cum_rewards.append(cum_rew)
                 sim_total_steps += sim_steps
             if verbose:
@@ -294,15 +291,7 @@ def ars(env, nn_policy, params, multi_env=True, verbose=False,
             if params.track_best:
                 num_transitions += sim_total_steps
 
-        if eval_automaton is not None and i % 500 == 0:
-            mode_controllers = {mname: best_policy for mname in eval_automaton.modes}
-            mcts_prob = mcts_eval(eval_automaton, mode_controllers, time_limits,
-                                  max_jumps=max_jumps, mcts_rollouts=500, eval_rollouts=100)
-            rs_prob = random_selector_eval(eval_automaton, mode_controllers, time_limits,
-                                           max_jumps=max_jumps, eval_rollouts=100)
-            log_info.append([num_transitions, rs_prob, mcts_prob])
-        else:
-            log_info.append([num_transitions, cum_reward])
+        log_info.append([num_transitions, cum_reward])
 
     # Step 4: Copy new weights and normalization parameters to original policy
     if params.track_best:

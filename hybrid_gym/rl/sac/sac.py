@@ -39,15 +39,17 @@ class ReplayBuffer:
         self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
+        self.is_success_buf = [False for _ in range(size)]
         self.ptr, self.size, self.max_size = 0, 0, size
         self.device = 'cpu'
 
-    def store(self, obs, act, rew, next_obs, done):
+    def store(self, obs, act, rew, next_obs, done, is_success):
         self.obs_buf[self.ptr] = obs
         self.obs2_buf[self.ptr] = next_obs
         self.act_buf[self.ptr] = act
         self.rew_buf[self.ptr] = rew
         self.done_buf[self.ptr] = done
+        self.is_success_buf[self.ptr] = is_success
         self.ptr = (self.ptr+1) % self.max_size
         self.size = min(self.size+1, self.max_size)
 
@@ -59,9 +61,11 @@ class ReplayBuffer:
                      rew=self.rew_buf[idxs],
                      done=self.done_buf[idxs])
         if reward_fn is not None:
+            is_success = [self.is_success_buf[j] for j in idxs]
             for i in range(batch_size):
                 batch['rew'][i] = reward_fn.obs_reward(
-                    batch['obs'][i], batch['act'][i], batch['obs2'][i])
+                    batch['obs'][i], batch['act'][i], batch['obs2'][i],
+                    batch['rew'][i], is_success[i])
         return {k: torch.as_tensor(v, dtype=torch.float32, device=self.device)
                 for k, v in batch.items()}
 
@@ -291,19 +295,24 @@ class MySAC:
         return self.ac.act(torch.as_tensor(o, dtype=torch.float32, device=self.device),
                            deterministic)
 
-    def test_agent(self, env_list, ep_num):
+    def test_agent(self, env_list, reward_fns, ep_num):
         print('\n')
         env_num = 0
-        for env in env_list:
+        for env, reward_fn in zip(env_list, reward_fns):
             env_num += 1
             avg_reward = 0.
             for j in range(self.num_test_episodes):
                 o, d, ep_ret, ep_len = env.reset(), False, 0, 0
                 while not(d or (ep_len == self.test_ep_len)):
                     # Take deterministic actions at test time
-                    o, r, d, _ = env.step(self.get_action(o, True))
-                    ep_ret += r
+                    a = self.get_action(o, True)
+                    o2, r, d, info = env.step(a)
+                    corrected_r = r
+                    if reward_fn is not None:
+                        corrected_r = reward_fn.obs_reward(o, a, o2, r, info['is_success'])
+                    ep_ret += corrected_r
                     ep_len += 1
+                    o = o2
                 avg_reward += ep_ret
             avg_reward /= self.num_test_episodes
             print('Average reward for env {} after {} episodes: {}'.format(
@@ -311,6 +320,9 @@ class MySAC:
         print('\n')
 
     def train(self, env_list, verbose=False, retrain=False, reward_fns=None):
+
+        if reward_fns is None:
+            reward_fns = [None for _ in range(len(env_list))]
 
         # Prepare for interaction with environment
         total_episodes = self.episodes_per_epoch * self.epochs
@@ -320,9 +332,7 @@ class MySAC:
         for i in range(total_episodes):
             env_num = random.choice(np.arange(len(env_list)))
             env = env_list[env_num]
-            reward_fn = None
-            if reward_fns is not None:
-                reward_fn = reward_fns[env_num]
+            reward_fn = reward_fns[env_num]
             o, ep_ret, ep_len = env.reset(), 0, 0
 
             # Main loop: collect experience in env and update/log each epoch
@@ -337,8 +347,12 @@ class MySAC:
                     a = env.action_space.sample()
 
                 # Step the env
-                o2, r, d, _ = env.step(a)
-                ep_ret += r
+                o2, r, d, info = env.step(a)
+
+                corrected_r = r
+                if reward_fn is not None:
+                    corrected_r = reward_fn.obs_reward(o, a, o2, r, info['is_success'])
+                ep_ret += corrected_r
                 ep_len += 1
                 steps += 1
 
@@ -348,7 +362,7 @@ class MySAC:
                 d = False if ep_len == self.max_ep_len else d
 
                 # Store experience to replay buffer
-                self.replay_buffer.store(o, a, r, o2, d)
+                self.replay_buffer.store(o, a, r, o2, d, info['is_success'])
 
                 # Super critical, easy to overlook step: make sure to update
                 # most recent observation!
@@ -369,7 +383,7 @@ class MySAC:
                 print('Return at episode {}: {}'.format(i, ep_ret))
 
             if i % self.log_interval == 0 and verbose:
-                self.test_agent(env_list, i)
+                self.test_agent(env_list, reward_fns, i)
 
         return steps
 

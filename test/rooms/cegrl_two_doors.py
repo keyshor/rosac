@@ -8,7 +8,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 # flake8: noqa
 from hybrid_gym import Controller
 from hybrid_gym.envs.rooms_two_doors.hybrid_env import make_rooms_model
-from hybrid_gym.envs.rooms_two_doors.mode import RewardFunc
+from hybrid_gym.train.reward_funcs import SVMReward
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
 from hybrid_gym.util.io import parse_command_line_options, save_log_info
@@ -41,30 +41,26 @@ if __name__ == '__main__':
     # reward update
     reward_funcs = None
     if flags['dynamic_rew']:
-        reward_funcs = {m: RewardFunc(mode, automaton, time_limits, use_classifier=flags['falsify'],
-                                      top_samples=0.3)
+        reward_funcs = {m: SVMReward(mode, automaton, time_limits)
                         for m, mode in automaton.modes.items()}
 
-    nn_params = NNParams(2, 2, 1.0, 64)
-    ars_params = ARSParams(600, 30, 10, 0.025, 0.1, 0.95, 25, track_best=True)
-    action_bound = np.ones((2,))
-    ddpg_params = DDPGParams(2, 2, action_bound, actor_lr=0.001, critic_lr=0.0001, minibatch_size=128,
-                             num_episodes=3000, buffer_size=200000, discount=0.95,
-                             epsilon_decay=0., epsilon_min=0.1,
-                             steps_per_update=100, gradients_per_update=100,
-                             actor_hidden_dim=64, critic_hidden_dim=64, max_timesteps=25,
-                             test_max_timesteps=25, sigma=0.15)
+     # hyperparams for ARS
+    nn_params = NNParams(2, 2, 1.0, 128)
+    ars_params = ARSParams(600, 30, 10, 0.025, 0.08, 0.95, 25, track_best=True)
+    ars_kwargs = dict(nn_params=nn_params, ars_params=ars_params)
+
+    # hyperparams for SAC
     sac_kwargs = dict(hidden_dims=(64, 64), episodes_per_epoch=20, max_ep_len=25, test_ep_len=25,
                       alpha=0.1, min_alpha=0.04, alpha_decay=0.002,
                       gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus))
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
-                                  use_best_model=flags['best'], save_path=flags['path'], algo_name='my_sac',
-                                  nn_params=nn_params, ars_params=ars_params, ddpg_params=ddpg_params,
-                                  use_gpu=flags['gpu'], max_jumps=MAX_JUMPS, dagger=flags['dagger'],
-                                  full_reset=use_full_reset, inductive_ce=flags['inductive_ce'],
-                                  reward_funcs=reward_funcs, sac_kwargs=sac_kwargs, env_name='two_doors')
+                                  save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
+                                  ars_kwargs=ars_kwargs, sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
+                                  max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
+                                  env_name='rooms', inductive_ce=flags['inductive_ce'],
+                                  reward_funcs=reward_funcs)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

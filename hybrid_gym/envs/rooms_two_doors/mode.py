@@ -4,10 +4,8 @@ import math
 
 from hybrid_gym.model import Mode
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
-from hybrid_gym.util.test import get_rollout
 from matplotlib import pyplot as plt
-from typing import Tuple, Any
-from sklearn import svm
+from typing import Tuple
 
 
 class GridParams:
@@ -326,8 +324,8 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         self.exit_mean = mean
         self.exit_std = std
 
-    def normalize_exit(self, s):
-        return (np.array(s) - self.exit_mean) / self.exit_std
+    def normalize_exit_state(self, obs: np.ndarray) -> np.ndarray:
+        return (np.array(obs) - self.exit_mean) / self.exit_std
 
     def _get_goals(self, name):
         goal_dist = (self.grid_params.partition_size / 2)
@@ -343,125 +341,3 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         else:
             raise ValueError('Invalid mode name/direction!')
         return np.array(goals)
-
-
-class RewardFunc:
-    '''
-    Reward function used for training mode controllers.
-    '''
-    mode: RoomsMode
-    goal_state: Any
-
-    def __init__(self, mode, automaton, time_limits, use_classifier=False,
-                 top_samples=0.4, discount=0.95, alpha=0.5,
-                 svm_penalty_factor=2.):
-        self.mode = mode
-        self.automaton = automaton
-        self.use_classifier = use_classifier
-        self.goal = None
-        self.top_samples = top_samples
-        self.time_limits = time_limits
-        self.alpha = alpha
-        self.discount = 0.95
-        self.svm_model = None
-        self.num_updates = 0
-        self.svm_penalty_factor = svm_penalty_factor
-
-    def __call__(self, state: Tuple[Tuple, Tuple], action: np.ndarray,
-                 next_state: Tuple[Tuple, Tuple]) -> float:
-        reward = 0.
-
-        # compute goal based reward
-        reward += self.mode.reward(state, action, next_state)
-        if self.goal is not None:
-            reward = (1-self.alpha) * reward + \
-                self.alpha * self.mode.reward_fn_goal(state, action, next_state, self.goal)
-
-        # compute classifier bonus
-        if self.svm_model is not None and self._reached_exit(state, action, next_state):
-            pred_y = self.svm_model.predict(np.array([self.mode.normalize_exit(next_state[1])]))[0]
-            reward += ((100. * pred_y) - (self.num_updates *
-                       self.svm_penalty_factor * (1 - pred_y)))
-
-        return reward
-
-    def update(self, collected_states, controllers):
-        state_value_success = self._evaluate_states(collected_states, controllers)
-
-        if not self.use_classifier:
-            # compute top states
-            svss = sorted(state_value_success, key=lambda x: -x[1])
-            top_idx = int(self.top_samples * len(svss))
-            top_states = np.array([s[1] for s, _, _ in svss[:top_idx]])
-
-            # update goal
-            self.goal = np.mean(top_states, axis=1)
-
-        else:
-            # form training data
-            X = np.array([self.mode.normalize_exit(s[1]) for s, _, _ in state_value_success])
-            Y = np.array([label for _, _, label in state_value_success], dtype=np.int32)
-
-            # train SVM model
-            self.svm_model = svm.LinearSVC()
-            self.svm_model.fit(X, Y)
-
-        self.num_updates += 1
-
-    def obs_reward(self, obs, action, next_obs):
-        obs = tuple(obs * self.mode.grid_params.full_size / 2)
-        next_obs = tuple(next_obs * self.mode.grid_params.full_size / 2)
-        return self.__call__((obs, obs), action, (obs, next_obs))
-
-    def _reached_exit(self, state, action, next_state):
-        transitions = self.automaton.transitions[self.mode.name]
-        if self.mode.is_safe(next_state):
-            for t in transitions:
-                if t.guard(next_state):
-                    return True
-        return False
-
-    def _evaluate_states(self, collected_states, controllers):
-        state_value_success = []
-
-        # compute values for all end states
-        for start_state, end_state, transition in collected_states:
-
-            if transition is not None:
-                value = 1e9
-                success = True
-
-                # evaluate end state
-                for target in transition.targets:
-
-                    # Get next mode and starting state
-                    next_mode = self.automaton.modes[target]
-                    state = transition.jump(target, end_state)
-
-                    # obtain rollout
-                    sass, info = get_rollout(
-                        next_mode, self.automaton.transitions[target], controllers[target],
-                        state, max_timesteps=self.time_limits[target])
-
-                    # compute discounted reward
-                    reward = 0
-                    for sas in reversed(sass):
-                        reward = self.__call__(*sas) + self.discount * reward
-                    value = min(value, reward)
-
-                    # evaluate success
-                    success = success and info['safe'] and (info['jump'] is not None)
-
-                state_value_success.append((end_state, value, success))
-
-        return state_value_success
-
-    def make_serializable(self):
-        self.automaton = None
-        self.mode = self.mode.name
-        return self
-
-    def set_automaton(self, automaton):
-        self.automaton = automaton
-        self.mode = self.automaton.modes[self.mode]
-        return self
