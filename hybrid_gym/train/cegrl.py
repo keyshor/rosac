@@ -207,6 +207,7 @@ def cegrl(automaton: HybridAutomaton,
 
                     # start the training process
                     processes[g][e].start()
+                    ens_models[g][e] = None
 
                 # sequential training for ddpg and stable_baselines
                 elif algo_name == 'my_ddpg':
