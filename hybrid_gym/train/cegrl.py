@@ -236,8 +236,6 @@ def cegrl(automaton: HybridAutomaton,
                         try:
                             req_queues[g][e].put(1)
                             ens_models[g][e], steps = ret_queues[g][e].get()
-                            if use_gpu:
-                                ens_models[g][e].gpu()
                             break
                         except RuntimeError:
                             print('Runtime Error occured while retrieving policy! Retrying...')
@@ -246,6 +244,10 @@ def cegrl(automaton: HybridAutomaton,
                     # stop the learning process and join
                     req_queues[g][e].put(None)
                     processes[g][e].join()
+
+                    # move to gpu if needed
+                    if use_gpu:
+                        ens_models[g][e].gpu()
 
                     # set the new controllers
                     ens_controllers[g][e] = ens_models[g][e].get_policy()
@@ -336,7 +338,7 @@ def cegrl(automaton: HybridAutomaton,
 
         # change reward function based on collected states
         start_time = time.time()
-        print('\nUpdatign rewards in iteration {} ...'.format(i))
+        print('\nUpdating rewards in iteration {} ...'.format(i))
         mode_controller_list = {name: ens_controllers[g] for name, g in group_map.items()}
         for m, mode_reward_fn in reward_funcs.items():
             if mode_reward_fn is not None:

@@ -7,6 +7,7 @@ from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.util.test import get_rollout
 
 import numpy as np
+import time
 
 
 class RewardFunc(metaclass=ABCMeta):
@@ -84,7 +85,7 @@ class SVMReward(RewardFunc):
         if self.svm_model is not None and is_success:
             pred_y = self.svm_model.predict(np.array([self.mode.normalize_exit_state(next_obs)]))[0]
             orig_reward += ((self.bonus * pred_y) - (self.num_updates *
-                                                     self.svm_penalty_factor * (1 - pred_y)))
+                                                     self.penalty_factor * (1 - pred_y)))
 
         return orig_reward
 
@@ -94,6 +95,9 @@ class SVMReward(RewardFunc):
         if len(state_value_success) > 10 and \
                 np.any([success for _, _, success in state_value_success]) and \
                 np.any([not success for _, _, success in state_value_success]):
+
+            print('Training SVM model...')
+            start_time = time.time()
 
             # form training data
             X = np.array([self.mode.normalize_exit_state(self.mode.observe(s))
@@ -105,6 +109,8 @@ class SVMReward(RewardFunc):
             self.svm_model.fit(X, Y)
 
             self.num_updates += 1
+
+            print('Training SVM model completed in {} secs'.format(time.time() - start_time))
 
         return steps_taken
 
