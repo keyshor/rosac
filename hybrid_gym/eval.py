@@ -13,13 +13,15 @@ def random_selector_eval(automaton: HybridAutomaton,
                          eval_rollouts: int = 100,
                          print_debug: bool = False,
                          return_steps: bool = False,
+                         render: bool = False,
                          conditional_prob_log=None):
     selector = MaxJumpWrapper(UniformSelector(
         [mode for m, mode in automaton.modes.items()]), max_jumps)
     return end_to_end_test(automaton, selector, controllers, time_limits,
                            num_rollouts=eval_rollouts, max_jumps=max_jumps,
                            print_debug=print_debug, return_steps=return_steps,
-                           conditional_prob_log=conditional_prob_log)
+                           conditional_prob_log=conditional_prob_log,
+                           render=render)
 
 
 def mcts_eval(automaton: HybridAutomaton,

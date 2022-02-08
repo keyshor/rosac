@@ -70,7 +70,7 @@ class SVMReward(RewardFunc):
     '''
 
     def __init__(self, mode, automaton, time_limits, discount=0.95,
-                 penalty_factor=1., bonus=50.):
+                 penalty_factor=1., bonus=10.):
         super().__init__(mode, automaton)
         self.time_limits = time_limits
         self.discount = discount

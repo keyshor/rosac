@@ -169,7 +169,7 @@ class MySAC:
     """
 
     def __init__(self, obs_space, act_space, hidden_dims=(256, 256),
-                 episodes_per_epoch=50, epochs=100, replay_size=int(1e6), gamma=0.99,
+                 steps_per_epoch=500, epochs=100, replay_size=int(1e6), gamma=0.99,
                  polyak=0.995, lr=1e-3, alpha=0.2, batch_size=100, start_steps=10000,
                  update_after=1000, update_every=50, num_test_episodes=10, max_ep_len=1000,
                  test_ep_len=1000, log_interval=40, min_alpha=0.2, alpha_decay=0.01,
@@ -198,7 +198,7 @@ class MySAC:
         self.q_optimizer = Adam(self.q_params, lr=lr)
 
         # set hyperparams
-        self.episodes_per_epoch = episodes_per_epoch
+        self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
         self.gamma = gamma
         self.polyak = polyak
@@ -325,11 +325,11 @@ class MySAC:
             reward_fns = [None for _ in range(len(env_list))]
 
         # Prepare for interaction with environment
-        total_episodes = self.episodes_per_epoch * self.epochs
+        max_steps = self.steps_per_epoch * self.epochs
         steps = 0
         self.alpha = max(self.min_alpha, self.alpha-self.alpha_decay)
 
-        for i in range(total_episodes):
+        for i in range(max_steps):
             env_num = random.choice(np.arange(len(env_list)))
             env = env_list[env_num]
             reward_fn = reward_fns[env_num]
@@ -384,6 +384,9 @@ class MySAC:
 
             if i % self.log_interval == 0 and verbose:
                 self.test_agent(env_list, reward_fns, i)
+
+            if steps > max_steps:
+                break
 
         return steps
 
