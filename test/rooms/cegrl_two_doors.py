@@ -44,7 +44,7 @@ if __name__ == '__main__':
         reward_funcs = {m: SVMReward(mode, automaton, time_limits)
                         for m, mode in automaton.modes.items()}
 
-     # hyperparams for ARS
+    # hyperparams for ARS
     nn_params = NNParams(2, 2, 1.0, 128)
     ars_params = ARSParams(600, 30, 10, 0.025, 0.08, 0.95, 25, track_best=True)
     ars_kwargs = dict(nn_params=nn_params, ars_params=ars_params)
@@ -59,7 +59,7 @@ if __name__ == '__main__':
                                   save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
                                   ars_kwargs=ars_kwargs, sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
                                   max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
-                                  env_name='rooms', inductive_ce=flags['inductive_ce'],
+                                  env_name='two_doors', inductive_ce=flags['inductive_ce'],
                                   reward_funcs=reward_funcs)
 
     # save the controllers

@@ -275,7 +275,7 @@ def cegrl(automaton: HybridAutomaton,
                 eval_rollouts=100)
             rs_prob, avg_jmps, collected_states, eval_steps = random_selector_eval(
                 automaton, mode_controllers, time_limits, max_jumps=max_jumps, eval_rollouts=100,
-                return_steps=True, conditional_prob_log=cond_prob_file, print_debug=False)
+                return_steps=True, conditional_prob_log=cond_prob_file, print_debug=print_debug)
             best_prob = max(best_prob, rs_prob)
             best_jmps = max(best_jmps, avg_jmps)
             best_mcts_prob = max(best_mcts_prob, mcts_prob)

@@ -325,19 +325,20 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         self.exit_std = std
 
     def normalize_exit_state(self, obs: np.ndarray) -> np.ndarray:
-        return (np.array(obs) - self.exit_mean) / self.exit_std
+        state = obs * self.grid_params.full_size / 2
+        return (np.array(state) - self.exit_mean) / self.exit_std
 
     def _get_goals(self, name):
         goal_dist = (self.grid_params.partition_size / 2)
         if name == 'left':
-            goals = [[-goal_dist, 0]]
+            goals = [np.array([-goal_dist[0], 0])]
         elif name == 'right':
-            goals = [[goal_dist, 0]]
+            goals = [np.array([goal_dist[0], 0])]
         elif name == 'up':
             door_centers = [((hdoor[1] + hdoor[0]) / 2) - (self.grid_params.full_size[0] / 2)
                             for hdoor in self.grid_params.hdoors]
 
-            goals = [[dc, goal_dist] for dc in door_centers]
+            goals = [np.array([dc, goal_dist[1]]) for dc in door_centers]
         else:
             raise ValueError('Invalid mode name/direction!')
-        return np.array(goals)
+        return goals

@@ -336,7 +336,8 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
         self.exit_std = std
 
     def normalize_exit_state(self, obs: np.ndarray) -> np.ndarray:
-        return (np.array(obs) - self.exit_mean) / self.exit_std
+        state = obs * self.grid_params.full_size / 2
+        return (np.array(state) - self.exit_mean) / self.exit_std
 
     def _get_goal(self, name):
         if name == 'left':
