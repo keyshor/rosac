@@ -50,7 +50,7 @@ if __name__ == '__main__':
     ars_kwargs = dict(nn_params=nn_params, ars_params=ars_params)
 
     # hyperparams for SAC
-    sac_kwargs = dict(hidden_dims=(64, 64), steps_per_epoch=300, max_ep_len=25, test_ep_len=25,
+    sac_kwargs = dict(hidden_dims=(64, 64), steps_per_epoch=100, max_ep_len=25, test_ep_len=25,
                       alpha=0.05, min_alpha=0.01, alpha_decay=0.001, lr=1e-2,
                       gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus))
 
