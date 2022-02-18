@@ -5,6 +5,7 @@ import mujoco_py
 
 from copy import deepcopy
 from hybrid_gym.model import Mode
+import gym
 from gym.envs.robotics import rotations, robot_env, utils
 from typing import List, Tuple, Dict, FrozenSet, Union, Optional, NamedTuple, Any
 
@@ -170,15 +171,16 @@ class MultiObjectEnv(robot_env.RobotEnv):
             finger_pos_scale * self.gripper_fingers(),
             self.object_position(self.next_obj_index),
         ])
-        object_pos_cat = np.concatenate([x.ravel() for x in object_pos])
-        object_rot_cat = np.concatenate([x.ravel() for x in object_rot])
-        object_velp_cat = np.concatenate([x.ravel() for x in object_velp])
-        object_velr_cat = np.concatenate([x.ravel() for x in object_velr])
-        object_rel_pos_cat = np.concatenate([x.ravel() for x in object_rel_pos])
-        obs = np.concatenate([
-            grip_pos, object_pos_cat, object_rel_pos_cat, gripper_state, object_rot_cat,
-            object_velp_cat, object_velr_cat, grip_velp, gripper_vel,
-        ])
+        #object_pos_cat = np.concatenate([x.ravel() for x in object_pos])
+        #object_rot_cat = np.concatenate([x.ravel() for x in object_rot])
+        #object_velp_cat = np.concatenate([x.ravel() for x in object_velp])
+        #object_velr_cat = np.concatenate([x.ravel() for x in object_velr])
+        #object_rel_pos_cat = np.concatenate([x.ravel() for x in object_rel_pos])
+        #obs = np.concatenate([
+        #    grip_pos, object_pos_cat, object_rel_pos_cat, gripper_state, object_rot_cat,
+        #    object_velp_cat, object_velr_cat, grip_velp, gripper_vel,
+        #])
+        obs = np.zeros(0)
 
         return {
             'observation': np.array(obs.copy(), dtype=np.float32),
@@ -481,6 +483,9 @@ class State(NamedTuple):
 
 class PickPlaceMode(Mode[State]):
     multi_obj: MultiObjectEnv
+    multi_obj_kwargs: Dict[str, Any]
+    fixed_tower_height: Optional[int]
+    flatten_obs: bool
 
     def __init__(self,
                  mode_type: ModeType,
@@ -488,7 +493,9 @@ class PickPlaceMode(Mode[State]):
                  num_objects: int = 3,
                  fixed_tower_height: Optional[int] = None,
                  reward_type: str = 'sparse',
-                 distance_threshold: float = 0.005):
+                 distance_threshold: float = 0.005,
+                 flatten_obs: bool = False,
+                 ) -> None:
         model_xml_path = os.path.join(
             mujoco_xml_path, f'object{num_objects}.xml'
         )
@@ -501,7 +508,7 @@ class PickPlaceMode(Mode[State]):
             'robot0:slide1': 0.48,
             'robot0:slide2': 0.0,
         })
-        self.multi_obj = MultiObjectEnv(
+        self.multi_obj_kwargs = dict(
             model_path=model_xml_path, num_objects=num_objects,
             fixed_tower_height=fixed_tower_height,
             block_gripper=False, n_substeps=20,
@@ -510,13 +517,26 @@ class PickPlaceMode(Mode[State]):
             initial_qpos=initial_qpos, reward_type=reward_type, mode_type=mode_type,
             next_obj_index=next_obj_index,
         )
+        tmp_multi_obj = MultiObjectEnv(**self.multi_obj_kwargs)
+        self.fixed_tower_height = fixed_tower_height
+        self.flatten_obs = flatten_obs
+        obs_space = gym.spaces.utils.flatten_space(
+            tmp_multi_obj.observation_space
+        ) if flatten_obs else tmp_multi_obj.observation_space
         super().__init__(
             name=f'{mode_type.name}_{next_obj_index}' \
                     if fixed_tower_height is None \
                     else f'{mode_type.name}_h{fixed_tower_height}_{next_obj_index}',
-            action_space=self.multi_obj.action_space,
-            observation_space=self.multi_obj.observation_space,
+            action_space=tmp_multi_obj.action_space,
+            observation_space=gym.spaces.utils.flatten_space(
+                tmp_multi_obj.observation_space
+            ) if flatten_obs else tmp_multi_obj.observation_space,
         )
+        del tmp_multi_obj
+
+    def force_multi_obj(self) -> None:
+        if not hasattr(self, 'multi_obj'):
+            self.multi_obj = MultiObjectEnv(**self.multi_obj_kwargs)
 
     def set_state(self, state: State) -> None:
         self.multi_obj.sim.set_state(mujoco_py.MjSimState(
@@ -541,6 +561,7 @@ class PickPlaceMode(Mode[State]):
         )
 
     def reset(self) -> State:
+        self.force_multi_obj()
         self.multi_obj.reset()
         return self.get_state()
 
@@ -581,9 +602,12 @@ class PickPlaceMode(Mode[State]):
             None,
         )
 
-    def _observation_fn(self, state: State) -> Dict[str, np.ndarray]:
+    def _observation_fn(self, state: State) -> Union[np.ndarray, Dict[str, np.ndarray]]:
         self.set_state(state)
-        return self.multi_obj._get_obs()
+        dict_obs = self.multi_obj._get_obs()
+        return gym.spaces.utils.flatten(
+            self.multi_obj.observation_space, dict_obs
+        ) if self.flatten_obs else dict_obs
 
     def _reward_fn(self, state: State, action: np.ndarray, next_state: State) -> float:
         self.set_state(next_state)

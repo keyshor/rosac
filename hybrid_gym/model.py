@@ -5,6 +5,7 @@ from matplotlib.axes import Axes
 from typing import TypeVar, Generic, List, Any, Iterable, Tuple
 from abc import ABCMeta, abstractmethod
 from hybrid_gym.util.common import obs_shape, space_shape
+from hybrid_gym.synthesis.abstractions import AbstractState, Box, StateWrapper
 
 StateType = TypeVar('StateType')
 
@@ -129,6 +130,19 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         Normalizes observations of terminal states in the mode.
         '''
         return obs
+
+    def get_init_pre(self) -> AbstractState:
+        '''
+        return an AbstractState that gives lower and upper bounds
+        on each component of the starting state vector
+        '''
+        low = np.full(shape=(1,), fill_value=np.inf)
+        high = np.full(shape=(1,), fill_value=-np.inf)
+        for _ in range(100):
+            v = self.vectorize_state(self.reset())
+            low = np.minimum(low, v)
+            high = np.maximum(high, v)
+        return StateWrapper(self, Box(low=low, high=high))
 
 
 class Transition(metaclass=ABCMeta):

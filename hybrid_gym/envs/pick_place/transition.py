@@ -19,11 +19,11 @@ class PickPlaceTrans(Transition):
         super().__init__(source_mode.name, [target_mode.name])
 
     def guard(self, st: State) -> bool:
+        self.target_mode.force_multi_obj()
         self.source_mode.set_state(st)
         multi_obj = self.source_mode.multi_obj
-        tgt_multi_obj = self.target_mode.multi_obj
-        if tgt_multi_obj.fixed_tower_height is not None \
-                and len(multi_obj.tower_set) != tgt_multi_obj.fixed_tower_height:
+        if self.target_mode.fixed_tower_height is not None \
+                and len(multi_obj.tower_set) != self.target_mode.fixed_tower_height:
             return False
         if multi_obj.next_obj_index in multi_obj.tower_set:
             return True
@@ -33,6 +33,7 @@ class PickPlaceTrans(Transition):
         )
 
     def jump(self, target: str, st: State) -> State:
+        self.target_mode.force_multi_obj()
         st_inter = State(
             mujoco_state=st.mujoco_state,
             tower_set=st.tower_set | frozenset([self.source_mode.multi_obj.next_obj_index]),

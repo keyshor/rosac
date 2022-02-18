@@ -14,7 +14,7 @@ sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa: E402
-from hybrid_gym.train.single_mode import train_sb3, make_sb3_model_init_check, make_sb3_model
+from hybrid_gym.train.single_mode import make_sac_model, learn_sac_model
 from hybrid_gym.train.mode_pred import train_mode_predictor
 from hybrid_gym.envs import make_pick_place_model
 from hybrid_gym.envs.pick_place.mode import PickPlaceMode, ModeType
@@ -23,36 +23,36 @@ from hybrid_gym.util.wrappers import DoneOnSuccessWrapper
 max_episode_steps=20
 
 
-def train_single(automaton, names, total_timesteps, save_path, model_path):
+def train_single(automaton, names,
+                 episodes_per_epoch, num_epochs,
+                 save_path, model_path, verbose):
     modes = [automaton.modes[n] for n in names]
     mode_info = [(automaton.modes[n], automaton.transitions[n], None, None)
                  for n in names]
-    model = make_sb3_model(
-        mode_info,
-        algo_name='td3',
-        policy='MlpPolicy',
-        buffer_size=200000,
-        action_noise_scale=0.15,
+    model = make_sac_model(
+        obs_space=modes[0].observation_space, act_space=modes[0].action_space,
+        hidden_dims=(1024, 1024, 1024),
+        episodes_per_epoch=episodes_per_epoch, epochs=num_epochs,
+        replay_size=1000000,
+        gamma=1 - 5e-2, polyak=1 - 5e-3, lr=1e-3,
+        alpha=0.1,
         batch_size=256,
-        gamma=0.95,
-        learning_rate=1e-4,
-        policy_kwargs=dict(
-            #net_arch=[512, 512, 512],
-            net_arch=[1024, 1024, 1024],
-        ),
-        target_policy_noise=3e-4,
-        target_noise_clip=3e-3,
-        reward_offset=0.0,
-        max_episode_steps=max_episode_steps,
-        is_goal_env=False,
-        verbose=0,
+        start_steps=10000, update_after=1000,
+        update_every=50,
+        num_test_episodes=100,
+        max_ep_len=max_episode_steps, test_ep_len=max_episode_steps,
+        log_interval=episodes_per_epoch,
+        min_alpha=0.1,
+        alpha_decay=1e-2,
     )
-    train_sb3(model, mode_info,
-              total_timesteps=total_timesteps, algo_name='td3',
-              reward_offset=0.0, is_goal_env=False,
-              use_best_model=True, eval_freq=50000,
-              max_episode_steps=max_episode_steps,
-              save_path=save_path, custom_best_model_path=model_path)
+    learn_sac_model(
+        model=model,
+        raw_mode_info=mode_info,
+        verbose=verbose,
+        retrain=False,
+    )
+    policy = model.get_policy()
+    policy.save(name=model_path, path=save_path)
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='train controllers and mode predictor')
@@ -60,24 +60,30 @@ if __name__ == '__main__':
                     help='directory in which models will be saved')
     ap.add_argument('--num-objects', type=int, default=3,
                     help='number of objects')
-    ap.add_argument('--timesteps', type=int, default=500000,
-                    help='number of timesteps to train each controller')
+    ap.add_argument('--episodes-per-epoch', type=int, default=50,
+                    help='number of training episodes per epoch')
+    ap.add_argument('--num-epochs', type=int, default=100,
+                    help='number of epochs to train each controller')
     ap.add_argument('--all', action='store_true',
                     help='use this flag to train all modes instead of specifying a list')
+    ap.add_argument('--verbose', action='store_true',
+                    help='use this flag to print additional information during training')
     ap.add_argument('mode_types', type=str, nargs='*',
                     help='mode types for which controllers will be trained')
     args = ap.parse_args()
 
+    args.path.mkdir(parents=True, exist_ok=True)
     automaton = make_pick_place_model(
-        num_objects=args.num_objects, reward_type='dense', fixed_tower_height=True,
+        num_objects=args.num_objects, reward_type='dense',
+        fixed_tower_height=True, flatten_obs=True,
     )
     mode_type_list = [mt.name for mt in ModeType] if args.all else args.mode_types
     for mt in mode_type_list:
         print(f'training mode type {mt}')
         names = [f'{mt}_{i}' for i in range(args.num_objects)]
         if mt == 'MOVE_WITH_OBJ':
-            #for j in [1]:
-            for j in range(args.num_objects):
+            #for j in range(args.num_objects):
+            for j in [1]:
                 #names = [f'{mt}_h{j}_{i}' for i in range(args.num_objects)]
                 #print(f'training height {j}')
                 #train_single(
@@ -88,11 +94,13 @@ if __name__ == '__main__':
                     name = f'{mt}_h{j}_{i}'
                     print(f'training mode {name}')
                     train_single(
-                        automaton, [name], args.timesteps,
-                        args.path, name,
+                        automaton, [name],
+                        args.episodes_per_epoch, args.num_epochs,
+                        args.path, name, args.verbose,
                     )
         else:
             train_single(
-                automaton, names, args.timesteps,
-                args.path, mt,
+                automaton, names,
+                args.episodes_per_epoch, args.num_epochs,
+                args.path, mt, args.verbose
             )

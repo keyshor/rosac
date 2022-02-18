@@ -9,6 +9,7 @@ def make_pick_place_model(num_objects: int = 3,
                           reward_type: str = 'sparse',
                           distance_threshold: float = 0.01,
                           fixed_tower_height: bool = False,
+                          flatten_obs: bool = False,
                           ) -> HybridAutomaton:
     modes = []
     transitions = []
@@ -21,6 +22,7 @@ def make_pick_place_model(num_objects: int = 3,
             num_objects=num_objects,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
+            flatten_obs=flatten_obs,
         )
         move_with_obj_modes = [
             PickPlaceMode(
@@ -30,6 +32,7 @@ def make_pick_place_model(num_objects: int = 3,
                 fixed_tower_height=j,
                 reward_type=reward_type,
                 distance_threshold=distance_threshold,
+                flatten_obs=flatten_obs,
             )
             for j in range(num_objects)
         ] if fixed_tower_height else [
@@ -40,6 +43,7 @@ def make_pick_place_model(num_objects: int = 3,
                 fixed_tower_height=None,
                 reward_type=reward_type,
                 distance_threshold=distance_threshold,
+                flatten_obs=flatten_obs,
             )
         ]
         pick_obj_pt1 = PickPlaceMode(
@@ -48,6 +52,7 @@ def make_pick_place_model(num_objects: int = 3,
             num_objects=num_objects,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
+            flatten_obs=flatten_obs,
         )
         pick_obj_pt2 = PickPlaceMode(
             mode_type=ModeType.PICK_OBJ_PT2,
@@ -55,6 +60,7 @@ def make_pick_place_model(num_objects: int = 3,
             num_objects=num_objects,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
+            flatten_obs=flatten_obs,
         )
         pick_obj_pt3 = PickPlaceMode(
             mode_type=ModeType.PICK_OBJ_PT3,
@@ -62,6 +68,7 @@ def make_pick_place_model(num_objects: int = 3,
             num_objects=num_objects,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
+            flatten_obs=flatten_obs,
         )
         place_obj_pt1 = PickPlaceMode(
             mode_type=ModeType.PLACE_OBJ_PT1,
@@ -69,6 +76,7 @@ def make_pick_place_model(num_objects: int = 3,
             num_objects=num_objects,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
+            flatten_obs=flatten_obs,
         )
         place_obj_pt2 = PickPlaceMode(
             mode_type=ModeType.PLACE_OBJ_PT2,
@@ -76,6 +84,7 @@ def make_pick_place_model(num_objects: int = 3,
             num_objects=num_objects,
             reward_type=reward_type,
             distance_threshold=distance_threshold,
+            flatten_obs=flatten_obs,
         )
         mv_wo_obj_modes.append(move_without_obj)
         place_pt2_modes.append(place_obj_pt2)

@@ -5,3 +5,6 @@
 ModeType.*
 *.zip
 *.npz
+*.pkl
+*.npy
+*.txt

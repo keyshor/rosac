@@ -7,20 +7,19 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa
 from hybrid_gym import Controller
-from hybrid_gym.envs.pick_place.hybrid_env import make_pick_place_model
+from hybrid_gym.envs.ant_rooms.hybrid_env import make_ant_model
 from hybrid_gym.train.reward_funcs import SVMReward
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
-from hybrid_gym.train.cegrl_max_processes import cegrl_max_processes
+from hybrid_gym.train.cegrl import cegrl
 from hybrid_gym.util.io import parse_command_line_options, save_log_info
 from hybrid_gym.rl.ars import NNParams, ARSParams
 from hybrid_gym.rl.ddpg import DDPGParams
 from typing import List, Any
 
-MAX_JUMPS = 20
+MAX_JUMPS = 5
 
 
 if __name__ == '__main__':
-    num_objects = 3
 
     flags = parse_command_line_options()
     if not os.path.exists(flags['path']):
@@ -29,12 +28,7 @@ if __name__ == '__main__':
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(flags['gpu_num'])
     num_gpus = max(torch.cuda.device_count(), 1)
 
-    automaton = make_pick_place_model(
-        num_objects=num_objects,
-        reward_type='dense',
-        fixed_tower_height=True,
-        flatten_obs=True,
-    )
+    automaton = make_ant_model()
     pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
     time_limits = {m: 500 for m in automaton.modes}
 
@@ -59,46 +53,28 @@ if __name__ == '__main__':
     mode0 = list(automaton.modes.values())[0]
     sac_kwargs = dict(
         #obs_space=mode0.observation_space, act_space=mode0.action_space,
-        #hidden_dims=(1024, 1024, 1024),
-        hidden_dims=(16, 16),
-        #steps_per_epoch=100000, epochs=5,
-        steps_per_epoch=10, epochs=2,
-        #replay_size=1000000,
-        replay_size=100,
-        gamma=1 - 5e-2, polyak=1 - 5e-3, lr=1e-3,
+        hidden_dims=(256, 256),
+        steps_per_epoch=100000, epochs=3,
+        replay_size=1000000,
+        gamma=1 - 1e-2, polyak=1 - 5e-3, lr=3e-4,
         alpha=0.1,
         batch_size=256,
         start_steps=10000, update_after=10000,
         update_every=50,
         num_test_episodes=10,
-        max_ep_len=20, test_ep_len=20,
+        max_ep_len=500, test_ep_len=500,
         log_interval=200,
         min_alpha=0.1,
         alpha_decay=1e-2,
     )
 
-    controllers, log_info = cegrl_max_processes(
-            automaton, pre, time_limits,
-            mode_groups=[
-                [automaton.modes[f'PICK_OBJ_PT1_{i}'] for i in range(num_objects)],
-                [automaton.modes[f'PICK_OBJ_PT2_{i}'] for i in range(num_objects)],
-                [automaton.modes[f'PICK_OBJ_PT3_{i}'] for i in range(num_objects)],
-                [automaton.modes[f'PLACE_OBJ_PT1_{i}'] for i in range(num_objects)],
-                [automaton.modes[f'PLACE_OBJ_PT2_{i}'] for i in range(num_objects)],
-            ] + [
-                [automaton.modes[f'MOVE_WITHOUT_OBJ_{i}']] for i in range(num_objects)
-            ] + [
-                [automaton.modes[f'MOVE_WITH_OBJ_h{j}_{i}']]
-                for i in range(num_objects)
-                for j in range(num_objects)
-            ],
-            num_iter=2, num_synth_iter=num_synth_iter,
-            abstract_synth_samples=flags['abstract_samples'], print_debug=True,
-            save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
-            ars_kwargs=ars_kwargs, sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
-            max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
-            env_name='pick_place', inductive_ce=flags['inductive_ce'],
-            reward_funcs=reward_funcs, max_processes=3)
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=5, num_synth_iter=num_synth_iter,
+                                  abstract_synth_samples=flags['abstract_samples'], print_debug=True,
+                                  save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
+                                  ars_kwargs=ars_kwargs, sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
+                                  max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
+                                  env_name='ant_rooms', inductive_ce=flags['inductive_ce'],
+                                  reward_funcs=reward_funcs)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

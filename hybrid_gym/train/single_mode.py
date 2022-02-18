@@ -41,6 +41,8 @@ from hybrid_gym.rl.ddpg import DDPG as MyDDPG
 from hybrid_gym.rl.ddpg import DDPGParams
 from hybrid_gym.rl.sac import MySAC
 from hybrid_gym.envs import make_rooms_model, make_two_doors_model
+from hybrid_gym.envs.ant_rooms.hybrid_env import make_ant_model
+from hybrid_gym.envs.pick_place.hybrid_env import make_pick_place_model
 
 
 # BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
@@ -503,7 +505,7 @@ def learn_sac_model(model: MySAC,
                     ]],
                     verbose=False,
                     retrain=False) -> int:
-    env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
+    env_list = [GymEnvWrapper(*mode_info, flatten_obs=True) for mode_info in raw_mode_info]
     reward_fns = [mode_info[3] for mode_info in raw_mode_info]
     steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns)
     return steps_taken
@@ -547,12 +549,43 @@ def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retr
         ret_queue.put((model, steps))
 
 
+def parallel_pool_ars(model, env_name, mode_info, save_path, verbose, use_gpu):
+
+    mode_info = recover_full_mode_info(env_name, mode_info)
+
+    if use_gpu:
+        model.gpu()
+    log_info = learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
+    if use_gpu:
+        model.cpu()
+    return model, log_info[-1][0]
+
+
+def parallel_pool_sac(model, env_name, mode_info, verbose, retrain, use_gpu):
+
+    mode_info = recover_full_mode_info(env_name, mode_info)
+
+    # For now does not support best policy computation
+    if use_gpu:
+        model.gpu()
+    steps = learn_sac_model(model, mode_info, verbose, retrain)
+    if use_gpu:
+        model.cpu()
+    return model, steps
+
+
 def recover_full_mode_info(env_name, mode_info):
     # create automaton
     if env_name == 'rooms':
         automaton = make_rooms_model()
     elif env_name == 'two_doors':
         automaton = make_two_doors_model()
+    elif env_name == 'ant_rooms':
+        automaton = make_ant_model()
+    elif env_name == 'pick_place':
+        automaton = make_pick_place_model(
+            reward_type='dense', fixed_tower_height=True, flatten_obs=True,
+        )
     else:
         raise ValueError(
             'Unsupported env_name used! Consider adding new environment support in ' +
