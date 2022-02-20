@@ -30,7 +30,8 @@ class RewardFunc(metaclass=ABCMeta):
 
     @abstractmethod
     def obs_reward(self, obs: np.ndarray, action, next_obs: np.ndarray,
-                   orig_reward: float, is_success: bool) -> float:
+                   orig_reward: float, is_success: bool,
+                   jump_obs: Optional[List[Tuple[str, np.ndarray]]] = None) -> float:
         '''
         Return reward for a step corresponding to the given observed step.
         orig_reward is the reward assigned by the environment to the step.
@@ -79,7 +80,7 @@ class SVMReward(RewardFunc):
         self.penalty_factor = penalty_factor
         self.bonus = bonus
 
-    def obs_reward(self, obs, action, next_obs, orig_reward, is_success):
+    def obs_reward(self, obs, action, next_obs, orig_reward, is_success, jump_obs=None):
 
         # compute classifier bonus
         if self.svm_model is not None and is_success:
@@ -157,3 +158,39 @@ class SVMReward(RewardFunc):
                 state_value_success.append((end_state, value, success))
 
         return state_value_success, steps_taken
+
+
+class ValueBasedReward(RewardFunc):
+
+    def __init__(self, mode, automaton, discount=0.99, bonus=25.,
+                 deterministic=False):
+        super().__init__(mode, automaton)
+        self.discount = discount
+        self.bonus = bonus
+        self.value_fns = None
+        self.deterministic = deterministic
+
+    def obs_reward(self, obs, action, next_obs, orig_reward, is_success, jump_obs=None):
+
+        # compute classifier bonus
+        if self.value_fns is not None and is_success:
+            orig_reward = orig_reward + self.bonus + \
+                self.discount * self.compute_value(jump_obs)
+
+        return orig_reward
+
+    def update(self, collected_states, controllers):
+        value_fns = {}
+        for mname, c_list in controllers.items():
+            value_fns[mname] = [c.copy() for c in c_list]
+        self.value_fns = value_fns
+        return 0
+
+    def compute_value(self, jump_obs):
+        val = np.inf
+        for mname, obs in jump_obs:
+            j_val = -np.inf
+            for value_fn in self.value_fns[mname]:
+                j_val = max(j_val, value_fn.get_value(obs, self.deterministic))
+            val = min(val, j_val)
+        return val

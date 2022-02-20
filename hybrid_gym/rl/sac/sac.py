@@ -40,16 +40,18 @@ class ReplayBuffer:
         self.rew_buf = np.zeros(size, dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
         self.is_success_buf = [False for _ in range(size)]
+        self.jump_obs_buf = [None for _ in range(size)]
         self.ptr, self.size, self.max_size = 0, 0, size
         self.device = 'cpu'
 
-    def store(self, obs, act, rew, next_obs, done, is_success):
+    def store(self, obs, act, rew, next_obs, done, is_success, jump_obs):
         self.obs_buf[self.ptr] = obs
         self.obs2_buf[self.ptr] = next_obs
         self.act_buf[self.ptr] = act
         self.rew_buf[self.ptr] = rew
         self.done_buf[self.ptr] = done
         self.is_success_buf[self.ptr] = is_success
+        self.jump_obs_buf[self.ptr] = jump_obs
         self.ptr = (self.ptr+1) % self.max_size
         self.size = min(self.size+1, self.max_size)
 
@@ -62,10 +64,11 @@ class ReplayBuffer:
                      done=self.done_buf[idxs])
         if reward_fn is not None:
             is_success = [self.is_success_buf[j] for j in idxs]
+            jump_obs = [self.jump_obs_buf[j] for j in idxs]
             for i in range(batch_size):
                 batch['rew'][i] = reward_fn.obs_reward(
                     batch['obs'][i], batch['act'][i], batch['obs2'][i],
-                    batch['rew'][i], is_success[i])
+                    batch['rew'][i], is_success[i], jump_obs[i])
         return {k: torch.as_tensor(v, dtype=torch.float32, device=self.device)
                 for k, v in batch.items()}
 
@@ -309,7 +312,8 @@ class MySAC:
                     o2, r, d, info = env.step(a)
                     corrected_r = r
                     if reward_fn is not None:
-                        corrected_r = reward_fn.obs_reward(o, a, o2, r, info['is_success'])
+                        corrected_r = reward_fn.obs_reward(
+                            o, a, o2, r, info['is_success'], info['jump_obs'])
                     ep_ret += corrected_r
                     ep_len += 1
                     o = o2
@@ -351,7 +355,8 @@ class MySAC:
 
                 corrected_r = r
                 if reward_fn is not None:
-                    corrected_r = reward_fn.obs_reward(o, a, o2, r, info['is_success'])
+                    corrected_r = reward_fn.obs_reward(
+                        o, a, o2, r, info['is_success'], info['jump_obs'])
                 ep_ret += corrected_r
                 ep_len += 1
                 steps += 1
@@ -362,7 +367,7 @@ class MySAC:
                 d = False if ep_len == self.max_ep_len else d
 
                 # Store experience to replay buffer
-                self.replay_buffer.store(o, a, r, o2, d, info['is_success'])
+                self.replay_buffer.store(o, a, r, o2, d, info['is_success'], info['jump_obs'])
 
                 # Super critical, easy to overlook step: make sure to update
                 # most recent observation!
@@ -429,6 +434,22 @@ class SACController(Controller):
             self.device = 'cpu'
         fh = open(os.path.join(path, name + '.pkl'), 'wb')
         pickle.dump(self, fh)
+
+    def copy(self):
+        if self.device != 'cpu':
+            self.ac = self.ac.to('cpu')
+        self_copy = deepcopy(self)
+        if self.device != 'cpu':
+            self_copy.ac = self_copy.ac.to(self.device)
+            self.ac = self.ac.to(self.device)
+        return self_copy
+
+    def get_value(self, o: np.ndarray, deterministic=False) -> float:
+        obs = torch.as_tensor(o, dtype=torch.float32, device=self.device)
+        with torch.no_grad():
+            act, _ = self.ac.pi(obs, deterministic, False)
+            val = torch.squeeze(torch.min(self.ac.q1(obs, act), self.ac.q2(obs, act)))
+        return float(val.cpu().numpy())
 
 
 if __name__ == '__main__':

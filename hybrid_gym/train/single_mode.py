@@ -43,6 +43,7 @@ from hybrid_gym.rl.sac import MySAC
 from hybrid_gym.envs import make_rooms_model, make_two_doors_model
 from hybrid_gym.envs.ant_rooms.hybrid_env import make_ant_model
 from hybrid_gym.envs.pick_place.hybrid_env import make_pick_place_model
+from hybrid_gym.hybrid_env import HybridAutomaton
 
 
 # BasePolicySubclass = TypeVar('BasePolicySubclass', bound=BasePolicy)
@@ -481,6 +482,7 @@ def make_sac_model(obs_space, act_space, **kwargs) -> MySAC:
 
 
 def learn_ars_model(model: ARSModel,
+                    automaton: HybridAutomaton,
                     raw_mode_info: List[Tuple[
                         Mode[StateType],
                         Iterable[Transition],
@@ -490,13 +492,14 @@ def learn_ars_model(model: ARSModel,
                     save_path: str = '.',
                     custom_best_model_path: Optional[str] = None,
                     verbose=False):
-    env_list = [GymEnvWrapper(*mode_info) for mode_info in raw_mode_info]
+    env_list = [GymEnvWrapper(automaton, *mode_info) for mode_info in raw_mode_info]
     reward_fns = [mode_info[3] for mode_info in raw_mode_info]
     _, log_info = model.learn(env_list, verbose=verbose, reward_fns=reward_fns)
     return log_info
 
 
 def learn_sac_model(model: MySAC,
+                    automaton: HybridAutomaton,
                     raw_mode_info: List[Tuple[
                         Mode[StateType],
                         Iterable[Transition],
@@ -505,30 +508,33 @@ def learn_sac_model(model: MySAC,
                     ]],
                     verbose=False,
                     retrain=False) -> int:
-    env_list = [GymEnvWrapper(*mode_info, flatten_obs=True) for mode_info in raw_mode_info]
+    env_list = [GymEnvWrapper(automaton, *mode_info, flatten_obs=True)
+                for mode_info in raw_mode_info]
     reward_fns = [mode_info[3] for mode_info in raw_mode_info]
     steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns)
     return steps_taken
 
 
 def learn_ddpg_model(model: MyDDPG,
+                     automaton: HybridAutomaton,
                      raw_mode_info: List[Tuple[
                          Mode[StateType],
                          Iterable[Transition],
                          Optional[Callable[[], StateType]],
                          Optional[Callable[[StateType, np.ndarray, StateType], float]],
                      ]]) -> int:
-    env_list = [GymEnvWrapper(*mode_info, flatten_obs=True) for mode_info in raw_mode_info]
+    env_list = [GymEnvWrapper(automaton, *mode_info, flatten_obs=True)
+                for mode_info in raw_mode_info]
     return model.train(env_list)
 
 
 def parallel_ars(model, env_name, mode_info, save_path, ret_queue, req_queue, verbose, use_gpu):
 
-    mode_info = recover_full_mode_info(env_name, mode_info)
+    mode_info, automaton = recover_full_mode_info(env_name, mode_info)
 
     if use_gpu:
         model.gpu()
-    log_info = learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
+    log_info = learn_ars_model(model, automaton, mode_info, save_path=save_path, verbose=verbose)
     if use_gpu:
         model.cpu()
     while req_queue.get() is not None:
@@ -537,12 +543,12 @@ def parallel_ars(model, env_name, mode_info, save_path, ret_queue, req_queue, ve
 
 def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retrain, use_gpu):
 
-    mode_info = recover_full_mode_info(env_name, mode_info)
+    mode_info, automaton = recover_full_mode_info(env_name, mode_info)
 
     # For now does not support best policy computation
     if use_gpu:
         model.gpu()
-    steps = learn_sac_model(model, mode_info, verbose, retrain)
+    steps = learn_sac_model(model, automaton, mode_info, verbose, retrain)
     if use_gpu:
         model.cpu()
     while req_queue.get() is not None:
@@ -551,11 +557,11 @@ def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retr
 
 def parallel_pool_ars(model, env_name, mode_info, save_path, verbose, use_gpu):
 
-    mode_info = recover_full_mode_info(env_name, mode_info)
+    mode_info, automaton = recover_full_mode_info(env_name, mode_info)
 
     if use_gpu:
         model.gpu()
-    log_info = learn_ars_model(model, mode_info, save_path=save_path, verbose=verbose)
+    log_info = learn_ars_model(model, automaton, mode_info, save_path=save_path, verbose=verbose)
     if use_gpu:
         model.cpu()
     return model, log_info[-1][0]
@@ -563,12 +569,12 @@ def parallel_pool_ars(model, env_name, mode_info, save_path, verbose, use_gpu):
 
 def parallel_pool_sac(model, env_name, mode_info, verbose, retrain, use_gpu):
 
-    mode_info = recover_full_mode_info(env_name, mode_info)
+    mode_info, automaton = recover_full_mode_info(env_name, mode_info)
 
     # For now does not support best policy computation
     if use_gpu:
         model.gpu()
-    steps = learn_sac_model(model, mode_info, verbose, retrain)
+    steps = learn_sac_model(model, automaton, mode_info, verbose, retrain)
     if use_gpu:
         model.cpu()
     return model, steps
@@ -599,4 +605,4 @@ def recover_full_mode_info(env_name, mode_info):
             reward_fn.recover_after_serialization(automaton)
         if reset_fn is not None:
             reset_fn.recover_after_serialization(automaton)
-    return mode_info
+    return mode_info, automaton

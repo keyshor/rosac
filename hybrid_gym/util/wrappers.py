@@ -14,6 +14,7 @@ from hybrid_gym.rl.ddpg import DDPG as RlDdpg
 from typing import (Iterable, List, Tuple, Dict, Optional,
                     Callable, Generic, NoReturn, Type, TypeVar, Union, Any)
 from hybrid_gym.model import Mode, Transition, Controller, StateType
+from hybrid_gym.hybrid_env import HybridAutomaton
 
 T = TypeVar('T')
 NotMethod = Union[T, NoReturn]
@@ -21,6 +22,7 @@ NotMethod = Union[T, NoReturn]
 
 class GymEnvWrapper(gym.Env, Generic[StateType]):
     mode: Mode[StateType]
+    automaton: HybridAutomaton
     state: StateType
     observation_space: gym.Space
     action_space: gym.Space
@@ -30,6 +32,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
     flatten_obs: bool
 
     def __init__(self,
+                 automaton: HybridAutomaton,
                  mode: Mode[StateType],
                  transitions: Iterable[Transition],
                  custom_reset: Optional[Callable[[], StateType]] = None,
@@ -38,6 +41,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
                  flatten_obs: bool = False
                  ) -> None:
         self.mode = mode
+        self.automaton = automaton
         self.transitions = list(transitions)
         assert all([t.source == mode.name for t in self.transitions])
         self.flatten_obs = flatten_obs
@@ -62,12 +66,26 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
         next_state = self.mode.step(self.state, action)
         reward = self.reward_fn(self.state, action, next_state)
         self.state = next_state
-        is_success = any([t.guard(self.state) for t in self.transitions])
+        is_success, jump_obs = self.compute_info()
         done = not self.mode.is_safe(self.state) or is_success
-        return self.observe(), reward, done, {'is_success': is_success}
+        return self.observe(), reward, done, {'is_success': is_success, 'jump_obs': jump_obs}
 
     def render(self, mode: str = 'human') -> None:
         self.mode.render(self.state)
+
+    def compute_info(self):
+        is_success = False
+        jump_obs = None
+        for t in self.transitions:
+            if t.guard(self.state):
+                is_success = True
+                jump_obs = []
+                for target in t.targets:
+                    jump_state = t.jump(target, self.state)
+                    jump_obs.append(
+                        (target, self.automaton.modes[target].observe(jump_state)))
+                break
+        return is_success, jump_obs
 
 
 class GymGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):

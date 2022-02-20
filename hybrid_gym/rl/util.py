@@ -27,7 +27,7 @@ def get_rollout(env, policy, render, max_timesteps=10000):
         next_state, reward, done, info = env.step(action)
 
         # Step 2d: Rollout (s, a, r)
-        sardss.append((state, action, reward, info['is_success'], next_state))
+        sardss.append((state, action, reward, info['is_success'], info['jump_obs'], next_state))
 
         # Step 2e: Update state
         state = next_state
@@ -44,9 +44,9 @@ def discounted_reward(sardss, gamma, reward_fn=None):
     sardss_rev = sardss.copy()
     sardss_rev.reverse()
     reward = 0.0
-    for s, a, r, d, ns in sardss_rev:
+    for s, a, r, d, j_obs, ns in sardss_rev:
         if reward_fn is not None:
-            r = reward_fn.obs_reward(s, a, ns, r, d)
+            r = reward_fn.obs_reward(s, a, ns, r, d, j_obs)
         reward = r + gamma*reward
     return reward
 
