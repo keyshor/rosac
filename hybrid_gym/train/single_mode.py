@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import pickle
 
 from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2, SAC, TD3, TRPO
 from stable_baselines.common.base_class import BaseRLModel
@@ -26,7 +27,7 @@ from stable_baselines3.common.noise import NormalActionNoise as SB3_NormalAction
 from stable_baselines3.common.monitor import Monitor
 import gym
 from gym.wrappers import TimeLimit
-from typing import Iterable, Optional, List, Tuple, Union, Callable, Type, Any
+from typing import Iterable, Optional, List, Tuple, Union, Callable, Type, Any, NamedTuple
 
 from spectrl.rl.ddpg import DDPG as SpectrlDdpg, DDPGParams as SpectrlDdpgParams
 
@@ -555,29 +556,48 @@ def parallel_sac(model, env_name, mode_info, ret_queue, req_queue, verbose, retr
         ret_queue.put((model, steps))
 
 
-def parallel_pool_ars(model, env_name, mode_info, save_path, verbose, use_gpu):
+class ParallelPoolArg(NamedTuple):
+    g: int
+    e: int
+    env_name: str
+    mode_info: Iterable
+    save_path: str
+    verbose: bool
+    retrain: bool
+    use_gpu: bool
 
-    mode_info, automaton = recover_full_mode_info(env_name, mode_info)
 
-    if use_gpu:
+def parallel_pool_ars(arg):
+
+    mode_info, automaton = recover_full_mode_info(arg.env_name, arg.mode_info)
+
+    with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'rb') as f:
+        model = pickle.load(f)
+    if arg.use_gpu:
         model.gpu()
-    log_info = learn_ars_model(model, automaton, mode_info, save_path=save_path, verbose=verbose)
-    if use_gpu:
+    log_info = learn_ars_model(model, automaton, mode_info, save_path=arg.save_path, verbose=arg.verbose)
+    if arg.use_gpu:
         model.cpu()
-    return model, log_info[-1][0]
+    with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'wb') as f:
+        pickle.dump(model, f)
+    return log_info[-1][0]
 
 
-def parallel_pool_sac(model, env_name, mode_info, verbose, retrain, use_gpu):
+def parallel_pool_sac(arg):
 
-    mode_info, automaton = recover_full_mode_info(env_name, mode_info)
+    mode_info, automaton = recover_full_mode_info(arg.env_name, arg.mode_info)
 
     # For now does not support best policy computation
-    if use_gpu:
+    with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'rb') as f:
+        model = pickle.load(f)
+    if arg.use_gpu:
         model.gpu()
-    steps = learn_sac_model(model, automaton, mode_info, verbose, retrain)
-    if use_gpu:
+    steps = learn_sac_model(model, automaton, mode_info, arg.verbose, arg.retrain)
+    if arg.use_gpu:
         model.cpu()
-    return model, steps
+    with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'wb') as f:
+        pickle.dump(model, f)
+    return steps
 
 
 def recover_full_mode_info(env_name, mode_info):

@@ -112,7 +112,7 @@ class MultiObjectEnv(robot_env.RobotEnv):
             if not self.is_safe():
                reward += unsafe_reward
             if self._is_success(achieved_goal, goal):
-                reward += 1000.0
+                reward += 1e1
             return reward
 
     # RobotEnv methods
