@@ -8,7 +8,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 # flake8: noqa
 from hybrid_gym import Controller
 from hybrid_gym.envs.rooms_two_doors.hybrid_env import make_rooms_model
-from hybrid_gym.train.reward_funcs import SVMReward
+from hybrid_gym.train.reward_funcs import SVMReward, ValueBasedReward
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
 from hybrid_gym.util.io import parse_command_line_options, save_log_info
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     # reward update
     reward_funcs = None
     if flags['dynamic_rew']:
-        reward_funcs = {m: SVMReward(mode, automaton, time_limits)
+        reward_funcs = {m: ValueBasedReward(mode, automaton)
                         for m, mode in automaton.modes.items()}
 
     # hyperparams for ARS
@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # hyperparams for SAC
     sac_kwargs = dict(hidden_dims=(64, 64), steps_per_epoch=100, max_ep_len=25, test_ep_len=25,
-                      alpha=0.05, min_alpha=0.03, alpha_decay=0.001, lr=1e-2,
+                      alpha=0.05, min_alpha=0.01, alpha_decay=0.001, lr=1e-2,
                       gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus))
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=100, num_synth_iter=num_synth_iter,

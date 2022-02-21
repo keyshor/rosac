@@ -2,7 +2,7 @@ import numpy as np
 import gym
 from matplotlib.axes import Axes
 
-from typing import TypeVar, Generic, List, Any, Iterable, Tuple
+from typing import TypeVar, Generic, List, Any, Iterable, Tuple, Callable
 from abc import ABCMeta, abstractmethod
 from hybrid_gym.util.common import obs_shape, space_shape
 from hybrid_gym.synthesis.abstractions import AbstractState, Box, StateWrapper
@@ -207,6 +207,14 @@ class Controller(metaclass=ABCMeta):
     @abstractmethod
     def save(self, name: str, path: str) -> None:
         pass
+
+    def get_value_fn(self) -> Callable[[np.ndarray, bool], float]:
+        '''
+        Returns observation based value function such as the one learned by SAC.
+        Second argument allows for optionally setting the function to be deterministic
+            in cases where the policy is stochastic.
+        '''
+        raise NotImplementedError
 
 
 class ModePredictor(metaclass=ABCMeta):

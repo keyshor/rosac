@@ -13,7 +13,7 @@ def get_rollout(env, policy, render, max_timesteps=10000):
     done = False
 
     # Step 2: Compute rollout
-    sardss = []
+    sariss = []
     steps = 0
     while (not done) and (steps < max_timesteps):
         # Step 2a: Render environment
@@ -27,7 +27,7 @@ def get_rollout(env, policy, render, max_timesteps=10000):
         next_state, reward, done, info = env.step(action)
 
         # Step 2d: Rollout (s, a, r)
-        sardss.append((state, action, reward, info['is_success'], info['jump_obs'], next_state))
+        sariss.append((state, action, reward, info, next_state))
 
         # Step 2e: Update state
         state = next_state
@@ -37,16 +37,16 @@ def get_rollout(env, policy, render, max_timesteps=10000):
     if render:
         env.render()
 
-    return sardss
+    return sariss
 
 
-def discounted_reward(sardss, gamma, reward_fn=None):
-    sardss_rev = sardss.copy()
-    sardss_rev.reverse()
+def discounted_reward(sariss, gamma, reward_fn=None):
+    sariss_rev = sariss.copy()
+    sariss_rev.reverse()
     reward = 0.0
-    for s, a, r, d, j_obs, ns in sardss_rev:
+    for s, a, r, info, ns in sariss_rev:
         if reward_fn is not None:
-            r = reward_fn.obs_reward(s, a, ns, r, d, j_obs)
+            r = reward_fn.obs_reward(s, a, ns, r, info)
         reward = r + gamma*reward
     return reward
 
@@ -64,9 +64,9 @@ def test_policy(env, policy, n_rollouts, gamma=1, max_timesteps=10000,
     cum_reward = 0.0
     num_steps = 0
     for _ in range(n_rollouts):
-        sardss = get_rollout(env, policy, False, max_timesteps=max_timesteps)
-        num_steps += len(sardss)
-        cum_reward += discounted_reward(sardss, gamma, reward_fn)
+        sariss = get_rollout(env, policy, False, max_timesteps=max_timesteps)
+        num_steps += len(sariss)
+        cum_reward += discounted_reward(sariss, gamma, reward_fn)
     if get_steps:
         return cum_reward / n_rollouts, num_steps
     return cum_reward / n_rollouts
