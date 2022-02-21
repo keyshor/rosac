@@ -5,7 +5,8 @@ CounterExample Guided Reinforcement Learning
 from hybrid_gym import HybridAutomaton, Mode, Controller
 from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
                                           make_ars_model, parallel_pool_ars, learn_ddpg_model,
-                                          make_ddpg_model, make_sac_model, parallel_pool_sac)
+                                          make_ddpg_model, make_sac_model, parallel_pool_sac,
+                                          ParallelPoolArg)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
@@ -21,6 +22,7 @@ import random
 import os
 import time
 import matplotlib.pyplot as plt
+import pickle
 
 
 class ResetFunc:
@@ -159,13 +161,12 @@ def cegrl_pool(automaton: HybridAutomaton,
             for g in range(len(mode_groups))]
         ens_controllers = [[Sb3CtrlWrapper(model) for model in models] for models in ens_models]
 
+    os.makedirs(os.path.join(save_path, 'tmp'), exist_ok=True)
     for i in range(num_iter):
         start_time = time.time()
         print('\nStarting to train individual controllers in iteration {} ...'.format(i))
 
         # parallelize learning, initialize list of queues to retrieve trained models
-        if algo_name == 'ars' or algo_name == 'my_sac':
-            pool_args: List[List[Any]] = [[] for _ in range(len(mode_groups) * ensemble)]
 
         # train agents
         for g in range(len(mode_groups)):
@@ -187,20 +188,9 @@ def cegrl_pool(automaton: HybridAutomaton,
                     # doesn't handle GPU resources
                     if use_gpu:
                         ens_models[g][e].cpu()
-
-                    # set the correspondning training functions
-                    if algo_name == 'ars':
-                        pool_args[ensemble * g + e] = [
-                            ens_models[g][e], env_name, serializable_info[g], save_path,
-                            print_debug, use_gpu]
-                    else:
-                        pool_args[ensemble * g + e] = [
-                            ens_models[g][e], env_name, serializable_info[g],
-                            print_debug, (i > 0), use_gpu]
-
-                    # start the training process
-                    #processes[g][e].start()
-                    #ens_models[g][e] = None
+                    with open(os.path.join(save_path, 'tmp', f'{g}_{e}.pkl'), 'wb') as f:
+                        pickle.dump(ens_models[g][e], f)
+                    ens_models[g][e] = None
 
                 # sequential training for ddpg and stable_baselines
                 elif algo_name == 'my_ddpg':
@@ -215,17 +205,29 @@ def cegrl_pool(automaton: HybridAutomaton,
                         **kwargs['sb3_train_kwargs'],
                     )
 
-
         # retrieve new controllers
         if algo_name == 'ars' or algo_name == 'my_sac':
+            pool_args = [
+                ParallelPoolArg(
+                    g=g, e=e, env_name=env_name,
+                    mode_info=serializable_info[g],
+                    save_path=os.path.join(save_path, 'tmp'),
+                    verbose=print_debug,
+                    retrain=(i > 0),
+                    use_gpu=use_gpu,
+                )
+                for g in range(len(mode_groups))
+                for e in range(ensemble)
+            ]
             with Pool(processes=max_processes, maxtasksperchild=1) as pool:
                 if algo_name == 'ars':
-                    models_and_steps = pool.map(parallel_pool_ars, pool_args)
+                    steps_taken += sum(pool.map(parallel_pool_ars, pool_args))
                 else:
-                    models_and_steps = pool.map(parallel_pool_sac, pool_args)
+                    steps_taken += sum(pool.map(parallel_pool_sac, pool_args))
             for g in range(len(mode_groups)):
                 for e in range(ensemble):
-                    ens_models[g][e], steps = models_and_steps[ensemble * g + e]
+                    with open(os.path.join(save_path, 'tmp', f'{g}_{e}.pkl'), 'rb') as f:
+                        ens_models[g][e] = pickle.load(f)
 
                     # move to gpu if needed
                     if use_gpu:
@@ -236,8 +238,6 @@ def cegrl_pool(automaton: HybridAutomaton,
                     if algo_name == 'my_sac':
                         ens_stoch_controllers[g][e] = ens_models[g][e].get_policy(
                             deterministic=False)
-
-                    steps_taken += steps
 
         for g in range(len(mode_groups)):
             for _, reward_fn, reset_fn in serializable_info[g]:

@@ -136,8 +136,9 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
         return an AbstractState that gives lower and upper bounds
         on each component of the starting state vector
         '''
-        low = np.ones(shape=self.observation_space.shape) * np.inf
-        high = -np.ones(shape=self.observation_space.shape) * np.inf
+        state_shape = self.vectorize_state(self.reset()).shape
+        low = np.ones(shape=state_shape) * np.inf
+        high = -np.ones(shape=state_shape) * np.inf
         for _ in range(100):
             v = self.vectorize_state(self.reset())
             low = np.minimum(low, v)

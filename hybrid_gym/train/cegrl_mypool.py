@@ -5,7 +5,8 @@ CounterExample Guided Reinforcement Learning
 from hybrid_gym import HybridAutomaton, Mode, Controller
 from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
                                           make_ars_model, parallel_pool_ars, learn_ddpg_model,
-                                          make_ddpg_model, make_sac_model, parallel_pool_sac)
+                                          make_ddpg_model, make_sac_model, parallel_pool_sac,
+                                          ParallelPoolArg)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
@@ -21,17 +22,20 @@ import random
 import os
 import time
 import matplotlib.pyplot as plt
+import pickle
 
 
 def run_mypool_tasks(fn: Callable,
-                     args: List[Iterable[Any]],
+                     args: List[Any],
                      pipe: Pipe,
                      ) -> None:
-    ret_values = [fn(*x) for x in args]
-    j = pipe.recv()
-    while j is not None:
-        pipe.send(ret_values[j])
-        j = pipe.recv()
+    ret_values = [fn(x) for x in args]
+    #j = pipe.recv()
+    #while j is not None:
+    #    pipe.send(ret_values[j])
+    #    j = pipe.recv()
+    while pipe.recv():
+        pipe.send(ret_values)
 
 
 class MyPool:
@@ -40,7 +44,7 @@ class MyPool:
     def __init__(self, max_processes: int = os.cpu_count()) -> None:
         self.max_processes = max_processes
 
-    def map(self, fn: Callable, task_args: List[Iterable[Any]]) -> List[Any]:
+    def map(self, fn: Callable, task_args: List[Any]) -> List[Any]:
         num_tasks = len(task_args)
         num_processes = min(self.max_processes, num_tasks)
         tasks_per_process = [
@@ -72,15 +76,28 @@ class MyPool:
         ret_values: List[Any] = [None for _ in range(num_tasks)]
         for i in range(num_processes):
             pipe = pipes[i][0]
-            for j in range(tasks_per_process[i]):
-                while True:
-                    try:
-                        pipe.send(j)
-                        ret_values[start_indices[i] + j] = pipe.recv()
-                        break
-                    except RuntimeError:
-                        print('Runtime Error occured while retrieving policy! Retrying...')
-            pipe.send(None)
+            #for j in range(tasks_per_process[i]):
+            #    #while True:
+            #    #    try:
+            #    #        pipe.send(j)
+            #    #        ret_values[start_indices[i] + j] = pipe.recv()
+            #    #        break
+            #    #    except RuntimeError:
+            #    #        print('Runtime Error occured while retrieving policy! Retrying...')
+            #    #try:
+            #    #    pipe.send(j)
+            #    #    ret_values[start_indices[i] + j] = pipe.recv()
+            #    #except RuntimeError:
+            #    #    print('Runtime Error occured while retrieving policy! Aborting...')
+            #    #    traceback.print_exc()
+            try:
+                pipe.send(True)
+                ret_values[start_indices[i] : start_indices[i] + tasks_per_process[i]] = pipe.recv()
+            except RuntimeError:
+                print('Runtime Error occured while retrieving policy! Aborting...')
+                traceback.print_exc()
+            #pipe.send(None)
+            pipe.send(False)
             pipe.close()
             processes[i].join()
             processes[i].close()
@@ -123,33 +140,33 @@ class ResetFunc:
         return self
 
 
-def cegrl_max_processes(automaton: HybridAutomaton,
-                        pre: Dict[str, AbstractState],
-                        time_limits: Dict[str, int],
-                        mode_groups: List[List[Mode]] = [],
-                        reward_funcs: Optional[Dict[str, Optional[RewardFunc]]] = None,
-                        max_jumps: int = 10,
-                        algo_name: str = 'td3',
-                        num_iter: int = 20,
-                        ensemble: int = 1,
-                        dagger: bool = False,
-                        use_gpu: bool = False,
-                        full_reset: bool = False,
-                        env_name: Optional[str] = None,
-                        num_synth_iter: int = 10,
-                        n_synth_samples: int = 50,
-                        abstract_synth_samples: int = 0,
-                        inductive_ce: bool = False,
-                        num_falsification_iter: int = 200,
-                        num_falsification_samples: int = 20,
-                        num_falsification_top_samples: int = 10,
-                        falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
-                        print_debug: bool = False,
-                        save_path: str = '.',
-                        plot_synthesized_regions: bool = False,
-                        max_processes: int = 1024,
-                        **kwargs
-                        ) -> Tuple[Dict[str, Controller], np.ndarray]:
+def cegrl_mypool(automaton: HybridAutomaton,
+          pre: Dict[str, AbstractState],
+          time_limits: Dict[str, int],
+          mode_groups: List[List[Mode]] = [],
+          reward_funcs: Optional[Dict[str, Optional[RewardFunc]]] = None,
+          max_jumps: int = 10,
+          algo_name: str = 'td3',
+          num_iter: int = 20,
+          ensemble: int = 1,
+          dagger: bool = False,
+          use_gpu: bool = False,
+          full_reset: bool = False,
+          env_name: Optional[str] = None,
+          num_synth_iter: int = 10,
+          n_synth_samples: int = 50,
+          abstract_synth_samples: int = 0,
+          inductive_ce: bool = False,
+          num_falsification_iter: int = 200,
+          num_falsification_samples: int = 20,
+          num_falsification_top_samples: int = 10,
+          falsify_func: Optional[Dict[str, Callable[[List[Any]], float]]] = None,
+          print_debug: bool = False,
+          save_path: str = '.',
+          plot_synthesized_regions: bool = False,
+          max_processes: int = 1024,
+          **kwargs
+          ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
     Train policies for all modes
 
@@ -223,14 +240,13 @@ def cegrl_max_processes(automaton: HybridAutomaton,
             for g in range(len(mode_groups))]
         ens_controllers = [[Sb3CtrlWrapper(model) for model in models] for models in ens_models]
 
+    os.makedirs(os.path.join(save_path, 'tmp'), exist_ok=True)
     pool = MyPool(max_processes=max_processes)
     for i in range(num_iter):
         start_time = time.time()
         print('\nStarting to train individual controllers in iteration {} ...'.format(i))
 
         # parallelize learning, initialize list of queues to retrieve trained models
-        if algo_name == 'ars' or algo_name == 'my_sac':
-            pool_args: List[List[Any]] = [[] for _ in range(len(mode_groups) * ensemble)]
 
         # train agents
         for g in range(len(mode_groups)):
@@ -252,20 +268,9 @@ def cegrl_max_processes(automaton: HybridAutomaton,
                     # doesn't handle GPU resources
                     if use_gpu:
                         ens_models[g][e].cpu()
-
-                    # set the correspondning training functions
-                    if algo_name == 'ars':
-                        pool_args[ensemble * g + e] = [
-                            ens_models[g][e], env_name, serializable_info[g], save_path,
-                            print_debug, use_gpu]
-                    else:
-                        pool_args[ensemble * g + e] = [
-                            ens_models[g][e], env_name, serializable_info[g],
-                            print_debug, (i > 0), use_gpu]
-
-                    # start the training process
-                    #processes[g][e].start()
-                    #ens_models[g][e] = None
+                    with open(os.path.join(save_path, 'tmp', f'{g}_{e}.pkl'), 'wb') as f:
+                        pickle.dump(ens_models[g][e], f)
+                    ens_models[g][e] = None
 
                 # sequential training for ddpg and stable_baselines
                 elif algo_name == 'my_ddpg':
@@ -280,16 +285,28 @@ def cegrl_max_processes(automaton: HybridAutomaton,
                         **kwargs['sb3_train_kwargs'],
                     )
 
-
         # retrieve new controllers
         if algo_name == 'ars' or algo_name == 'my_sac':
+            pool_args = [
+                ParallelPoolArg(
+                    g=g, e=e, env_name=env_name,
+                    mode_info=serializable_info[g],
+                    save_path=os.path.join(save_path, 'tmp'),
+                    verbose=print_debug,
+                    retrain=(i > 0),
+                    use_gpu=use_gpu,
+                )
+                for g in range(len(mode_groups))
+                for e in range(ensemble)
+            ]
             if algo_name == 'ars':
-                models_and_steps = pool.map(parallel_pool_ars, pool_args)
+                steps_taken += sum(pool.map(parallel_pool_ars, pool_args))
             else:
-                models_and_steps = pool.map(parallel_pool_sac, pool_args)
+                steps_taken += sum(pool.map(parallel_pool_sac, pool_args))
             for g in range(len(mode_groups)):
                 for e in range(ensemble):
-                    ens_models[g][e], steps = models_and_steps[ensemble * g + e]
+                    with open(os.path.join(save_path, 'tmp', f'{g}_{e}.pkl'), 'rb') as f:
+                        ens_models[g][e] = pickle.load(f)
 
                     # move to gpu if needed
                     if use_gpu:
@@ -300,8 +317,6 @@ def cegrl_max_processes(automaton: HybridAutomaton,
                     if algo_name == 'my_sac':
                         ens_stoch_controllers[g][e] = ens_models[g][e].get_policy(
                             deterministic=False)
-
-                    steps_taken += steps
 
         for g in range(len(mode_groups)):
             for _, reward_fn, reset_fn in serializable_info[g]:

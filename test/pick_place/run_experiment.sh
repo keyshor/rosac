@@ -3,7 +3,7 @@
 ARGS=$(getopt -o 'v:a:p:f:l:' --long 'gpu:,algo:,path:,progfile:,logfile:' -- "$@") || exit
 eval "set -- $ARGS"
 
-gpu=0
+gpu=3
 algo=basic
 flags=
 path=cegrl_models
@@ -74,6 +74,6 @@ do
 	echo svm: python cegrl.py -d $path/svm -g -v $gpu -n $run -c -z >> $progfile
 	python cegrl.py -d $path/svm -g -v $gpu -n $run -c -z >> $logfile
 	echo ensemble: python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $progfile
-	python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $lrogfile
+	python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $logfile
 	echo ending run $run >> $progfile
 done
