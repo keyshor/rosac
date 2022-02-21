@@ -66,9 +66,9 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
         next_state = self.mode.step(self.state, action)
         reward = self.reward_fn(self.state, action, next_state)
         self.state = next_state
-        is_success, jump_obs = self.compute_info()
-        done = not self.mode.is_safe(self.state) or is_success
-        return self.observe(), reward, done, {'is_success': is_success, 'jump_obs': jump_obs}
+        info = self.compute_info()
+        done = not self.mode.is_safe(self.state) or info['is_success']
+        return self.observe(), reward, done, info
 
     def render(self, mode: str = 'human') -> None:
         self.mode.render(self.state)
@@ -85,7 +85,7 @@ class GymEnvWrapper(gym.Env, Generic[StateType]):
                     jump_obs.append(
                         (target, self.automaton.modes[target].observe(jump_state)))
                 break
-        return is_success, jump_obs
+        return dict(is_success=is_success, jump_obs=jump_obs)
 
 
 class GymGoalEnvWrapper(gym.GoalEnv, Generic[StateType]):

@@ -575,7 +575,8 @@ def parallel_pool_ars(arg):
         model = pickle.load(f)
     if arg.use_gpu:
         model.gpu()
-    log_info = learn_ars_model(model, automaton, mode_info, save_path=arg.save_path, verbose=arg.verbose)
+    log_info = learn_ars_model(model, automaton, mode_info,
+                               save_path=arg.save_path, verbose=arg.verbose)
     if arg.use_gpu:
         model.cpu()
     with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'wb') as f:
