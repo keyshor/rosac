@@ -299,7 +299,7 @@ class MySAC:
                            deterministic)
 
     def test_agent(self, env_list, reward_fns, ep_num):
-        #print('\n')
+        print('\n')
         env_num = 0
         for env, reward_fn in zip(env_list, reward_fns):
             env_num += 1
@@ -321,7 +321,7 @@ class MySAC:
             avg_reward /= self.num_test_episodes
             print('Average reward for env {} after {} episodes: {}'.format(
                 env_num, ep_num, avg_reward))
-        #print('\n')
+        print('\n')
 
     def train(self, env_list, verbose=False, retrain=False, reward_fns=None):
 
@@ -384,8 +384,8 @@ class MySAC:
                 if d or (ep_len == self.max_ep_len):
                     break
 
-            #if verbose:
-            #    print('Return at episode {}: {}'.format(i, ep_ret))
+            if verbose:
+                print('Return at episode {}: {}'.format(i, ep_ret))
 
             if i % self.log_interval == 0 and verbose:
                 self.test_agent(env_list, reward_fns, i)
