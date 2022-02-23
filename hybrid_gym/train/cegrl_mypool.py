@@ -108,6 +108,7 @@ class ResetFunc:
     '''
     Reset function used to sample start states in training.
     '''
+    mode_name: str
     mode: Mode
     states: List[Any]
     prob: float
@@ -115,6 +116,7 @@ class ResetFunc:
 
     def __init__(self, mode: Mode, states: Iterable[Any] = [], prob: float = 0.75,
                  full_reset: bool = False) -> None:
+        self.mode_name = mode.name
         self.mode = mode
         self.states = list(states)
         self.prob = prob
@@ -132,11 +134,11 @@ class ResetFunc:
         self.states.extend(states)
 
     def make_serializable(self):
-        self.mode = self.mode.name
+        del self.mode
         return self
 
     def recover_after_serialization(self, automaton):
-        self.mode = automaton.modes[self.mode]
+        self.mode = automaton.modes[self.mode_name]
         return self
 
 

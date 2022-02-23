@@ -566,6 +566,7 @@ class PickPlaceMode(Mode[State]):
         return self.get_state()
 
     def end_to_end_reset(self) -> State:
+        self.force_multi_obj()
         if self.multi_obj.mode_type != ModeType.MOVE_WITHOUT_OBJ:
             # print warning?
             pass
