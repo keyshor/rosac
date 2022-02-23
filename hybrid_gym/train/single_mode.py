@@ -570,7 +570,9 @@ class ParallelPoolArg(NamedTuple):
 def parallel_pool_ars(arg):
 
     mode_info, automaton = recover_full_mode_info(arg.env_name, arg.mode_info)
+    mode_name_list = [m.name for m, _, _, _ in mode_info]
 
+    print(f'starting training for modes {mode_name_list}')
     with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'rb') as f:
         model = pickle.load(f)
     if arg.use_gpu:
@@ -581,14 +583,17 @@ def parallel_pool_ars(arg):
         model.cpu()
     with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'wb') as f:
         pickle.dump(model, f)
+    print(f'finishing training for modes {mode_name_list}')
     return log_info[-1][0]
 
 
 def parallel_pool_sac(arg):
 
     mode_info, automaton = recover_full_mode_info(arg.env_name, arg.mode_info)
+    mode_name_list = [m.name for m, _, _, _ in mode_info]
 
     # For now does not support best policy computation
+    print(f'starting training for modes {mode_name_list}')
     with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'rb') as f:
         model = pickle.load(f)
     if arg.use_gpu:
@@ -598,6 +603,7 @@ def parallel_pool_sac(arg):
         model.cpu()
     with open(os.path.join(arg.save_path, f'{arg.g}_{arg.e}.pkl'), 'wb') as f:
         pickle.dump(model, f)
+    print(f'finishing training for modes {mode_name_list}')
     return steps
 
 

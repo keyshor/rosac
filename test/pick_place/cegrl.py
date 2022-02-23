@@ -72,7 +72,7 @@ if __name__ == '__main__':
         update_every=50,
         num_test_episodes=10,
         max_ep_len=20, test_ep_len=20,
-        log_interval=200,
+        log_interval=10000,
         min_alpha=0.1,
         alpha_decay=1e-2,
     )
