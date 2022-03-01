@@ -36,6 +36,7 @@ class GridParams:
         self.exit_wall_size = self.bd_size[0]/2
         self.exit_opening_size = self.bd_size[0] - self.exit_wall_size
         self.exit_wall = self.hdoor[0] + self.exit_wall_size
+        self.vertical_split = True
 
     def sample_full(self):
         if np.random.binomial(1, 0.75):
@@ -267,7 +268,13 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             if p1[1] < self.grid_params.wall_size[1] and p2[1] >= self.grid_params.wall_size[1]:
                 x = ((p2[0] - p1[0]) * (self.grid_params.wall_size[1] - p1[1]) / (p2[1] - p1[1])) \
                     + p1[0]
-                return x < self.grid_params.exit_wall
+                if x < self.grid_params.exit_wall:
+                    return True
+        if self.grid_params.vertical_split:
+            if p1[1] <= self.grid_params.wall_size[1]:
+                if p1[0] < self.grid_params.exit_wall and \
+                        p2[0] >= self.grid_params.exit_wall:
+                    return True
         return False
 
     # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
