@@ -4,7 +4,6 @@ from matplotlib.axes import Axes
 
 from typing import TypeVar, Generic, List, Any, Iterable, Tuple, Callable
 from abc import ABCMeta, abstractmethod
-from hybrid_gym.util.common import obs_shape, space_shape
 from hybrid_gym.synthesis.abstractions import AbstractState, Box, StateWrapper
 
 StateType = TypeVar('StateType')
@@ -40,8 +39,7 @@ class Mode(Generic[StateType], metaclass=ABCMeta):
 
     def observe(self, state: StateType) -> Any:
         obs = self._observation_fn(state)
-        assert self.observation_space.contains(obs), \
-            f'obs.shape = {obs_shape(obs)}, space.shape = {space_shape(self.observation_space)}'
+        # assert self.observation_space.contains(obs)
         return obs
 
     def reward(self, state: StateType, action: np.ndarray, next_state: StateType) -> float:

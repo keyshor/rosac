@@ -7,6 +7,7 @@ from hybrid_gym.hybrid_env import HybridAutomaton
 from hybrid_gym.util.test import get_rollout
 
 import numpy as np
+import random
 import time
 
 
@@ -162,34 +163,46 @@ class SVMReward(RewardFunc):
 class ValueBasedReward(RewardFunc):
 
     def __init__(self, mode, automaton, discount=0.99, bonus=25.,
-                 deterministic=False):
+                 deterministic=False, adversary=True):
         super().__init__(mode, automaton)
         self.discount = discount
         self.bonus = bonus
         self.value_fns = None
         self.deterministic = deterministic
+        self.adversary = adversary
 
     def obs_reward(self, obs, action, next_obs, orig_reward, info):
 
         # compute classifier bonus
-        if self.value_fns is not None and info['is_success']:
-            orig_reward = orig_reward + self.bonus + \
-                self.discount * self.compute_value(info['jump_obs'])
+        if info['is_success']:
+            orig_reward += (self.bonus + self.discount *
+                            self.compute_value(info['jump_obs'])[0])
 
         return orig_reward
 
-    def update(self, collected_states, controllers):
+    def update(self, collected_states, controllers, copy_value_fns=True):
         value_fns = {}
         for mname, c_list in controllers.items():
-            value_fns[mname] = [c.get_value_fn() for c in c_list]
+            value_fns[mname] = [c.get_value_fn(copy_value_fns) for c in c_list]
         self.value_fns = value_fns
         return 0
 
     def compute_value(self, jump_obs):
         val = np.inf
-        for mname, obs in jump_obs:
-            j_val = -np.inf
-            for value_fn in self.value_fns[mname]:
-                j_val = max(j_val, value_fn(obs, self.deterministic))
-            val = min(val, j_val)
-        return val
+        adv_mode = ''
+        if self.value_fns is not None and self.adversary:
+            for mname, obs in jump_obs:
+                j_val = -np.inf
+                for value_fn in self.value_fns[mname]:
+                    j_val = max(j_val, value_fn(obs, self.deterministic))
+                if j_val < val:
+                    val = j_val
+                    adv_mode = mname
+        else:
+            adv_mode, _ = random.choice(list(jump_obs))
+            val = 0.
+            if self.value_fns is not None:
+                val = -np.inf
+                for value_fn in self.value_fns[adv_mode]:
+                    val = max(val, value_fn(obs, self.deterministic))
+        return val, adv_mode

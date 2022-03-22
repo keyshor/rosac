@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from spectrl.rl.maddpg.common import tf_util as U
+from hybrid_gym.rl.maddpg.common import tf_util as U
 from tensorflow.python.ops import math_ops
 from gym.spaces.multi_discrete import MultiDiscrete
 
@@ -26,6 +26,9 @@ class Pd(object):
         raise NotImplementedError
 
     def sample(self):
+        raise NotImplementedError
+
+    def det_sample(self):
         raise NotImplementedError
 
 
@@ -265,6 +268,9 @@ class SoftCategoricalPd(Pd):
         u = tf.random_uniform(tf.shape(self.logits))
         return U.softmax(self.logits - tf.log(-tf.log(u)), axis=-1)
 
+    def det_sample(self):
+        return U.argmax(self.logits, axis=1)
+
     @classmethod
     def fromflat(cls, flat):
         return cls(flat)
@@ -375,6 +381,9 @@ class DiagGaussianPd(Pd):
 
     def sample(self):
         return self.mean + self.std * tf.random_normal(tf.shape(self.mean))
+
+    def det_sample(self):
+        return self.mean
 
     @classmethod
     def fromflat(cls, flat):

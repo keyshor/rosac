@@ -54,7 +54,7 @@ class HybridEnv(gym.Env):
                  safety_penalty: float = -1e5,
                  jump_bonus: float = 10.,
                  max_timesteps: int = 100,
-                 max_timesteps_per_mode: int = 1000000000000000000000000,
+                 max_timesteps_per_mode: int = 10 ** 12,
                  ) -> None:
         self.automaton = automaton
         self.selector = selector

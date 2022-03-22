@@ -1,10 +1,13 @@
 import tensorflow as tf
-import time
+import numpy as np
+import random
+import gym
 
 import tensorflow.contrib.layers as layers
-from spectrl.rl.maddpg.common import tf_util as U
-from spectrl.rl.maddpg.trainer.maddpg import MADDPGAgentTrainer
-from spectrl.util.rl import MultiAgentPolicy, test_policy_mutli
+from hybrid_gym.rl.maddpg.common import tf_util as U
+from hybrid_gym.rl.maddpg.trainer.maddpg import MADDPGAgentTrainer
+from hybrid_gym.model import Controller
+from hybrid_gym.eval import mcts_eval, random_selector_eval
 
 
 def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None,
@@ -18,33 +21,41 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 
-def get_trainers(env, obs_shape_n, arglist, sess):
+def get_trainers(automaton, arglist, sess):
     trainers = []
+    adversaries = []
     model = mlp_model
     trainer = MADDPGAgentTrainer
-    for i in range(env.n):
-        trainers.append(trainer("agent_%d" % i, model, obs_shape_n,
-                                env.action_space, i, arglist, sess))
-    return trainers
+    obs_shape = automaton.observation_space.shape
+    adv_act_space = gym.spaces.Discrete(len(automaton.modes))
+    mode2int = {}
+    mode_num = 0
+    for mname in automaton.modes:
+        trainers.append(trainer(mname, model, obs_shape,
+                                automaton.action_space, arglist, sess))
+        adversaries.append(trainer(mname + '_adv', model, obs_shape,
+                                   adv_act_space, arglist, sess, adversary=True))
+        mode2int[mname] = mode_num
+        mode_num += 1
+    return trainers, adversaries, mode2int
 
 
 class MADDPGParams:
 
-    def __init__(self, max_episode_len, num_episodes, lr=3e-4,
-                 gamma=0.95, batch_size=1024, num_units=64, log_rate=30):
+    def __init__(self, max_episode_len, num_train_steps, lr=3e-4,
+                 gamma=0.95, batch_size=1024, num_units=64):
         self.max_episode_len = max_episode_len
-        self.num_episodes = num_episodes
+        self.num_train_steps = num_train_steps
         self.lr = lr
         self.gamma = gamma
         self.batch_size = batch_size
         self.num_units = num_units
-        self.log_rate = log_rate
 
 
 class MADDPG:
 
-    def __init__(self, multi_env, params):
-        self.env = multi_env
+    def __init__(self, automaton, params):
+        self.automaton = automaton
         self.params = params
         self.graph = tf.Graph()
         self.session = U.single_threaded_session(self.graph)
@@ -52,102 +63,119 @@ class MADDPG:
         with self.graph.as_default():
 
             # Create agent trainers
-            self.obs_shape_n = [self.env.observation_space[i].shape for i in range(self.env.n)]
-            self.trainers = get_trainers(self.env, self.obs_shape_n, self.params, self.session)
+            self.trainers, self.adversaries, self.mode2int = get_trainers(
+                self.automaton, self.params, self.session)
 
             # Initialize
             U.initialize_once(self.session)
 
-        self.multi_policy = MultiAgentPolicy(self.get_policies(copy=False))
+    def train(self, time_limits, max_jumps):
 
-    def train(self, main_agent=None):
+        log_info = []
 
-        # store best set of policies wrt expected reward of the main agent
-        if main_agent is not None:
-            best_reward = -1e9
-
-        episode_rewards = [0.0]  # sum of rewards for all agents
-        agent_rewards = [[0.0] for _ in range(self.env.n)]  # individual agent reward
-        final_ep_rewards = []  # sum of rewards for training curve
-        final_ep_ag_rewards = []  # agent rewards for training curve
-        obs_n = self.env.reset()
+        m_num = random.choice(list(range(len(self.trainers))))
+        mode = self.automaton.modes[self.trainers[m_num].name]
+        state = mode.end_to_end_reset()
+        obs = mode.observe(state)
         episode_step = 0
         train_step = 0
-        t_start = time.time()
-        # saver = tf.train.Saver()
+        total_step = 0
+        num_episodes = 0
+        episode_reward = 0.
 
-        print('Starting iterations...')
+        print('Starting MADDPG Training...')
         while True:
 
             # get action
-            action_n = [agent.action(obs) for agent, obs in zip(self.trainers, obs_n)]
+            action = self.trainers[m_num].action(obs)
 
             # environment step
-            new_obs_n, rew_n, done, info_n = self.env.step(action_n)
+            # print('{}: {}'.format(mode.name, state))
+            new_state = mode.step(state, action)
+            new_obs = mode.observe(new_state)
+            rew = mode.reward(state, action, new_state)
+            transition = None
+            done = False
+
+            for t in self.automaton.transitions[mode.name]:
+                if t.guard(new_state):
+                    transition = t
+
+            if not mode.is_safe(new_state):
+                done = True
+
+            success = (transition is not None)
+
+            self.trainers[m_num].experience(obs, action, rew, new_obs, done,
+                                            success)
+
             episode_step += 1
-            terminal = (episode_step > self.params.max_episode_len)
+            total_step += 1
+            episode_reward += (rew + float(success) * 50.)
+            obs = new_obs
+            state = new_state
 
-            # collect experience
-            for i, agent in enumerate(self.trainers):
-                agent.experience(obs_n[i], action_n[i], rew_n[i],
-                                 new_obs_n[i], done, terminal)
-            obs_n = new_obs_n
+            if transition is not None and not done:
+                adv_action = self.adversaries[m_num].action(obs)
+                new_obs = [None] * len(adv_action)
+                for target in transition.targets:
+                    new_state = transition.jump(target, state)
+                    new_mode = self.automaton.modes[target]
+                    new_obs[self.mode2int[target]] = new_mode.observe(new_state)
 
-            for i, rew in enumerate(rew_n):
-                episode_rewards[-1] += rew
-                agent_rewards[i][-1] += rew
+                self.adversaries[m_num].experience(obs, adv_action, 0., new_obs,
+                                                   True, True)
+                m_num = np.random.choice(list(range(len(adv_action))),
+                                         p=adv_action)
+                mode = self.automaton.modes[self.trainers[m_num].name]
+                obs = new_obs[m_num]
+                state = transition.jump(mode.name, state)
 
             # update all trainers, if not in display or benchmark mode
-            for agent in self.trainers:
+            for agent in self.trainers + self.adversaries:
                 agent.preupdate()
-            for agent in self.trainers:
-                agent.update(self.trainers, train_step)
+            for agent, adversary in zip(self.trainers, self.adversaries):
+                agent.update(adversary, train_step)
+                adversary.update(self.trainers, train_step)
 
             # increment global step counter
             train_step += 1
 
-            # estimate current policies and display stats
-            if terminal and (len(episode_rewards) % self.params.log_rate == 0):
-                test_rewards, _ = test_policy_mutli(
-                    self.env, self.multi_policy, 20, self.params.gamma,
-                    max_timesteps=self.params.max_episode_len)
-                print("steps: {}, episodes: {}, mean agent reward: {}, time: {}".format(
-                    train_step, len(episode_rewards), test_rewards.tolist(),
-                    round(time.time()-t_start, 3)))
-                # t_start = time.time()
-                # Keep track of final episode reward
-                final_ep_rewards.append(sum(test_rewards))
-                final_ep_ag_rewards.append(test_rewards)
+            if done or episode_step > self.params.max_episode_len:
+                m_num = random.choice(list(range(len(self.trainers))))
+                mode = self.automaton.modes[self.trainers[m_num].name]
+                state = mode.end_to_end_reset()
+                obs = mode.observe(state)
 
-                if (main_agent is not None) and \
-                        (len(episode_rewards) > (self.params.num_episodes/2)):
-                    if best_reward < test_rewards[main_agent]:
-                        best_reward = test_rewards[main_agent]
-                        for agent in self.trainers:
-                            agent.copy_update_p()
-
-            if done or terminal:
-                obs_n = self.env.reset()
+                print('Reward at episode {}: {}'.format(
+                    num_episodes, episode_reward))
+                episode_reward = 0.
                 episode_step = 0
-                episode_rewards.append(0)
-                for a in agent_rewards:
-                    a.append(0)
+                num_episodes += 1
+
+            if total_step % 20000 == 0 and total_step != 0:
+                mode_controllers = self.get_policies(deterministic=True)
+                mcts_prob, mcts_avg_jmps, _ = mcts_eval(
+                    self.automaton, mode_controllers, time_limits, max_jumps=max_jumps,
+                    mcts_rollouts=1000, eval_rollouts=100)
+                rs_prob, avg_jmps, _ = random_selector_eval(
+                    self.automaton, mode_controllers, time_limits, max_jumps=max_jumps,
+                    eval_rollouts=100)
+                log_info.append([total_step, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
 
             # saves final episode reward for plotting training curve later
-            if len(episode_rewards) > self.params.num_episodes:
-                if main_agent is not None:
-                    for agent in self.trainers:
-                        agent.copy_update_p()
-                print('...Finished total of {} episodes.'.format(len(episode_rewards)))
+            if total_step > self.params.num_train_steps:
+                print('Finished training.')
                 break
 
-        return train_step
+        return np.array(log_info)
 
     def get_policies(self, deterministic=False, copy=True):
-        return [AgentPolicy(agent, deterministic, copy) for agent in self.trainers]
+        return {agent.name: AgentPolicy(agent, deterministic, copy)
+                for agent in self.trainers}
 
 
-class AgentPolicy:
+class AgentPolicy(Controller):
 
     def __init__(self, trainer, deterministic=False, copy=False):
         self.trainer = trainer
@@ -160,18 +188,5 @@ class AgentPolicy:
         else:
             return self.trainer.action(obs, self.copy)
 
-
-# example usage
-if __name__ == '__main__':
-    from spectrl.envs.particles import MultiParticleEnv
-    from spectrl.util.rl import get_rollout
-
-    start_pos_low = [[-0.1, -0.1], [-0.1, 9.9]]
-    start_pos_high = [[0.1, 0.1], [0.1, 10.1]]
-    goals = [[10., 0.], [10., 10.]]
-    env = MultiParticleEnv(start_pos_low, start_pos_high, goals=goals,
-                           sum_rewards=False, max_timesteps=30)
-    trainer = MADDPG(env, MADDPGParams(30, 20000, num_units=64, lr=3e-4))
-    trainer.train()
-    policy = MultiAgentPolicy(trainer.get_policies())
-    get_rollout(env, policy, True)
+    def save(self, name, path):
+        pass

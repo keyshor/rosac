@@ -404,8 +404,11 @@ class MySAC:
     def cpu(self):
         self.to('cpu')
 
-    def get_policy(self, deterministic=True):
-        return SACController(self.ac, deterministic, self.device)
+    def get_policy(self, deterministic=True, use_target=False):
+        if use_target:
+            return SACController(self.ac_targ, deterministic, self.device)
+        else:
+            return SACController(self.ac, deterministic, self.device)
 
 
 class SACController(Controller):
@@ -429,7 +432,9 @@ class SACController(Controller):
         fh = open(os.path.join(path, name + '.pkl'), 'wb')
         pickle.dump(self, fh)
 
-    def get_value_fn(self):
+    def get_value_fn(self, copy_self=True):
+        if not copy_self:
+            return self
         if self.device != 'cpu':
             self.ac = self.ac.to('cpu')
         self_copy = deepcopy(self)
