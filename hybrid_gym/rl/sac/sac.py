@@ -10,6 +10,7 @@ import pickle
 # import time
 from hybrid_gym.rl.sac.core import MLPActorCritic, combined_shape
 from hybrid_gym.model import Controller
+from typing import Type, TypeVar
 
 
 def optimizer_to(optim, device):
@@ -411,6 +412,9 @@ class MySAC:
             return SACController(self.ac, deterministic, self.device)
 
 
+SacControllerType = TypeVar(
+    'SacControllerType', bound='SACController',
+)
 class SACController(Controller):
 
     def __init__(self, ac: MLPActorCritic, deterministic=True, device='cpu'):
@@ -449,6 +453,14 @@ class SACController(Controller):
             act, _ = self.ac.pi(obs, deterministic, False)
             val = torch.squeeze(torch.min(self.ac.q1(obs, act), self.ac.q2(obs, act)))
         return float(val.cpu().numpy())
+
+    @classmethod
+    def load(cls: Type[SacControllerType],
+             path: str,
+             ) -> SacControllerType:
+        with open(path, 'rb') as fh:
+            model = pickle.load(fh)
+        return model
 
 
 if __name__ == '__main__':

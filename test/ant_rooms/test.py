@@ -2,6 +2,8 @@ import os
 import sys
 import gym
 import numpy as np
+import mujoco_py
+import matplotlib
 
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
@@ -50,8 +52,8 @@ if __name__ == '__main__':
     m = AntMode(mode_type=ModeType.STRAIGHT)
     #print(m.ant.dt)
     #print(m.observation_space.shape)
-    st = m.reset()
-    print(st.qpos[:3])
+    #st = m.reset()
+    #print(st.qpos[:3])
     #st.qpos[:2] = [0, -6]
     #for _ in range(10):
     #    a = m.action_space.sample()
@@ -70,3 +72,14 @@ if __name__ == '__main__':
     #    #st.qvel[0:3] = [0, 0, 1]
     #    st = m.step(st, zero_action)
     #    m.render(st)
+    #viewer = mujoco_py.MjRenderContextOffscreen(m.ant.sim, 0)
+    m.reset()
+    #viewer.render(1280, 720, 0)
+    pixels = np.flip(m.ant.sim.render(1280, 720), axis=0)
+    #pixels = viewer.read_pixels(1280, 720, depth=False)
+    print(pixels.shape)
+    matplotlib.image.imsave(
+        'test.png',
+        pixels,
+        vmin=0, vmax=255,
+    )

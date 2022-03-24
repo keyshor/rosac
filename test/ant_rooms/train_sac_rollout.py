@@ -2,6 +2,8 @@ import os
 import sys
 import argparse
 import pathlib
+import pickle
+import random
 sys.path.append(os.path.join('..', '..'))  # nopep8
 sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
@@ -27,9 +29,17 @@ def train_single(automaton, name,
                  save_path,
                  verbose,
                  ) -> None:
+    with open(os.path.join(save_path, 'data.pkl'), 'rb') as fh:
+        start_sts = pickle.load(fh)
+    def reset():
+        return random.choice(start_sts)
     mode = automaton.modes[name]
-    mode_info = [(mode, automaton.transitions[name], None, None)]
-    init_ok = False
+    mode_info = [(
+        mode,
+        automaton.transitions[name],
+        reset,
+        None,
+    )]
     model = make_sac_model(
         obs_space=mode.observation_space, act_space=mode.action_space,
         hidden_dims=(256, 256),

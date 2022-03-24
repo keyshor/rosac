@@ -539,6 +539,7 @@ class PickPlaceMode(Mode[State]):
             self.multi_obj = MultiObjectEnv(**self.multi_obj_kwargs)
 
     def set_state(self, state: State) -> None:
+        self.force_multi_obj()
         self.multi_obj.sim.set_state(mujoco_py.MjSimState(
             state.mujoco_state.time,
             state.mujoco_state.qpos,
@@ -553,6 +554,7 @@ class PickPlaceMode(Mode[State]):
         self.multi_obj.sim.forward()
 
     def get_state(self) -> State:
+        self.force_multi_obj()
         return State(
             mujoco_state=deepcopy(self.multi_obj.sim.get_state()),
             tower_set=self.multi_obj.tower_set,
@@ -632,6 +634,7 @@ class PickPlaceMode(Mode[State]):
         ])
 
     def state_from_vector(self, vec: np.ndarray) -> State:
+        self.force_multi_obj()
         tower_height = int(vec[0])
         tower_pos = vec[1:3]
         arm_position = vec[3:6]

@@ -46,7 +46,7 @@ class AntMode(Mode[State]):
     def __init__(self,
                  mode_type: ModeType,
                  xml_file: str = mujoco_xml_path,
-                 success_bonus: float = 1e4,
+                 success_bonus: float = 1e2,
                  reward_progress_weight: float = 1.0,
                  **kwargs,
                  ) -> None:

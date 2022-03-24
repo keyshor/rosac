@@ -7,7 +7,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 
 # flake8: noqa
 from hybrid_gym import Controller
-from hybrid_gym.envs.ant_rooms.hybrid_env import make_ant_model
+from hybrid_gym.envs.f110_turn.hybrid_env import make_f110_model
 from hybrid_gym.train.reward_funcs import SVMReward, ValueBasedReward
 from hybrid_gym.synthesis.abstractions import Box, StateWrapper
 from hybrid_gym.train.cegrl import cegrl
@@ -16,7 +16,7 @@ from hybrid_gym.rl.ars import NNParams, ARSParams
 from hybrid_gym.rl.ddpg import DDPGParams
 from typing import List, Any
 
-MAX_JUMPS = 5
+MAX_JUMPS = 100
 
 
 class FalsifyFunc:
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(flags['gpu_num'])
     num_gpus = max(torch.cuda.device_count(), 1)
 
-    automaton = make_ant_model()
+    automaton = make_f110_model()
     pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
     time_limits = {m: 500 for m in automaton.modes}
 
@@ -59,29 +59,28 @@ if __name__ == '__main__':
 
     # hyperparams for SAC
     sac_kwargs = dict(
-        hidden_dims=(256, 256),
-        steps_per_epoch=100000, epochs=3,
-        #steps_per_epoch=10, epochs=3,
-        replay_size=1000000,
+        hidden_dims=(64, 64),
+        steps_per_epoch=10, epochs=2,
+        replay_size=50000,
         gamma=1 - 1e-2, polyak=1 - 5e-3, lr=3e-4,
         alpha=0.1,
         batch_size=256,
-        start_steps=10000, update_after=10000,
+        start_steps=2000, update_after=2000,
         update_every=50,
         num_test_episodes=10,
-        max_ep_len=500, test_ep_len=500,
-        log_interval=200,
+        max_ep_len=50, test_ep_len=50,
+        log_interval=100,
         min_alpha=0.1,
         alpha_decay=1e-2,
-        gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus),
     )
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=round(5 / flags['ensemble']), num_synth_iter=num_synth_iter,
+    #controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=round(5 / flags['ensemble']), num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=2, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
                                   sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
                                   max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
-                                  env_name='ant_rooms', inductive_ce=flags['inductive_ce'],
+                                  env_name='f110_turn', inductive_ce=flags['inductive_ce'],
                                   reward_funcs=reward_funcs)
 
     # save the controllers

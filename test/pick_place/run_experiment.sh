@@ -62,7 +62,7 @@ do
 	esac
 done
 
-for run in $(seq 5)
+for run in $(seq 3)
 do
 	echo starting run $run >> $progfile
 	#echo python cegrl.py -d $path/$algo -g -v $gpu -n $run $flags
