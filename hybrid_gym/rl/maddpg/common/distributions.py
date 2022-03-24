@@ -28,9 +28,6 @@ class Pd(object):
     def sample(self):
         raise NotImplementedError
 
-    def det_sample(self):
-        raise NotImplementedError
-
 
 class PdType(object):
     """
@@ -268,9 +265,6 @@ class SoftCategoricalPd(Pd):
         u = tf.random_uniform(tf.shape(self.logits))
         return U.softmax(self.logits - tf.log(-tf.log(u)), axis=-1)
 
-    def det_sample(self):
-        return U.argmax(self.logits, axis=1)
-
     @classmethod
     def fromflat(cls, flat):
         return cls(flat)
@@ -381,9 +375,6 @@ class DiagGaussianPd(Pd):
 
     def sample(self):
         return self.mean + self.std * tf.random_normal(tf.shape(self.mean))
-
-    def det_sample(self):
-        return self.mean
 
     @classmethod
     def fromflat(cls, flat):
