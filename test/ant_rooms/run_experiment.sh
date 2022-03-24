@@ -1,42 +1,19 @@
 #!/usr/bin/sh
 
-ARGS=$(getopt -o 'v:a:p:f:l:' --long 'gpu:,algo:,path:,progfile:,logfile:' -- "$@") || exit
+ARGS=$(getopt -o 'v:p:f:l:r:' --long 'gpu:,path:,run:' -- "$@") || exit
 eval "set -- $ARGS"
 
-gpu=0
-algo=basic
-flags=
-path=cegrl_models
-progfile=progress.txt
-logfile=log.txt
+gpu=3
+run=1
+path=experiment_models
+progfile=progress$run.txt
+logfile=log$run.txt
 
 while true
 do
 	case $1 in
 		(-v|--gpu)
 			gpu=$2
-			shift 2
-			;;
-		(-a|--algo)
-			algo=$2
-			case $2 in
-				(basic)
-					flags=
-					;;
-				(dagger)
-					flags='-c'
-					;;
-				(svm)
-					flags='-f -z'
-					;;
-				(ensemble)
-					flags='-f -z -e 3'
-					;;
-				(*)
-					echo unrecognized algorithm $2
-					exit 1
-					;;
-			esac
 			shift 2
 			;;
 		(-p|--path)
@@ -62,18 +39,15 @@ do
 	esac
 done
 
-for run in $(seq 5)
-do
-	echo starting run $run >> $progfile
-	#echo python cegrl.py -d $path/$algo -g -v $gpu -n $run $flags
-	#python cegrl.py -d $path/$algo -g -v $gpu -n $run $flags
-	echo basic: python cegrl.py -d $path/basic -g -v $gpu -n $run >> $progfile
-	python cegrl.py -d $path/basic -g -v $gpu -n $run >> $logfile
-	echo dagger: python cegrl.py -d $path/dagger -g -v $gpu -n $run -c >> $progfile
-	python cegrl.py -d $path/dagger -g -v $gpu -n $run -c >> $logfile
-	echo svm: python cegrl.py -d $path/svm -g -v $gpu -n $run -c -z >> $progfile
-	python cegrl.py -d $path/svm -g -v $gpu -n $run -c -z >> $logfile
-	echo ensemble: python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $progfile
-	python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $lrogfile
-	echo ending run $run >> $progfile
-done
+echo starting run $run >> $progfile
+echo basic: python cegrl.py -d $path/basic -g -v $gpu -n $run >> $progfile
+python cegrl.py -d $path/basic -g -v $gpu -n $run >> $logfile
+echo dagger: python cegrl.py -d $path/dagger -g -v $gpu -n $run -c >> $progfile
+python cegrl.py -d $path/dagger -g -v $gpu -n $run -c >> $logfile
+echo dynamic reward: python cegrl.py -d $path/svm -g -v $gpu -n $run -c -z >> $progfile
+python cegrl.py -d $path/svm -g -v $gpu -n $run -c -z >> $logfile
+echo ensemble: python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $progfile
+python cegrl.py -d $path/ensemble -g -v $gpu -n $run -c -z -e 3 >> $logfile
+echo masac: python masac.py -d $path/masac -g -v $gpu -n $run -z >> $progfile
+python masac.py -d $path/masac -g -v $gpu -n $run -z >> $logfile
+echo ending run $run >> $progfile
