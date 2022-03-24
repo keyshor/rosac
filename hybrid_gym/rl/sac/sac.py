@@ -413,7 +413,7 @@ class MySAC:
 
 
 SacControllerType = TypeVar(
-        'SacControllerType', bound='SACController',
+    'SacControllerType', bound='SACController',
 )
 class SACController(Controller):
 
@@ -456,7 +456,7 @@ class SACController(Controller):
 
     @classmethod
     def load(cls: Type[SacControllerType],
-             path: str
+             path: str,
              ) -> SacControllerType:
         with open(path, 'rb') as fh:
             model = pickle.load(fh)

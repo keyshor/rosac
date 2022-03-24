@@ -44,6 +44,7 @@ from hybrid_gym.rl.sac import MySAC
 from hybrid_gym.envs import make_rooms_model, make_two_doors_model
 from hybrid_gym.envs.ant_rooms.hybrid_env import make_ant_model
 from hybrid_gym.envs.pick_place.hybrid_env import make_pick_place_model
+from hybrid_gym.envs.f110_turn.hybrid_env import make_f110_model as make_f110_turn_model
 from hybrid_gym.hybrid_env import HybridAutomaton
 
 
@@ -508,11 +509,13 @@ def learn_sac_model(model: MySAC,
                         Optional[Callable[[StateType, np.ndarray, StateType], float]],
                     ]],
                     verbose=False,
-                    retrain=False) -> int:
+                    retrain=False,
+                    print_success_rate=False,
+                    ) -> int:
     env_list = [GymEnvWrapper(automaton, *mode_info, flatten_obs=True)
                 for mode_info in raw_mode_info]
     reward_fns = [mode_info[3] for mode_info in raw_mode_info]
-    steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns)
+    steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns, print_success_rate=print_success_rate)
     return steps_taken
 
 
@@ -619,6 +622,8 @@ def recover_full_mode_info(env_name, mode_info):
         automaton = make_pick_place_model(
             reward_type='dense', fixed_tower_height=True, flatten_obs=True,
         )
+    elif env_name == 'f110_turn':
+        automaton = make_f110_turn_model()
     else:
         raise ValueError(
             'Unsupported env_name used! Consider adding new environment support in ' +

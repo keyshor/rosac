@@ -17,6 +17,7 @@ from hybrid_gym.rl.ddpg import DDPGParams
 from typing import List, Any
 
 MAX_JUMPS = 20
+num_iter=5
 
 
 if __name__ == '__main__':
@@ -61,7 +62,7 @@ if __name__ == '__main__':
         #obs_space=mode0.observation_space, act_space=mode0.action_space,
         hidden_dims=(1024, 1024, 1024),
         #hidden_dims=(16, 16),
-        steps_per_epoch=100000, epochs=5,
+        steps_per_epoch=100000, epochs=3,
         #steps_per_epoch=10, epochs=2,
         replay_size=1000000,
         #replay_size=100,
@@ -92,7 +93,8 @@ if __name__ == '__main__':
                 for i in range(num_objects)
                 for j in range(num_objects)
             ],
-            num_iter=5, num_synth_iter=num_synth_iter,
+            num_iter=round(num_iter / flags['ensemble']),
+            num_synth_iter=num_synth_iter,
             abstract_synth_samples=flags['abstract_samples'], print_debug=True,
             save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
             ars_kwargs=ars_kwargs, sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
