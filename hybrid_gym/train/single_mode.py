@@ -510,12 +510,11 @@ def learn_sac_model(model: MySAC,
                     ]],
                     verbose=False,
                     retrain=False,
-                    print_success_rate=False,
                     ) -> int:
     env_list = [GymEnvWrapper(automaton, *mode_info, flatten_obs=True)
                 for mode_info in raw_mode_info]
     reward_fns = [mode_info[3] for mode_info in raw_mode_info]
-    steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns, print_success_rate=print_success_rate)
+    steps_taken = model.train(env_list, verbose=verbose, retrain=retrain, reward_fns=reward_fns)
     return steps_taken
 
 
