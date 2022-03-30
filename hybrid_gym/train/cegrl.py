@@ -4,7 +4,7 @@ CounterExample Guided Reinforcement Learning
 
 from hybrid_gym import HybridAutomaton, Mode, Controller
 from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
-                                          make_ars_model, parallel_ars, learn_ddpg_model,
+                                          make_ars_model, parallel_ars,
                                           make_ddpg_model, make_sac_model, parallel_sac)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
@@ -209,9 +209,6 @@ def cegrl(automaton: HybridAutomaton,
                     processes[g][e].start()
                     ens_models[g][e] = None
 
-                # sequential training for ddpg and stable_baselines
-                elif algo_name == 'my_ddpg':
-                    steps_taken += learn_ddpg_model(ens_models[g][e], list(group_info[g]))
                 else:
                     steps_taken += train_sb3(
                         model=ens_models[g][e],

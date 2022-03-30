@@ -1,13 +1,15 @@
 import tensorflow as tf
-import time
+import numpy as np
 
 import tensorflow.contrib.layers as layers
+from hybrid_gym.model import Controller
+from hybrid_gym.eval import random_selector_eval, mcts_eval
+from hybrid_gym.util.wrappers import AdvEnv
 from hybrid_gym.rl.maddpg.common import tf_util as U
 from hybrid_gym.rl.maddpg.trainer.maddpg import MADDPGAgentTrainer
-from hybrid_gym.util.rl import MultiAgentPolicy, test_policy_mutli
 
 
-def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None,
+def mlp_model(input, num_outputs, scope, reuse=False, num_units=64,
               activation_fn=None):
     # This model takes as input an observation and returns values of all actions
     with tf.variable_scope(scope, reuse=reuse):
@@ -18,20 +20,18 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 
-def get_trainers(env, obs_shape_n, arglist, sess):
-    trainers = []
-    model = mlp_model
-    trainer = MADDPGAgentTrainer
-    for i in range(env.n):
-        trainers.append(trainer("agent_%d" % i, model, obs_shape_n,
-                                env.action_space, i, arglist, sess))
-    return trainers
+def get_trainers(env, obs_shape, arglist, sess):
+    agent = MADDPGAgentTrainer("agent", mlp_model, obs_shape, env.action_space[0],
+                               arglist, sess, num_modes=env.action_space[1].n)
+    adv = MADDPGAgentTrainer("adv", mlp_model, obs_shape, env.action_space[0],
+                             arglist, sess, adv=True, num_modes=env.action_space[1].n)
+    return agent, adv
 
 
 class MADDPGParams:
 
     def __init__(self, max_episode_len, num_episodes, lr=3e-4,
-                 gamma=0.95, batch_size=1024, num_units=64, log_rate=30):
+                 gamma=0.95, batch_size=256, num_units=64, log_rate=500):
         self.max_episode_len = max_episode_len
         self.num_episodes = num_episodes
         self.lr = lr
@@ -43,135 +43,106 @@ class MADDPGParams:
 
 class MADDPG:
 
-    def __init__(self, multi_env, params):
-        self.env = multi_env
+    def __init__(self, automaton, params):
         self.params = params
         self.graph = tf.Graph()
         self.session = U.single_threaded_session(self.graph)
 
+        self.mode_list = [m for m in automaton.modes]
+        self.env = AdvEnv(automaton, self.mode_list)
+        self.automaton = automaton
+
         with self.graph.as_default():
 
             # Create agent trainers
-            self.obs_shape_n = [self.env.observation_space[i].shape for i in range(self.env.n)]
-            self.trainers = get_trainers(self.env, self.obs_shape_n, self.params, self.session)
+            self.obs_shape = self.env.observation_space.shape
+            self.agent, self.adv = get_trainers(self.env, self.obs_shape, self.params, self.session)
 
             # Initialize
             U.initialize_once(self.session)
 
-        self.multi_policy = MultiAgentPolicy(self.get_policies(copy=False))
+    def train(self, time_limits, max_jumps):
 
-    def train(self, main_agent=None):
-
-        # store best set of policies wrt expected reward of the main agent
-        if main_agent is not None:
-            best_reward = -1e9
-
-        episode_rewards = [0.0]  # sum of rewards for all agents
-        agent_rewards = [[0.0] for _ in range(self.env.n)]  # individual agent reward
-        final_ep_rewards = []  # sum of rewards for training curve
-        final_ep_ag_rewards = []  # agent rewards for training curve
-        obs_n = self.env.reset()
+        episode_rewards = [0.0]  # rewards for agent
+        obs = self.env.reset()
         episode_step = 0
         train_step = 0
-        t_start = time.time()
+        log_info = []
+        # t_start = time.time()
         # saver = tf.train.Saver()
 
         print('Starting iterations...')
         while True:
 
             # get action
-            action_n = [agent.action(obs) for agent, obs in zip(self.trainers, obs_n)]
+            action = self.agent.action(obs)
+            adv_action = self.adv.action(obs)
 
             # environment step
-            new_obs_n, rew_n, done, info_n = self.env.step(action_n)
+            new_obs, rew, done, info = self.env.step(action, adv_action)
             episode_step += 1
-            terminal = (episode_step > self.params.max_episode_len)
+            terminal = done or (episode_step > self.params.max_episode_len)
 
             # collect experience
-            for i, agent in enumerate(self.trainers):
-                agent.experience(obs_n[i], action_n[i], rew_n[i],
-                                 new_obs_n[i], done, terminal)
-            obs_n = new_obs_n
+            self.agent.experience(obs, action, rew, new_obs, terminal)
+            self.adv.experience(obs, adv_action, -rew, new_obs, terminal)
+            obs = new_obs
 
-            for i, rew in enumerate(rew_n):
-                episode_rewards[-1] += rew
-                agent_rewards[i][-1] += rew
+            episode_rewards[-1] += rew
 
             # update all trainers, if not in display or benchmark mode
-            for agent in self.trainers:
-                agent.preupdate()
-            for agent in self.trainers:
-                agent.update(self.trainers, train_step)
+            self.agent.preupdate()
+            self.adv.preupdate()
+            self.agent.update(self.agent, self.adv, train_step)
+            self.adv.update(self.agent, self.adv, train_step)
 
             # increment global step counter
             train_step += 1
 
             # estimate current policies and display stats
             if terminal and (len(episode_rewards) % self.params.log_rate == 0):
-                test_rewards, _ = test_policy_mutli(
-                    self.env, self.multi_policy, 20, self.params.gamma,
-                    max_timesteps=self.params.max_episode_len)
-                print("steps: {}, episodes: {}, mean agent reward: {}, time: {}".format(
-                    train_step, len(episode_rewards), test_rewards.tolist(),
-                    round(time.time()-t_start, 3)))
-                # t_start = time.time()
-                # Keep track of final episode reward
-                final_ep_rewards.append(sum(test_rewards))
-                final_ep_ag_rewards.append(test_rewards)
+                mode_controllers = self.get_controllers()
+                mcts_prob, mcts_avg_jmps, _ = mcts_eval(
+                    self.automaton, mode_controllers, time_limits, max_jumps=max_jumps,
+                    mcts_rollouts=1000, eval_rollouts=100)
+                rs_prob, avg_jmps, _ = random_selector_eval(
+                    self.automaton, mode_controllers, time_limits, max_jumps=max_jumps,
+                    eval_rollouts=100)
+                log_info.append([train_step, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
 
-                if (main_agent is not None) and \
-                        (len(episode_rewards) > (self.params.num_episodes/2)):
-                    if best_reward < test_rewards[main_agent]:
-                        best_reward = test_rewards[main_agent]
-                        for agent in self.trainers:
-                            agent.copy_update_p()
-
-            if done or terminal:
-                obs_n = self.env.reset()
+            if terminal:
+                obs = self.env.reset()
                 episode_step = 0
+                print('Reward at episode {}: {}'.format(len(episode_rewards), episode_rewards[-1]))
                 episode_rewards.append(0)
-                for a in agent_rewards:
-                    a.append(0)
 
             # saves final episode reward for plotting training curve later
             if len(episode_rewards) > self.params.num_episodes:
-                if main_agent is not None:
-                    for agent in self.trainers:
-                        agent.copy_update_p()
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break
 
-        return train_step
+        return log_info
 
-    def get_policies(self, deterministic=False, copy=True):
-        return [AgentPolicy(agent, deterministic, copy) for agent in self.trainers]
+    def get_controllers(self, deterministic=True):
+        return {self.mode_list[i]: MADDPGController(
+            self.agent, i, len(self.mode_list), deterministic)
+            for i in range(len(self.mode_list))}
 
 
-class AgentPolicy:
+class MADDPGController(Controller):
 
-    def __init__(self, trainer, deterministic=False, copy=False):
-        self.trainer = trainer
+    def __init__(self, agent, mode, num_modes, deterministic=True):
+        self.agent = agent
         self.deterministic = deterministic
-        self.copy = copy
+        self.mode_enc = np.zeros((num_modes,))
+        self.mode_enc[mode] = 1.
 
     def get_action(self, obs):
+        obs = np.concatenate([self.mode_enc, obs])
         if self.deterministic:
-            return self.trainer.deterministic_action(obs, self.copy)
+            return self.agent.det_action(obs)
         else:
-            return self.trainer.action(obs, self.copy)
+            return self.agent.action(obs)
 
-
-# example usage
-if __name__ == '__main__':
-    from spectrl.envs.particles import MultiParticleEnv
-    from spectrl.util.rl import get_rollout
-
-    start_pos_low = [[-0.1, -0.1], [-0.1, 9.9]]
-    start_pos_high = [[0.1, 0.1], [0.1, 10.1]]
-    goals = [[10., 0.], [10., 10.]]
-    env = MultiParticleEnv(start_pos_low, start_pos_high, goals=goals,
-                           sum_rewards=False, max_timesteps=30)
-    trainer = MADDPG(env, MADDPGParams(30, 20000, num_units=64, lr=3e-4))
-    trainer.train()
-    policy = MultiAgentPolicy(trainer.get_policies())
-    get_rollout(env, policy, True)
+    def save(self, name, path):
+        pass

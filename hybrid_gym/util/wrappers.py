@@ -1,4 +1,5 @@
 import gym
+import random
 import numpy as np
 import joblib
 from stable_baselines import A2C, ACER, ACKTR, DDPG, DQN, GAIL, HER, PPO1, PPO2, SAC, TD3, TRPO
@@ -436,3 +437,52 @@ class DoneOnSuccessWrapper(gym.Wrapper):
     def compute_reward(self, achieved_goal, desired_goal, info):
         reward = self.env.compute_reward(achieved_goal, desired_goal, info)
         return reward + self.reward_offset
+
+
+class AdvEnv:
+
+    def __init__(self, automaton, mode_list, bonus=50.):
+        self.automaton = automaton
+        self.mode_list = mode_list
+        self.mode_map = {mode_list[i]: i for i in range(len(mode_list))}
+        self.one_hot = np.eye(len(mode_list))
+        self.bonus = bonus
+
+        high = np.ones((len(mode_list) + automaton.observation_space.shape[0],))
+        low = -high
+        self.observation_space = gym.spaces.Box(low, high)
+        self.action_space = [automaton.action_space, gym.spaces.Discrete(len(mode_list))]
+
+    def reset(self):
+        self.mname = random.choice(self.mode_list)
+        self.mode = self.automaton.modes[self.mname]
+        self.midx = self.mode_map[self.mname]
+        self.state = self.mode.end_to_end_reset()
+        return self.get_obs()
+
+    def step(self, action, adv_action):
+        next_state = self.mode.step(self.state, action)
+        rew = self.mode.reward(self.state, action, next_state)
+        self.state = next_state
+        done = False
+
+        if not self.mode.is_safe(self.state):
+            done = True
+        else:
+            for t in self.automaton.transitions[self.mname]:
+                if t.guard(self.state):
+                    rew += self.bonus
+                    self.mname = self.mode_list[adv_action]
+                    self.mode = self.automaton.modes[self.mname]
+                    self.midx = self.mode_map[self.mname]
+                    self.state = t.jump(self.mname, self.state)
+                    break
+
+        return self.get_obs(), rew, done, {}
+
+    def render(self):
+        self.mode.render(self.state)
+
+    def get_obs(self):
+        obs = self.mode.observe(self.state)
+        return np.concatenate([self.one_hot[self.midx], obs])
