@@ -42,7 +42,8 @@ def p_train(obs_ph, act_space, p_func, q_func, optimizer, sess,
         act_input = act_pd.sample()
         q_input = tf.concat([obs_ph, act_input], 1)
         q_full = q_func(q_input, num_modes, scope="q_func", reuse=True, num_units=num_units)
-        q = tf.gather(q_full, adv_act_ph, axis=1, batch_dims=1)
+        q = tf.gather(q_full, tf.reshape(adv_act_ph, [-1, 1]), axis=1, batch_dims=1)
+        q = tf.reshape(q, [-1])
 
         pg_loss = -tf.reduce_mean(q)
 
@@ -131,7 +132,8 @@ def q_train(obs_ph, act_space, q_func, optimizer, sess, grad_norm_clipping=None,
 
         q_input = tf.concat([obs_ph, act_ph], 1)
         q_full = q_func(q_input, num_modes, scope="q_func", num_units=num_units)
-        q = tf.gather(q_full, adv_act_ph, axis=1, batch_dims=1)
+        q = tf.gather(q_full, tf.reshape(adv_act_ph, [-1, 1]), axis=1, batch_dims=1)
+        q = tf.reshape(q, [-1])
         q_func_vars = U.scope_vars(U.absolute_scope_name("q_func"))
 
         q_loss = tf.reduce_mean(tf.square(q - target_ph))
@@ -149,7 +151,8 @@ def q_train(obs_ph, act_space, q_func, optimizer, sess, grad_norm_clipping=None,
 
         # target network
         target_q_full = q_func(q_input, num_modes, scope="target_q_func", num_units=num_units)
-        target_q = tf.gather(target_q_full, adv_act_ph, axis=1, batch_dims=1)
+        target_q = tf.gather(target_q_full, tf.reshape(adv_act_ph, [-1, 1]), axis=1, batch_dims=1)
+        target_q = tf.reshape(target_q, [-1])
         target_q_func_vars = U.scope_vars(U.absolute_scope_name("target_q_func"))
         update_target_q = make_update_exp(q_func_vars, target_q_func_vars, sess)
 
@@ -211,7 +214,7 @@ class MADDPGAgentTrainer:
 
         # Create experience buffer
         self.replay_buffer = ReplayBuffer(1e6)
-        self.max_replay_buffer_len = args.batch_size * args.max_episode_len
+        self.max_replay_buffer_len = args.batch_size * 10
         self.replay_sample_index = None
 
     def action(self, obs):
