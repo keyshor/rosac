@@ -140,7 +140,7 @@ def q_train(obs_ph, act_space, q_func, optimizer, sess, grad_norm_clipping=None,
 
         # viscosity solution to Bellman differential equation in place of an initial condition
         q_reg = tf.reduce_mean(tf.square(q))  # noqa
-        loss = q_loss + 1e-3 * q_reg
+        loss = q_loss + 3e-3 * q_reg
 
         optimize_expr = U.minimize_and_clip(optimizer, loss, q_func_vars, grad_norm_clipping)
 

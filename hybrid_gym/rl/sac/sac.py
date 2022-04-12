@@ -415,6 +415,8 @@ class MySAC:
 SacControllerType = TypeVar(
     'SacControllerType', bound='SACController',
 )
+
+
 class SACController(Controller):
 
     def __init__(self, ac: MLPActorCritic, deterministic=True, device='cpu'):

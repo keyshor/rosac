@@ -9,19 +9,21 @@ from hybrid_gym.util.io import parse_command_line_options, plot_learning_curve, 
 
 ALGO_NAMES = ['basic', 'dagger', 'value', 'masac', 'maddpg']
 COLORS = ['pink', 'blue', 'green', 'orange', 'cyan']
-PLOT_NAMES = ['id', 'avg_jumps', 'mcts_avg_jumps', 'avg_prob', 'mcts_prob']
+PLOT_NAMES = ['samples', 'time', 'avg_jumps', 'mcts_avg_jumps', 'avg_prob', 'mcts_prob']
 
 
 if __name__ == '__main__':
     flags = parse_command_line_options()
     num_runs = flags['abstract_samples']
+    x_col = flags['ensemble']
     y_col = flags['gpu_num']
     min_x = int(1e9)
-    plot_name = PLOT_NAMES[y_col]
+    plot_name = PLOT_NAMES[y_col] + '_' + PLOT_NAMES[x_col]
 
     for algo, color in zip(ALGO_NAMES, COLORS):
         path = os.path.join(flags['path'], algo)
-        min_x = min(min_x, plot_learning_curve('log', path, y_col, 1, num_runs+1, color, algo))
+        min_x = min(min_x, plot_learning_curve(
+            'log', path, x_col, y_col, 1, num_runs+1, color, algo))
 
     plt.xlim(xmax=min_x)
     save_plot(plot_name, flags['path'])

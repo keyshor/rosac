@@ -27,8 +27,7 @@ if __name__ == '__main__':
     automaton = make_rooms_model()
     time_limits = {m: 25 for m in automaton.modes}
 
-    reward_fns = {m: ValueBasedReward(mode, automaton, adversary=flags['dynamic_rew'],
-                                      bonus=50.)
+    reward_fns = {m: ValueBasedReward(mode, automaton, adversary=flags['dynamic_rew'])
                   for m, mode in automaton.modes.items()}
 
     # hyperparams for SAC

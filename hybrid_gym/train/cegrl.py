@@ -100,6 +100,7 @@ def cegrl(automaton: HybridAutomaton,
 
     log_info = []
     steps_taken = 0
+    abs_start_time = time.time()
     cond_prob_file = open(os.path.join(save_path, 'cond_probs.txt'), 'w')
 
     mp.set_start_method('spawn')
@@ -261,7 +262,6 @@ def cegrl(automaton: HybridAutomaton,
         start_time = time.time()
         print('\nEvaluating controllers in iteration {} ...'.format(i))
 
-        # TODO: Pick the best controller for each mode
         best_prob = best_mcts_prob = best_jmps = best_mcts_jmps = 0.
         total_eval_steps = 0
         all_collected_states: Dict[str, List] = {m: [] for m in automaton.modes}
@@ -281,7 +281,9 @@ def cegrl(automaton: HybridAutomaton,
             for m in automaton.modes:
                 all_collected_states[m].extend(collected_states[m])
 
-        log_info.append([steps_taken, best_jmps, best_mcts_jmps, best_prob, best_mcts_prob])
+        time_taken = time.time() - abs_start_time
+        log_info.append([steps_taken, time_taken, best_jmps,
+                        best_mcts_jmps, best_prob, best_mcts_prob])
 
         # probabilistic policies for exploration
         if algo_name == 'my_sac':

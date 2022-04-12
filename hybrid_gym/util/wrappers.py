@@ -441,7 +441,7 @@ class DoneOnSuccessWrapper(gym.Wrapper):
 
 class AdvEnv:
 
-    def __init__(self, automaton, mode_list, bonus=50.):
+    def __init__(self, automaton, mode_list, bonus=25.):
         self.automaton = automaton
         self.mode_list = mode_list
         self.mode_map = {mode_list[i]: i for i in range(len(mode_list))}

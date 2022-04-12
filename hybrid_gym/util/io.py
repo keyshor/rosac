@@ -139,9 +139,9 @@ def save_plot(name, path, show=False, scientific=True):
         plt.show()
 
 
-def plot_learning_curve(name: str, path: str, y_col: int, low: int, up: int,
+def plot_learning_curve(name: str, path: str, x_col: int, y_col: int, low: int, up: int,
                         color: str, label: str, points: bool = False):
-    x = extract_plot_data(name, path, 0, low, up)[0]
+    x = extract_plot_data(name, path, x_col, low, up)[0]
     data = extract_plot_data(name, path, y_col, low, up)
     plot_error_bar(x, data, color, label, points=points)
     return x[-1]

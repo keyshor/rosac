@@ -33,16 +33,11 @@ class GridParams:
         self.bd_size = np.array([self.center_size[0], self.wall_size[1]/2])
         self.bd_point = np.array([self.hdoor[0], self.wall_size[1]/2]) - (self.full_size/2)
         self.full_init_size = np.array([self.center_size[0], self.vdoor[1]])
-        self.exit_wall_size = self.bd_size[0]/2
-        self.exit_opening_size = self.bd_size[0] - self.exit_wall_size
-        self.exit_wall = self.hdoor[0] + self.exit_wall_size
-        self.vertical_split = True
 
-    def sample_full(self):
-        if np.random.binomial(1, 0.75):
-            return self.sample_bottom()
-        else:
-            return self.sample_center()
+        # params related to obstacle
+        self.exit_wall_size = self.bd_size[0]/2
+        self.exit_wall = self.hdoor[0] + self.exit_wall_size
+        self.exit_opening_size = self.bd_size[0] - self.exit_wall_size
 
     def sample_center(self):
         return (np.random.random_sample(2) * self.center_size) + self.center_start
@@ -121,16 +116,20 @@ class GridParams:
             plt.plot(w, self.vdoor[0]*const_arr, color='black')
             plt.plot(w, self.vdoor[1]*const_arr, color='black')
 
+    def plot_obstacle(self, N):
+        h_wall = np.linspace(1.5 * self.wall_size[0], self.exit_wall, N)
+        v_wall = np.linspace(0, 1.5 * self.wall_size[1], N)
+
+        plt.plot(h_wall, 1.5*np.ones((N,))*self.wall_size[1], color='red')
+        plt.plot(np.ones((N,))*self.exit_wall, v_wall, color='red')
+
     def plot_room(self):
         N = 10000
         ax = plt.gca()
         ax.set_aspect(1)
         self.plot_vertical_walls(N)
         self.plot_horizontal_walls(N)
-
-        # exit obstacle
-        obstacle = np.linspace(self.hdoor[0], self.exit_wall, N)
-        plt.plot(obstacle, np.ones((N,))*self.wall_size[1], color='red')
+        self.plot_obstacle(N)
 
 
 class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
@@ -264,18 +263,21 @@ class RoomsMode(Mode[Tuple[Tuple, Tuple]]):
             return (p[0] >= params.hdoor[0] and p[0] <= params.hdoor[1])
 
     def hit_obstacle(self, p1, p2):
-        if self.grid_params.hdoor[0] <= p1[0] and p1[0] <= self.grid_params.hdoor[1]:
-            if p1[1] < self.grid_params.wall_size[1] and p2[1] >= self.grid_params.wall_size[1]:
-                x = ((p2[0] - p1[0]) * (self.grid_params.wall_size[1] - p1[1]) / (p2[1] - p1[1])) \
-                    + p1[0]
-                if x < self.grid_params.exit_wall:
-                    return True
-        if self.grid_params.vertical_split:
-            if p1[1] <= self.grid_params.wall_size[1]:
-                if p1[0] < self.grid_params.exit_wall and \
-                        p2[0] >= self.grid_params.exit_wall:
-                    return True
+        if self.in_side_lane(p2):
+            p1, p2 = p2, p1
+        x = 1.5 * self.grid_params.wall_size[0]
+        if self.in_side_lane(p1) and not self.in_side_lane(p2):
+            if p2[0] > x:
+                return True
+            y = ((p2[1] - p1[1]) * (x - p1[0]) / (p2[0] - p1[0])) + p1[1]
+            if y > 1.5 * self.grid_params.wall_size[1]:
+                return True
         return False
+
+    def in_side_lane(self, p):
+        return (p[0] > 1.5 * self.grid_params.wall_size[0] and
+                p[0] < self.grid_params.exit_wall and
+                p[1] < 1.5 * self.grid_params.wall_size[1])
 
     # check if line from s1 to s2 intersects the horizontal axis at a point inside door region
     # horizontal coordinates should be relative positions within rooms

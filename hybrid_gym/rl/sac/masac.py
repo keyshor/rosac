@@ -3,6 +3,7 @@ from hybrid_gym.eval import mcts_eval, random_selector_eval
 
 import numpy as np
 import random
+import time
 
 
 class MaSAC:
@@ -37,6 +38,7 @@ class MaSAC:
     def train(self, max_steps):
 
         log_info = []
+        abs_start_time = time.time()
 
         mname = random.choice(list(self.automaton.modes))
         mode = self.automaton.modes[mname]
@@ -120,7 +122,9 @@ class MaSAC:
                 rs_prob, avg_jmps, _ = random_selector_eval(
                     self.automaton, self.det_controllers, self.time_limits,
                     max_jumps=self.max_jumps, eval_rollouts=100)
-                log_info.append([total_step, avg_jmps, mcts_avg_jmps, rs_prob, mcts_prob])
+                time_taken = time.time() - abs_start_time
+                log_info.append([total_step, time_taken, avg_jmps,
+                                mcts_avg_jmps, rs_prob, mcts_prob])
                 print('MCTS: Avg Jumps = {} | Prob = {}'.format(mcts_avg_jmps, mcts_prob))
                 print('Random: Avg Jumps = {} | Prob = {}'.format(avg_jmps, rs_prob))
 
