@@ -27,7 +27,7 @@ if __name__ == '__main__':
     time_limits = {m: 25 for m in automaton.modes}
 
     # hyperparams for SAC
-    params = MADDPGParams(150, 60000, batch_size=256, num_units=128, lr=1e-4, gamma=0.99)
+    params = MADDPGParams(150, 300000, batch_size=256, num_units=128, lr=3e-4, gamma=0.95)
 
     agent = MADDPG(automaton, params)
     log_info = agent.train(time_limits, MAX_JUMPS)

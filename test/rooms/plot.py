@@ -25,5 +25,5 @@ if __name__ == '__main__':
         min_x = min(min_x, plot_learning_curve(
             'log', path, x_col, y_col, 1, num_runs+1, color, algo))
 
-    plt.xlim(xmax=min_x)
+    plt.xlim(xmax=min_x, xmin=-100000.)
     save_plot(plot_name, flags['path'])
