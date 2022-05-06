@@ -7,7 +7,7 @@ sys.path.append(os.path.join('..', '..', 'spectrl_hierarchy'))  # nopep8
 from matplotlib import pyplot as plt
 from hybrid_gym.util.io import parse_command_line_options, plot_learning_curve, save_plot
 
-ALGO_NAMES = ['basic', 'dagger', 'value', 'masac', 'maddpg']
+ALGO_NAMES = ['NAIVE', 'DAGGER', 'AROSAC', 'ROSAC', 'MADDPG']
 COLORS = ['pink', 'blue', 'green', 'orange', 'cyan']
 PLOT_NAMES = ['samples', 'time', 'avg_jumps', 'mcts_avg_jumps', 'avg_prob', 'mcts_prob']
 
