@@ -617,20 +617,20 @@ class F110ObstacleMode(Mode[State]):
 
         reward = STEP_REWARD_GAIN
 
-        reward += SPEED_GAIN * st1.V
-        if st1.V < MINIMUM_ACCEPTABLE_SPEED:
-            reward += LOW_SPEED_REWARD
+        #reward += SPEED_GAIN * st1.V
+        #if st1.V < MINIMUM_ACCEPTABLE_SPEED:
+        #    reward += LOW_SPEED_REWARD
 
         old_dist_to_goal = np.abs(self.goal_x - st0.x) + np.abs(self.goal_y - st0.y)
         new_dist_to_goal = np.abs(self.goal_x - st1.x) + np.abs(self.goal_y - st1.y)
         reward += PROGRESS_GAIN * (old_dist_to_goal - new_dist_to_goal)
 
-        if self.center_reward_region.contains(st1):
-            reward += MIDDLE_GAIN * self.center_reward_lines.distance(
-                np.array([st1.x]), np.array([st1.y]),
-            )[0]
-        if self.goal_region.contains(st1):
-            reward += GOAL_REWARD
+        #if self.center_reward_region.contains(st1):
+        #    reward += MIDDLE_GAIN * self.center_reward_lines.distance(
+        #        np.array([st1.x]), np.array([st1.y]),
+        #    )[0]
+        #if self.goal_region.contains(st1):
+        #    reward += GOAL_REWARD
 
         return reward
 

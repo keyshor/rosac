@@ -8,3 +8,4 @@ ModeType.*
 *.pkl
 *.npy
 *.txt
+*.tar.gz

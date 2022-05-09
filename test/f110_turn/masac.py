@@ -25,7 +25,7 @@ if __name__ == '__main__':
     num_gpus = max(torch.cuda.device_count(), 1)
 
     automaton = make_f110_model()
-    time_limits = {m: 500 for m in automaton.modes}
+    time_limits = {m: 50 for m in automaton.modes}
 
     reward_fns = {m: ValueBasedReward(mode, automaton, adversary=flags['dynamic_rew'],
                                       bonus=50.)
@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     masac = MaSAC(automaton, 5000, time_limits, MAX_JUMPS, sac_kwargs, reward_fns,
                   verbose=True, use_gpu=flags['gpu'])
-    log_info = masac.train(40)
+    log_info = masac.train(1500000)
     controllers = masac.det_controllers
 
     # save the controllers

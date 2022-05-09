@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     automaton = make_f110_model()
     pre = {m: mode.get_init_pre() for m, mode in automaton.modes.items()}
-    time_limits = {m: 500 for m in automaton.modes}
+    time_limits = {m: 50 for m in automaton.modes}
 
     # state distribution update
     num_synth_iter = 0
@@ -58,9 +58,14 @@ if __name__ == '__main__':
                         for m, mode in automaton.modes.items()}
 
     # hyperparams for SAC
+    num_epochs = 2
+    if 'basic' in flags['path']:
+        num_epochs = 4
+    elif 'dagger' in flags['path']:
+        num_epochs = 4
     sac_kwargs = dict(
         hidden_dims=(64, 64),
-        steps_per_epoch=10, epochs=2,
+        steps_per_epoch=25000, epochs=num_epochs,
         replay_size=50000,
         gamma=1 - 1e-2, polyak=1 - 5e-3, lr=3e-4,
         alpha=0.1,
@@ -74,8 +79,7 @@ if __name__ == '__main__':
         alpha_decay=1e-2,
     )
 
-    #controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=round(5 / flags['ensemble']), num_synth_iter=num_synth_iter,
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=2, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=20, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
                                   sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],

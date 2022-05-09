@@ -96,6 +96,7 @@ def eval_single(automaton, name, time_limit, num_trials, save_path, render):
     with open(os.path.join(save_path, 'data.pkl'), 'rb') as fh:
         start_sts = pickle.load(fh)
     def reset():
+        env.reset()
         env.state = random.choice(start_sts)
         return env.observe()
     nonterm = 0
