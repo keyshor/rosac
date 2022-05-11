@@ -25,11 +25,12 @@ TIME_STEP: float = 0.1
 TIME_CHECK: np.ndarray = np.linspace(0, TIME_STEP, 100)
 EKAT: np.ndarray = np.array(np.exp(-CAR_ACCEL_CONST * TIME_CHECK))
 
-STEP_REWARD_GAIN: float = -15
+#STEP_REWARD_GAIN: float = -15
+STEP_REWARD_GAIN: float = -3
 CRASH_REWARD: float = -100
 MINIMUM_ACCEPTABLE_SPEED: float = 1.5
 LOW_SPEED_REWARD: float = -0
-SPEED_GAIN: float = 5.0
+#SPEED_GAIN: float = 5.0
 PROGRESS_GAIN: float = 10
 MIDDLE_GAIN: float = -10
 DEFAULT_HALL_WIDTH: float = 1.5
