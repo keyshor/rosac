@@ -58,14 +58,15 @@ if __name__ == '__main__':
                         for m, mode in automaton.modes.items()}
 
     # hyperparams for SAC
-    num_epochs = 2
-    if 'basic' in flags['path']:
-        num_epochs = 4
-    elif 'dagger' in flags['path']:
-        num_epochs = 4
+    if 'NAIVE' in flags['path']:
+        num_epochs = 2
+    elif 'DAGGER' in flags['path']:
+        num_epochs = 2
+    elif 'AROSAC' in flags['path']:
+        num_epochs = 1
     sac_kwargs = dict(
         hidden_dims=(64, 64),
-        steps_per_epoch=25000, epochs=num_epochs,
+        steps_per_epoch=10000, epochs=num_epochs,
         replay_size=50000,
         gamma=1 - 1e-2, polyak=1 - 5e-3, lr=3e-4,
         alpha=0.1,
