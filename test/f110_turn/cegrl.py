@@ -16,7 +16,7 @@ from hybrid_gym.rl.ars import NNParams, ARSParams
 from hybrid_gym.rl.ddpg import DDPGParams
 from typing import List, Any
 
-MAX_JUMPS = 100
+MAX_JUMPS = 20
 
 
 class FalsifyFunc:
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         alpha_decay=1e-2,
     )
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=20, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=10, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
                                   sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
