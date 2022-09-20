@@ -13,7 +13,7 @@ from hybrid_gym.rl.sac.masac import MaSAC
 from hybrid_gym.train.reward_funcs import ValueBasedReward
 from typing import List, Any
 
-MAX_JUMPS = 100
+MAX_JUMPS = 25
 
 
 if __name__ == '__main__':
@@ -33,24 +33,19 @@ if __name__ == '__main__':
 
     # hyperparams for SAC
     sac_kwargs = dict(
-        hidden_dims=(64, 64),
-        steps_per_epoch=10000, epochs=2,
-        replay_size=50000,
-        gamma=1 - 1e-2, polyak=1 - 5e-3, lr=3e-4,
-        alpha=0.1,
-        batch_size=256,
-        start_steps=2000, update_after=2000,
-        update_every=50,
+        hidden_dims=(128, 128),
+        steps_per_epoch=500, epochs=200,
+        alpha=0.06, min_alpha=0.03, alpha_decay=0.0003,
+        lr=1e-3,
+        batch_size=128,
         num_test_episodes=10,
         max_ep_len=50, test_ep_len=50,
-        log_interval=100,
-        min_alpha=0.1,
-        alpha_decay=1e-2,
+        log_interval=100
     )
 
-    masac = MaSAC(automaton, 5000, time_limits, MAX_JUMPS, sac_kwargs, reward_fns,
+    masac = MaSAC(automaton, 1250, time_limits, MAX_JUMPS, sac_kwargs, reward_fns,
                   verbose=True, use_gpu=flags['gpu'])
-    log_info = masac.train(1500000)
+    log_info = masac.train(2000000)
     controllers = masac.det_controllers
 
     # save the controllers
