@@ -35,7 +35,7 @@ class MaSAC:
         for rfn in self.reward_fns.values():
             rfn.update([], value_fns, copy_value_fns=False)
 
-    def train(self, max_steps):
+    def train(self, max_steps, eval_steps=20000):
 
         log_info = []
         abs_start_time = time.time()
@@ -115,7 +115,7 @@ class MaSAC:
                 episode_step = 0
                 num_episodes += 1
 
-            if total_step % 20000 == 0 and total_step != 0:
+            if total_step % eval_steps == 0 and total_step != 0:
                 mcts_prob, mcts_avg_jmps, _ = mcts_eval(
                     self.automaton, self.det_controllers, self.time_limits,
                     max_jumps=self.max_jumps, mcts_rollouts=1000, eval_rollouts=100)

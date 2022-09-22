@@ -47,7 +47,7 @@ def p_train(obs_ph, act_space, p_func, q_func, optimizer, sess,
 
         pg_loss = -tf.reduce_mean(q)
 
-        loss = pg_loss + p_reg * 1e-3
+        loss = pg_loss + p_reg * 1e-2
 
         optimize_expr = U.minimize_and_clip(optimizer, loss, p_func_vars, grad_norm_clipping)
 

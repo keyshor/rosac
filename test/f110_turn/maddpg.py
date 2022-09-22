@@ -28,10 +28,10 @@ if __name__ == '__main__':
 
     # hyperparams for SAC
     params = MADDPGParams(
-        max_episode_len=5000,
+        max_episode_len=500,
         num_episodes=5000,
         batch_size=256,
-        num_units=64,
+        num_units=128,
     )
 
     agent = MADDPG(automaton, params)

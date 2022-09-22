@@ -58,26 +58,16 @@ if __name__ == '__main__':
                         for m, mode in automaton.modes.items()}
 
     # hyperparams for SAC
-    if 'NAIVE' in flags['path']:
-        num_epochs = 2
-    elif 'DAGGER' in flags['path']:
-        num_epochs = 2
-    elif 'AROSAC' in flags['path']:
-        num_epochs = 1
     sac_kwargs = dict(
-        hidden_dims=(64, 64),
-        steps_per_epoch=10000, epochs=num_epochs,
-        replay_size=50000,
-        gamma=1 - 1e-2, polyak=1 - 5e-3, lr=3e-4,
-        alpha=0.1,
-        batch_size=256,
-        start_steps=2000, update_after=2000,
-        update_every=50,
+        hidden_dims=(128, 128),
+        steps_per_epoch=100, epochs=200,
+        alpha=0.06, min_alpha=0.03, alpha_decay=0.0003,
+        lr=1e-3,
+        batch_size=128,
         num_test_episodes=10,
         max_ep_len=50, test_ep_len=50,
         log_interval=100,
-        min_alpha=0.1,
-        alpha_decay=1e-2,
+        gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus)
     )
 
     controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=10, num_synth_iter=num_synth_iter,

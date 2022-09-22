@@ -40,12 +40,13 @@ if __name__ == '__main__':
         batch_size=128,
         num_test_episodes=10,
         max_ep_len=50, test_ep_len=50,
-        log_interval=100
+        log_interval=100,
+        gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus)
     )
 
-    masac = MaSAC(automaton, 1250, time_limits, MAX_JUMPS, sac_kwargs, reward_fns,
+    masac = MaSAC(automaton, 500, time_limits, MAX_JUMPS, sac_kwargs, reward_fns,
                   verbose=True, use_gpu=flags['gpu'])
-    log_info = masac.train(2000000)
+    log_info = masac.train(1000000, eval_steps=50000)
     controllers = masac.det_controllers
 
     # save the controllers
