@@ -10,7 +10,7 @@ class MaSAC:
 
     def __init__(self, automaton, max_ep_len, time_limits, max_jumps,
                  sac_kwargs, reward_fns, epsilon=0.15, verbose=False,
-                 use_gpu=False):
+                 use_gpu=False, bonus=50.):
         self.automaton = automaton
         self.max_ep_len = max_ep_len
         self.time_limits = time_limits
@@ -18,6 +18,7 @@ class MaSAC:
         self.reward_fns = reward_fns
         self.epsilon = epsilon
         self.verbose = verbose
+        self.bonus = bonus
 
         # Create agent trainers
         self.trainers = {m: MySAC(automaton.observation_space, automaton.action_space,
@@ -46,6 +47,7 @@ class MaSAC:
         obs = mode.observe(state)
 
         episode_step = 0
+        num_jumps = 0
         train_step = 0
         total_step = 0
         num_episodes = 0
@@ -70,9 +72,7 @@ class MaSAC:
             self.trainers[mname].replay_buffer.store(
                 obs, action, rew, new_obs, unsafe or info['is_success'], info)
 
-            corrected_r = self.reward_fns[mname].obs_reward(
-                obs, action, new_obs, rew, info)
-            episode_reward += corrected_r
+            episode_reward += rew
             episode_step += 1
             total_step += 1
 
@@ -88,6 +88,8 @@ class MaSAC:
                 mode = self.automaton.modes[mname]
                 state = transition.jump(mname, state)
                 obs = mode.observe(state)
+                num_jumps += 1
+                episode_reward += self.bonus
 
             # update all trainers
             if total_step % len(self.automaton.modes) == 0:
@@ -110,9 +112,11 @@ class MaSAC:
 
                 if self.verbose:
                     print('Reward at episode {}: {}'.format(num_episodes, episode_reward))
+                    print('Jumps at episode {}: {}'.format(num_episodes, num_jumps))
 
                 episode_reward = 0.
                 episode_step = 0
+                num_jumps = 0
                 num_episodes += 1
 
             if total_step % eval_steps == 0 and total_step != 0:

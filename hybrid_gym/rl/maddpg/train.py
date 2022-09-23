@@ -44,13 +44,13 @@ class MADDPGParams:
 
 class MADDPG:
 
-    def __init__(self, automaton, params):
+    def __init__(self, automaton, params, bonus=25.):
         self.params = params
         self.graph = tf.Graph()
         self.session = U.single_threaded_session(self.graph)
 
         self.mode_list = [m for m in automaton.modes]
-        self.env = AdvEnv(automaton, self.mode_list)
+        self.env = AdvEnv(automaton, self.mode_list, bonus=bonus)
         self.automaton = automaton
 
         with self.graph.as_default():
