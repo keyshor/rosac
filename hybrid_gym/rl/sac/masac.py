@@ -48,6 +48,7 @@ class MaSAC:
 
         episode_step = 0
         num_jumps = 0
+        steps_since_jump = 0
         train_step = 0
         total_step = 0
         num_episodes = 0
@@ -75,6 +76,7 @@ class MaSAC:
             episode_reward += rew
             episode_step += 1
             total_step += 1
+            steps_since_jump += 1
 
             obs = new_obs
             state = new_state
@@ -89,6 +91,7 @@ class MaSAC:
                 state = transition.jump(mname, state)
                 obs = mode.observe(state)
                 num_jumps += 1
+                steps_since_jump = 0
                 episode_reward += self.bonus
 
             # update all trainers
@@ -104,7 +107,8 @@ class MaSAC:
                 # increment global step counter
                 train_step += 1
 
-            if unsafe or episode_step > self.max_ep_len:
+            if unsafe or episode_step > self.max_ep_len or \
+                    steps_since_jump > self.time_limits[mname]:
                 mname = random.choice(list(self.automaton.modes))
                 mode = self.automaton.modes[mname]
                 state = mode.end_to_end_reset()
@@ -117,6 +121,7 @@ class MaSAC:
                 episode_reward = 0.
                 episode_step = 0
                 num_jumps = 0
+                steps_since_jump = 0
                 num_episodes += 1
 
             if total_step % eval_steps == 0 and total_step != 0:

@@ -502,7 +502,7 @@ def learn_ars_model(model: ARSModel,
 
 def learn_sac_model(model: MySAC,
                     automaton: HybridAutomaton,
-                    raw_mode_info: List[Tuple[
+                    raw_mode_info: Iterable[Tuple[
                         Mode[StateType],
                         Iterable[Transition],
                         Optional[Callable[[], StateType]],

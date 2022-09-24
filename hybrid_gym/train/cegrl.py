@@ -5,7 +5,8 @@ CounterExample Guided Reinforcement Learning
 from hybrid_gym import HybridAutomaton, Mode, Controller
 from hybrid_gym.train.single_mode import (make_sb3_model_init_check, train_sb3,
                                           make_ars_model, parallel_ars,
-                                          make_ddpg_model, make_sac_model, parallel_sac)
+                                          make_ddpg_model, make_sac_model, parallel_sac,
+                                          learn_sac_model)
 from hybrid_gym.synthesis.abstractions import AbstractState
 from hybrid_gym.synthesis.ice import synthesize
 from hybrid_gym.util.wrappers import Sb3CtrlWrapper
@@ -83,6 +84,7 @@ def cegrl(automaton: HybridAutomaton,
           print_debug: bool = False,
           save_path: str = '.',
           plot_synthesized_regions: bool = False,
+          single_process: bool = False,
           **kwargs
           ) -> Tuple[Dict[str, Controller], np.ndarray]:
     '''
@@ -164,7 +166,7 @@ def cegrl(automaton: HybridAutomaton,
         print('\nStarting to train individual controllers in iteration {} ...'.format(i))
 
         # parallelize learning, initialize list of queues to retrieve trained models
-        if algo_name == 'ars' or algo_name == 'my_sac':
+        if (algo_name == 'ars' or algo_name == 'my_sac') and not single_process:
             ret_queues: List[List[Queue]] = [[] for group in mode_groups]
             req_queues: List[List[Queue]] = [[] for group in mode_groups]
             processes: List[List[Process]] = [[] for group in mode_groups]
@@ -174,16 +176,17 @@ def cegrl(automaton: HybridAutomaton,
             if print_debug:
                 print('\nTraining controllers for modes {}'.format(group_names[g]))
 
-            for _, reward_fn, reset_fn in serializable_info[g]:
-                if reward_fn is not None:
-                    reward_fn.make_serializable()
-                if reset_fn is not None:
-                    reset_fn.make_serializable()
+            if (algo_name == 'ars' or algo_name == 'my_sac') and not single_process:
+                for _, reward_fn, reset_fn in serializable_info[g]:
+                    if reward_fn is not None:
+                        reward_fn.make_serializable()
+                    if reset_fn is not None:
+                        reset_fn.make_serializable()
 
             for e in range(ensemble):
 
                 # ARS and SAC support parallelization
-                if algo_name == 'ars' or algo_name == 'my_sac':
+                if (algo_name == 'ars' or algo_name == 'my_sac') and not single_process:
 
                     # Initialize return and request queue for models[g][e]
                     ret_queues[g].append(Queue())
@@ -210,6 +213,12 @@ def cegrl(automaton: HybridAutomaton,
                     processes[g][e].start()
                     ens_models[g][e] = None
 
+                elif algo_name == 'my_sac' and single_process:
+                    if use_gpu:
+                        ens_models[g][e].gpu()
+                    steps_taken += learn_sac_model(ens_models[g][e], automaton,
+                                                   group_info[g], print_debug, (i > 0))
+
                 else:
                     steps_taken += train_sb3(
                         model=ens_models[g][e],
@@ -220,40 +229,42 @@ def cegrl(automaton: HybridAutomaton,
                         **kwargs['sb3_train_kwargs'],
                     )
 
-            for _, reward_fn, reset_fn in serializable_info[g]:
-                if reward_fn is not None:
-                    reward_fn.recover_after_serialization(automaton)
-                if reset_fn is not None:
-                    reset_fn.recover_after_serialization(automaton)
+            if (algo_name == 'ars' or algo_name == 'my_sac') and not single_process:
+                for _, reward_fn, reset_fn in serializable_info[g]:
+                    if reward_fn is not None:
+                        reward_fn.recover_after_serialization(automaton)
+                    if reset_fn is not None:
+                        reset_fn.recover_after_serialization(automaton)
 
         # retrieve new controllers
         if algo_name == 'ars' or algo_name == 'my_sac':
             for g in range(len(mode_groups)):
                 for e in range(ensemble):
-                    while True:
-                        try:
-                            req_queues[g][e].put(1)
-                            ens_models[g][e], steps = ret_queues[g][e].get()
-                            break
-                        except RuntimeError:
-                            print('Runtime Error occured while retrieving policy! Retrying...')
-                            continue
+                    if not single_process:
+                        while True:
+                            try:
+                                req_queues[g][e].put(1)
+                                ens_models[g][e], steps = ret_queues[g][e].get()
+                                break
+                            except RuntimeError:
+                                print('Runtime Error occured while retrieving policy! Retrying...')
+                                continue
 
-                    # stop the learning process and join
-                    req_queues[g][e].put(None)
-                    processes[g][e].join()
+                        # stop the learning process and join
+                        req_queues[g][e].put(None)
+                        processes[g][e].join()
 
-                    # move to gpu if needed
-                    if use_gpu:
-                        ens_models[g][e].gpu()
+                        # move to gpu if needed
+                        if use_gpu:
+                            ens_models[g][e].gpu()
+
+                        steps_taken += steps
 
                     # set the new controllers
                     ens_controllers[g][e] = ens_models[g][e].get_policy()
                     if algo_name == 'my_sac':
                         ens_stoch_controllers[g][e] = ens_models[g][e].get_policy(
                             deterministic=False)
-
-                    steps_taken += steps
 
         print('Completed training individual controllers in {} mins'.format(
             (time.time() - start_time) / 60))
