@@ -54,13 +54,13 @@ if __name__ == '__main__':
     # reward update
     reward_funcs = None
     if flags['dynamic_rew']:
-        reward_funcs = {m: ValueBasedReward(mode, automaton)
+        reward_funcs = {m: ValueBasedReward(mode, automaton, bonus=100.)
                         for m, mode in automaton.modes.items()}
 
     # hyperparams for SAC
     sac_kwargs = dict(
         hidden_dims=(128, 128),
-        steps_per_epoch=100, epochs=200,
+        steps_per_epoch=100, epochs=100,
         alpha=0.06, min_alpha=0.03, alpha_decay=0.0003,
         lr=1e-3,
         batch_size=128,
@@ -70,13 +70,13 @@ if __name__ == '__main__':
         gpu_device='cuda:{}'.format(flags['gpu_num'] % num_gpus)
     )
 
-    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=10, num_synth_iter=num_synth_iter,
+    controllers, log_info = cegrl(automaton, pre, time_limits, num_iter=20, num_synth_iter=num_synth_iter,
                                   abstract_synth_samples=flags['abstract_samples'], print_debug=True,
                                   save_path=flags['path'], algo_name='my_sac', ensemble=flags['ensemble'],
                                   sac_kwargs=sac_kwargs, use_gpu=flags['gpu'],
                                   max_jumps=MAX_JUMPS, dagger=flags['dagger'], full_reset=use_full_reset,
                                   env_name='f110_turn', inductive_ce=flags['inductive_ce'],
-                                  reward_funcs=reward_funcs)
+                                  reward_funcs=reward_funcs, single_process=True)
 
     # save the controllers
     for (mode_name, ctrl) in controllers.items():

@@ -6,7 +6,7 @@ from torch import nn
 from torch import optim
 from torch.distributions import Normal
 
-from labml import monit, tracker, logger
+from labml import monit
 from labml.configs import FloatDynamicHyperParam, IntDynamicHyperParam
 from labml_helpers.module import Module
 from labml_nn.rl.ppo import ClippedPPOLoss, ClippedValueFunctionLoss
@@ -21,23 +21,25 @@ def obs_to_torch(obs: np.ndarray, device) -> torch.Tensor:
 
 class Actor(Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_dim):
+    def __init__(self, obs_dim, act_dim, hidden_dim, action_bound):
         super().__init__()
 
-        self.activation = nn.ReLU()
+        self.activation = nn.Tanh()
+        self.softplus = nn.Softplus()
 
         self.ln1 = nn.Linear(obs_dim, hidden_dim)
         self.ln2 = nn.Linear(hidden_dim, hidden_dim)
         self.ln3 = nn.Linear(hidden_dim, act_dim)
         self.ln4 = nn.Linear(hidden_dim, act_dim)
 
-        self.device = "cpu"
+        self.device_used = "cpu"
+        self.action_bound = torch.Tensor(action_bound)
 
     def forward(self, obs: np.ndarray):
-        obs_torch = obs_to_torch(obs, self.device)
+        obs_torch = obs_to_torch(obs, self.device_used)
         h = self.activation(self.ln1(obs_torch))
         h = self.activation(self.ln2(h))
-        act_mean = self.ln3(h)
+        act_mean = self.action_bound * torch.tanh(self.ln3(h))
         log_std = self.ln4(h)
         log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
         act_std = torch.exp(log_std)
@@ -54,8 +56,8 @@ class Actor(Module):
     def log_prob(self, obs, actions):
         mean, std = self.forward(obs)
         dist = Normal(mean, std)
-        actions = obs_to_torch(actions, self.device)
-        return dist.log_prob(actions).sum(axis=-1), dist.entropy().mean(axis=-1)
+        actions = obs_to_torch(actions, self.device_used)
+        return dist.log_prob(actions).sum(axis=-1), dist.entropy().sum(axis=-1)
 
 
 class Critic(Module):
@@ -63,16 +65,16 @@ class Critic(Module):
     def __init__(self, obs_dim, hidden_dim):
         super().__init__()
 
-        self.activation = nn.ReLU()
+        self.activation = nn.Tanh()
 
         self.ln1 = nn.Linear(obs_dim, hidden_dim)
         self.ln2 = nn.Linear(hidden_dim, hidden_dim)
         self.ln3 = nn.Linear(hidden_dim, 1)
 
-        self.device = "cpu"
+        self.device_used = "cpu"
 
     def forward(self, obs: np.ndarray):
-        obs_torch = obs_to_torch(obs, self.device)
+        obs_torch = obs_to_torch(obs, self.device_used)
         h = self.activation(self.ln1(obs_torch))
         h = self.activation(self.ln2(h))
         value = self.ln3(h)
@@ -92,7 +94,8 @@ class Model(Module):
         self.obs_dims = [mode.observation_space.shape[0] for _, mode in automaton.modes.items()]
 
         self.actors = nn.ModuleDict({
-            mname: Actor(mode.observation_space.shape[0], mode.action_space.shape[0], hidden_dim)
+            mname: Actor(mode.observation_space.shape[0], mode.action_space.shape[0], hidden_dim,
+                         mode.action_space.high)
             for mname, mode in automaton.modes.items()
         })
 
@@ -105,9 +108,9 @@ class Model(Module):
         obs_map = {}
         for mode, o in zip(modes, obs):
             if mode not in obs_map:
-                obs_map[mode] = o.view(1, -1)
+                obs_map[mode] = o.reshape(1, -1)
             else:
-                obs_map[mode] = np.concatenate([obs_map[mode], o.view(1, -1)])
+                obs_map[mode] = np.concatenate([obs_map[mode], o.reshape(1, -1)])
         return obs_map
 
     def ungroup(self, values: Dict[str, np.ndarray], modes: List[str]):
@@ -122,7 +125,7 @@ class Model(Module):
         obs_map = self.group_by_modes(obs, modes)
         action_map = {}
         log_probs = {}
-        for mode, o in obs_map:
+        for mode, o in obs_map.items():
             action_map[mode], log_probs[mode] = self.actors[mode].get_action(o, deterministic)
         return np.squeeze(np.array(self.ungroup(action_map, modes))), \
             np.squeeze(np.array(self.ungroup(log_probs, modes)))
@@ -130,7 +133,7 @@ class Model(Module):
     def get_values(self, obs: np.ndarray, modes: List[str]):
         obs_map = self.group_by_modes(obs, modes)
         value_map = {}
-        for mode, o in obs_map:
+        for mode, o in obs_map.items():
             value_map[mode] = self.critics[mode](o)
         return torch.stack(self.ungroup(value_map, modes)).squeeze()
 
@@ -148,14 +151,14 @@ class Model(Module):
     def gpu(self):
         self.to(self.gpu_device)
         for mode in self.actors:
-            self.actors[mode].device = self.gpu_device
-            self.critics[mode].device = self.gpu_device
+            self.actors[mode].device_used = self.gpu_device
+            self.critics[mode].device_used = self.gpu_device
 
     def cpu(self):
         self.to("cpu")
         for mode in self.actors:
-            self.actors[mode].device = "cpu"
-            self.critics[mode].device = "cpu"
+            self.actors[mode].device_used = "cpu"
+            self.critics[mode].device_used = "cpu"
 
     def forward(self):
         raise NotImplementedError
@@ -264,11 +267,11 @@ class Trainer:
 
         rewards = np.zeros((self.batch_size,), dtype=np.float32)
         actions = np.zeros((self.batch_size, self.action_dim), dtype=np.float32)
-        done = np.zeros((self.batch_size,), dtype=np.bool)
+        done = np.zeros((self.batch_size,), dtype=bool)
         obs = np.zeros((self.batch_size, self.obs_dim), dtype=np.float32)
         log_pis = np.zeros((self.batch_size,), dtype=np.float32)
         values = np.zeros((self.batch_size + 1,), dtype=np.float32)
-        modes = ['' for _ in range(self.batch_size)]
+        modes = ["" for _ in range(self.batch_size)]
 
         mnum = 0
         steps = 0
@@ -284,8 +287,8 @@ class Trainer:
             for t in range(self.batch_size):
 
                 obs[t] = mode.observe(state)
-                actions[t], log_pis[t] = self.model.get_actions(obs[t].view(1, -1), [mode.name])
-                values[t] = self.model.get_values(obs[t].view(
+                actions[t], log_pis[t] = self.model.get_actions(obs[t].reshape(1, -1), [mode.name])
+                values[t] = self.model.get_values(obs[t].reshape(
                     1, -1), [mode.name]).detach().cpu().numpy()
                 modes[t] = mode.name
 
@@ -328,7 +331,7 @@ class Trainer:
 
         # Get value of after the final step
         if not done[-1]:
-            values[self.batch_size] = self.model.get_values(obs[-1].view(
+            values[self.batch_size] = self.model.get_values(obs[-1].reshape(
                 1, -1), [mode.name]).detach().cpu().numpy()
 
         #
@@ -344,6 +347,13 @@ class Trainer:
 
         return samples, best_cum_reward
 
+    def adjust_rewards(self, samples: Dict[str, Any], best_cum_reward: float):
+        start_t = 0
+        for t in range(len(samples['rewards'])):
+            if samples['done'][t] or (t == len(samples['rewards']) - 1):
+                samples['rewards'][start_t:t+1] -= (best_cum_reward / (t+1 - start_t))
+                start_t = t+1
+
     def train(self, samples: Dict[str, Any]):
         """
         # Train the model based on samples
@@ -352,7 +362,7 @@ class Trainer:
 
         for _ in range(self.epochs()):
             # shuffle for each epoch
-            indexes = torch.randperm(self.batch_size)
+            indexes = np.random.permutation(self.batch_size)
 
             # for each mini batch
             for start in range(0, self.batch_size, self.mini_batch_size):
@@ -361,7 +371,10 @@ class Trainer:
                 mini_batch_indexes = indexes[start: end]
                 mini_batch = {}
                 for k, v in samples.items():
-                    mini_batch[k] = v[mini_batch_indexes]
+                    if k != "modes":
+                        mini_batch[k] = v[mini_batch_indexes]
+                    else:
+                        mini_batch[k] = [v[i] for i in mini_batch_indexes]
 
                 # train
                 loss = self._calc_loss(mini_batch)
@@ -395,7 +408,7 @@ class Trainer:
         # where $\hat{A_t}$ is advantages sampled from $\pi_{\theta_{OLD}}$.
         # Refer to sampling function in [Main class](#main) below
         #  for the calculation of $\hat{A}_t$.
-        sampled_normalized_advantage = self._normalize(samples['advantages'])
+        sampled_normalized_advantage = samples['advantages']
 
         # Sampled observations are fed into the model to get $\pi_\theta(a_t|s_t)$
         # and $V^{\pi_\theta}(s_t)$;
@@ -407,7 +420,8 @@ class Trainer:
 
         # Calculate policy loss
         policy_loss = self.ppo_loss(
-            log_pi, samples['log_pis'], sampled_normalized_advantage, self.clip_range())
+            log_pi, torch.Tensor(samples['log_pis']),
+            torch.Tensor(sampled_normalized_advantage), self.clip_range())
 
         # Calculate Entropy Bonus
         #
@@ -416,18 +430,22 @@ class Trainer:
         entropy_bonus = entropy.mean()
 
         # Calculate value function loss
-        value_loss = self.value_loss(value, samples['values'], sampled_return, self.clip_range())
+        value_loss = self.value_loss(value, torch.Tensor(samples['values']),
+                                     torch.Tensor(sampled_return), self.clip_range())
 
+        entropy_loss = -entropy_bonus
         # $\mathcal{L}^{CLIP+VF+EB} (\theta) =
         #  \mathcal{L}^{CLIP} (\theta) +
         #  c_1 \mathcal{L}^{VF} (\theta) - c_2 \mathcal{L}^{EB}(\theta)$
         loss = (policy_loss
                 + self.value_loss_coef() * value_loss
-                - self.entropy_bonus_coef() * entropy_bonus)
+                + self.entropy_bonus_coef() * entropy_loss)
 
         # for monitoring
-        approx_kl_divergence = .5 * ((samples['log_pis'] - log_pi) ** 2).mean()
-        print(loss, approx_kl_divergence)
+        # approx_kl_divergence = .5 * ((torch.Tensor(samples['log_pis']) - log_pi) ** 2).mean()
+        print("Total Loss: {} | Policy Loss: {} | Entropy Loss: {} | Value Loss: {}"
+              .format(float(loss), float(policy_loss), float(entropy_loss),
+                      float(value_loss)))
 
         return loss
 
@@ -436,22 +454,12 @@ class Trainer:
         # Run training loop
         """
 
-        # last 100 episode information
-        tracker.set_queue('reward', 100, True)
-        tracker.set_queue('length', 100, True)
-
         for update in monit.loop(self.updates):
             # sample with current policy
             samples, _ = self.sample(automaton, mode_list)
 
             # train the model
             self.train(samples)
-
-            # Save tracked indicators.
-            tracker.save()
-            # Add a new line to the screen periodically
-            if (update + 1) % 1_000 == 0:
-                logger.log()
 
 
 if __name__ == "__main__":
@@ -462,16 +470,16 @@ if __name__ == "__main__":
     # Configurations
     configs = {
         'max_ep_len': 150,
-        'max_steps_in_mode': 25,
-        'bonus': 50.,
+        'max_steps_in_mode': 50,
+        'bonus': 25.,
         'updates': 10000,
         'epochs': IntDynamicHyperParam(8),
         'batch_size': 128 * 8,
         'batches': 4,
         'value_loss_coef': FloatDynamicHyperParam(0.5),
-        'entropy_bonus_coef': FloatDynamicHyperParam(0.01),
-        'clip_range': FloatDynamicHyperParam(0.1),
-        'learning_rate': FloatDynamicHyperParam(1e-2, (0, 1e-2)),
+        'entropy_bonus_coef': FloatDynamicHyperParam(0.03),
+        'clip_range': FloatDynamicHyperParam(0.2),
+        'learning_rate': FloatDynamicHyperParam(5e-3),
     }
 
     # model
@@ -481,4 +489,4 @@ if __name__ == "__main__":
     trainer = Trainer(model=model, **configs)
 
     # Run and monitor the experiment
-    trainer.run_training_loop(automaton, ["left", "right", "straight"] * 2)
+    trainer.run_training_loop(automaton, ["up", "up"])
