@@ -28,8 +28,8 @@ if __name__ == '__main__':
 
     # hyperparams for SAC
     params = MADDPGParams(
-        max_episode_len=500,
-        num_episodes=5000,
+        max_episode_len=200,
+        num_episodes=100000,
         batch_size=256,
         num_units=128,
     )

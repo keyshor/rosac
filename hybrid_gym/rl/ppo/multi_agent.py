@@ -2,6 +2,9 @@ from typing import Dict, List, Any, Tuple
 
 import numpy as np
 import torch
+import pickle
+import os
+
 from torch import nn
 from torch import optim
 from torch.distributions import Normal
@@ -10,6 +13,8 @@ from labml import monit
 from labml.configs import FloatDynamicHyperParam, IntDynamicHyperParam
 from labml_helpers.module import Module
 from labml_nn.rl.ppo import ClippedPPOLoss, ClippedValueFunctionLoss
+
+from hybrid_gym.model import Controller
 
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
@@ -21,7 +26,8 @@ def obs_to_torch(obs: np.ndarray, device) -> torch.Tensor:
 
 class Actor(Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_dim, action_bound):
+    def __init__(self, obs_dim, act_dim, hidden_dim, action_bound,
+                 log_std_max, log_std_min):
         super().__init__()
 
         self.activation = nn.Tanh()
@@ -34,6 +40,8 @@ class Actor(Module):
 
         self.device_used = "cpu"
         self.action_bound = torch.Tensor(action_bound)
+        self.log_std_max = log_std_max
+        self.log_std_min = log_std_min
 
     def forward(self, obs: np.ndarray):
         obs_torch = obs_to_torch(obs, self.device_used)
@@ -41,7 +49,7 @@ class Actor(Module):
         h = self.activation(self.ln2(h))
         act_mean = self.action_bound * torch.tanh(self.ln3(h))
         log_std = self.ln4(h)
-        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         act_std = torch.exp(log_std)
         return act_mean, act_std
 
@@ -86,7 +94,8 @@ class Model(Module):
     # Model
     """
 
-    def __init__(self, automaton, hidden_dim, gpu_device):
+    def __init__(self, automaton, hidden_dim, gpu_device,
+                 log_std_max=LOG_STD_MAX, log_std_min=LOG_STD_MIN):
         super().__init__()
 
         self.gpu_device = gpu_device
@@ -95,7 +104,7 @@ class Model(Module):
 
         self.actors = nn.ModuleDict({
             mname: Actor(mode.observation_space.shape[0], mode.action_space.shape[0], hidden_dim,
-                         mode.action_space.high)
+                         mode.action_space.high, log_std_max, log_std_min)
             for mname, mode in automaton.modes.items()
         })
 
@@ -153,12 +162,14 @@ class Model(Module):
         for mode in self.actors:
             self.actors[mode].device_used = self.gpu_device
             self.critics[mode].device_used = self.gpu_device
+            self.actors[mode].action_bound = self.actors[mode].action_bound.to(self.gpu_device)
 
     def cpu(self):
         self.to("cpu")
         for mode in self.actors:
             self.actors[mode].device_used = "cpu"
             self.critics[mode].device_used = "cpu"
+            self.actors[mode].action_bound = self.actors[mode].action_bound.to("cpu")
 
     def forward(self):
         raise NotImplementedError
@@ -205,11 +216,13 @@ class Trainer:
     def __init__(self, *, model: Model, max_ep_len: int,
                  max_steps_in_mode: int, bonus: float,
                  updates: int, batch_size: int, batches: int,
+                 warmup: int, normalize_adv: bool,
                  epochs: IntDynamicHyperParam,
                  value_loss_coef: FloatDynamicHyperParam,
                  entropy_bonus_coef: FloatDynamicHyperParam,
                  clip_range: FloatDynamicHyperParam,
                  learning_rate: FloatDynamicHyperParam,
+                 training_device: str = "cpu"
                  ):
         # #### Configurations
 
@@ -229,6 +242,10 @@ class Trainer:
         self.max_steps_in_mode = max_steps_in_mode
         # bonus for subtask completion
         self.bonus = bonus
+        # number of warmup steps
+        self.warmup = warmup
+        # whether to normalize advantages
+        self.normalize_adv = normalize_adv
 
         # Value loss coefficient
         self.value_loss_coef = value_loss_coef
@@ -245,7 +262,7 @@ class Trainer:
         self.model = model
 
         # optimizer
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate())
 
         # GAE with $\gamma = 0.99$ and $\lambda = 0.95$
         self.gae = GAE(0.99, 0.95)
@@ -259,6 +276,7 @@ class Trainer:
         # dims
         self.action_dim = self.model.action_dims[0]
         self.obs_dim = self.model.obs_dims[0]
+        self.training_device = training_device
 
     def sample(self, automaton, mode_list) -> Tuple[Dict[str, Any], float]:
         """
@@ -298,8 +316,11 @@ class Trainer:
                 steps += 1
                 steps_in_mode += 1
 
-                done[t] = steps >= self.max_ep_len or steps_in_mode >= self.max_steps_in_mode or \
-                    not mode.is_safe(next_state)
+                done[t] = steps >= self.max_ep_len or steps_in_mode >= self.max_steps_in_mode
+                if not mode.is_safe(next_state):
+                    done[t] = True
+                elif done[t]:
+                    rewards[t] -= self.bonus
                 state = next_state
 
                 if not done[t]:
@@ -312,7 +333,7 @@ class Trainer:
                                 steps_in_mode = 0
                             else:
                                 done[t] = True
-                            rewards[t] += self.bonus
+                            rewards[t] += 2 * self.bonus
                             break
 
                 cum_reward += discount * rewards[t]
@@ -394,7 +415,7 @@ class Trainer:
     @staticmethod
     def _normalize(adv: np.ndarray):
         """#### Normalize advantage function"""
-        return (adv - np.mean(adv)) / (np.std(adv) + 1e-8)
+        return (adv - np.mean(adv))
 
     def _calc_loss(self, samples: Dict[str, Any]) -> torch.Tensor:
         """
@@ -408,7 +429,10 @@ class Trainer:
         # where $\hat{A_t}$ is advantages sampled from $\pi_{\theta_{OLD}}$.
         # Refer to sampling function in [Main class](#main) below
         #  for the calculation of $\hat{A}_t$.
-        sampled_normalized_advantage = samples['advantages']
+        if self.normalize_adv:
+            sampled_normalized_advantage = self._normalize(samples['advantages'])
+        else:
+            sampled_normalized_advantage = samples['advantages']
 
         # Sampled observations are fed into the model to get $\pi_\theta(a_t|s_t)$
         # and $V^{\pi_\theta}(s_t)$;
@@ -420,8 +444,9 @@ class Trainer:
 
         # Calculate policy loss
         policy_loss = self.ppo_loss(
-            log_pi, torch.Tensor(samples['log_pis']),
-            torch.Tensor(sampled_normalized_advantage), self.clip_range())
+            log_pi, torch.tensor(samples['log_pis'], device=self.training_device),
+            torch.tensor(sampled_normalized_advantage, device=self.training_device),
+            self.clip_range())
 
         # Calculate Entropy Bonus
         #
@@ -430,14 +455,16 @@ class Trainer:
         entropy_bonus = entropy.mean()
 
         # Calculate value function loss
-        value_loss = self.value_loss(value, torch.Tensor(samples['values']),
-                                     torch.Tensor(sampled_return), self.clip_range())
+        value_loss = self.value_loss(
+            value, torch.tensor(samples['values'], device=self.training_device),
+            torch.tensor(sampled_return, device=self.training_device),
+            self.clip_range())
 
         entropy_loss = -entropy_bonus
         # $\mathcal{L}^{CLIP+VF+EB} (\theta) =
         #  \mathcal{L}^{CLIP} (\theta) +
         #  c_1 \mathcal{L}^{VF} (\theta) - c_2 \mathcal{L}^{EB}(\theta)$
-        loss = (policy_loss
+        loss = (10 * policy_loss
                 + self.value_loss_coef() * value_loss
                 + self.entropy_bonus_coef() * entropy_loss)
 
@@ -453,13 +480,39 @@ class Trainer:
         """
         # Run training loop
         """
+        steps = 0
 
         for update in monit.loop(self.updates):
             # sample with current policy
             samples, _ = self.sample(automaton, mode_list)
+            steps += len(samples['done'])
 
             # train the model
-            self.train(samples)
+            if steps >= self.warmup:
+                self.train(samples)
+
+    def get_controllers(self, deterministic=True):
+        return {mname: PairedController(actor, deterministic)
+                for mname, actor in self.model.actors.items()}
+
+
+class PairedController(Controller):
+
+    def __init__(self, actor, deterministic=True):
+        self.actor = actor
+        self.deterministic = deterministic
+
+    def get_action(self, obs):
+        action, _ = self.actor.get_action(
+            obs.reshape((1, -1)), deterministic=self.deterministic)
+        return action[0]
+
+    def save(self, name, path):
+        if self.actor.device_used != 'cpu':
+            self.actor = self.actor.to('cpu')
+            self.actor.device_used = 'cpu'
+        fh = open(os.path.join(path, name + '.pkl'), 'wb')
+        pickle.dump(self, fh)
 
 
 if __name__ == "__main__":
@@ -469,24 +522,26 @@ if __name__ == "__main__":
 
     # Configurations
     configs = {
+        'normalize_adv': True,
+        'warmup': 1024,
         'max_ep_len': 150,
-        'max_steps_in_mode': 50,
+        'max_steps_in_mode': 25,
         'bonus': 25.,
         'updates': 10000,
         'epochs': IntDynamicHyperParam(8),
         'batch_size': 128 * 8,
         'batches': 4,
-        'value_loss_coef': FloatDynamicHyperParam(0.5),
-        'entropy_bonus_coef': FloatDynamicHyperParam(0.03),
+        'value_loss_coef': FloatDynamicHyperParam(1.0),
+        'entropy_bonus_coef': FloatDynamicHyperParam(0.005),
         'clip_range': FloatDynamicHyperParam(0.2),
-        'learning_rate': FloatDynamicHyperParam(5e-3),
+        'learning_rate': FloatDynamicHyperParam(1e-2),
     }
 
     # model
-    model = Model(automaton, 64, 'cpu')
+    model = Model(automaton, 64, 'cpu', log_std_max=2, log_std_min=-20)
 
     # Initialize the trainer
     trainer = Trainer(model=model, **configs)
 
     # Run and monitor the experiment
-    trainer.run_training_loop(automaton, ["up", "up"])
+    trainer.run_training_loop(automaton, ["up", "right"])
