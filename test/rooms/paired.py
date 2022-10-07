@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     # train configs
     configs = {
-        'normalize_adv': False,
+        'normalize_adv': True,
         'warmup': 1024,
         'max_ep_len': 150,
         'max_steps_in_mode': 25,

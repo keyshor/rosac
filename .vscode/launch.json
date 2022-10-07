@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "MADDPG-F110",
+            "type": "python",
+            "request": "launch",
+            "program": "maddpg.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/test/f110_turn",
+            "justMyCode": true
+        },
+        {
             "name": "PPO",
             "type": "python",
             "request": "launch",

@@ -415,7 +415,7 @@ class Trainer:
     @staticmethod
     def _normalize(adv: np.ndarray):
         """#### Normalize advantage function"""
-        return (adv - np.mean(adv))
+        return (adv - np.mean(adv)) / (np.std(adv) + 1e-8)
 
     def _calc_loss(self, samples: Dict[str, Any]) -> torch.Tensor:
         """
