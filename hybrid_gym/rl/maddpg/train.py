@@ -62,7 +62,7 @@ class MADDPG:
             # Initialize
             U.initialize_once(self.session)
 
-    def train(self, time_limits, max_jumps):
+    def train(self, time_limits, max_jumps, max_total_steps):
 
         episode_rewards = [0.0]  # rewards for agent
         obs = self.env.reset()
@@ -70,6 +70,7 @@ class MADDPG:
         train_step = 0
         abs_start_time = time.time()
         log_info = []
+        steps_taken = 0
         # t_start = time.time()
         # saver = tf.train.Saver()
 
@@ -79,10 +80,12 @@ class MADDPG:
             # get action
             action = self.agent.action(obs)
             adv_action = self.adv.action(obs)
+            adv_action = min(len(self.mode_list), adv_action)
 
             # environment step
             new_obs, rew, done, info = self.env.step(action, adv_action)
             episode_step += 1
+            steps_taken += 1
             terminal = done or (episode_step > self.params.max_episode_len)
 
             # collect experience
@@ -121,7 +124,7 @@ class MADDPG:
                 episode_rewards.append(0)
 
             # saves final episode reward for plotting training curve later
-            if len(episode_rewards) > self.params.num_episodes:
+            if len(episode_rewards) > self.params.num_episodes or steps_taken >= max_total_steps:
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break
 

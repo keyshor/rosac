@@ -88,8 +88,13 @@ def p_train_adv(obs_ph, act_space, p_func, q_func, optimizer, sess,
 
         # wrap parameters in distribution
         adv_act_pd = tf.distributions.Categorical(probs=p)
-        adv_act_sample = adv_act_pd.sample()
-        adv_act_det = U.argmax(p, axis=1)
+        adv_act_sample_ = adv_act_pd.sample()
+        adv_act_sample = tf.math.minimum(
+            adv_act_sample_, (num_modes-1) * tf.ones_like(
+                adv_act_sample_, dtype=adv_act_sample_.dtype))
+        adv_act_det_ = U.argmax(p, axis=1)
+        adv_act_det = tf.math.minimum(
+            adv_act_det_, (num_modes-1) * tf.ones_like(adv_act_det_, dtype=adv_act_det_.dtype))
 
         q_input = tf.concat([obs_ph, act_ph], 1)
         q_full = q_func(q_input, num_modes, scope="q_func", reuse=True, num_units=num_units)

@@ -36,5 +36,5 @@ if __name__ == '__main__':
     )
 
     agent = MADDPG(automaton, params, bonus=100.)
-    log_info = agent.train(time_limits, MAX_JUMPS)
+    log_info = agent.train(time_limits, MAX_JUMPS, max_total_steps=1000000)
     save_log_info(log_info, 'log', flags['path'])
