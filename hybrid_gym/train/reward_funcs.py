@@ -199,7 +199,7 @@ class ValueBasedReward(RewardFunc):
                     val = j_val
                     adv_mode = mname
         else:
-            adv_mode, _ = random.choice(list(jump_obs))
+            adv_mode, obs = random.choice(list(jump_obs))
             val = 0.
             if self.value_fns is not None:
                 val = -np.inf

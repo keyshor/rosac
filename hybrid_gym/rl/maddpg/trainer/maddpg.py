@@ -117,7 +117,10 @@ def p_train_adv(obs_ph, act_space, p_func, q_func, optimizer, sess,
         target_p_func_vars = U.scope_vars(U.absolute_scope_name("target_p_func"))
         update_target_p = make_update_exp(p_func_vars, target_p_func_vars, sess)
 
-        target_act_sample = tf.distributions.Categorical(probs=target_p).sample()
+        target_act_sample_ = tf.distributions.Categorical(probs=target_p).sample()
+        target_act_sample = tf.math.minimum(
+            target_act_sample_, (num_modes-1) * tf.ones_like(
+                target_act_sample_, dtype=target_act_sample_.dtype))
         target_act = U.function(inputs=[obs_ph], outputs=target_act_sample, sess=sess)
 
         return act, train, update_target_p, {

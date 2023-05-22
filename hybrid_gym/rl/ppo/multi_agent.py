@@ -329,7 +329,7 @@ class Trainer:
                             if (mnum + 1) < len(mode_list):
                                 mnum += 1
                                 mode = automaton.modes[mode_list[mnum]]
-                                state = tr.jump(mode, state)
+                                state = tr.jump(mode.name, state)
                                 steps_in_mode = 0
                             else:
                                 done[t] = True

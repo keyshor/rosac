@@ -5,6 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "PAIRED_F110",
+            "type": "python",
+            "request": "launch",
+            "program": "paired.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/test/f110_turn",
+            "args": [
+                "-g"
+            ],
+            "justMyCode": true
+        },
+        {
+            "name": "PAIRED_ROOMS",
+            "type": "python",
+            "request": "launch",
+            "program": "paired.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/test/rooms",
+            "args": [
+                "-g"
+            ],
+            "justMyCode": true
+        },
+        {
             "name": "MADDPG-F110",
             "type": "python",
             "request": "launch",
