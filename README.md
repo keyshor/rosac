@@ -1,12 +1,12 @@
 # Framework for Compositional Reinforcement Learning
 
 This repository contains code for the compositional learning framework presented in the paper
-__Robust Subtask Learning for Compositional Generalization__ by Kishor Jothimurugan, Steve Hsu,
-Osbert Bastani and Rajeev Alur, published in ICML 2023.
+__Robust Subtask Learning for Compositional Generalization__ by
+_Kishor Jothimurugan, Steve Hsu, Osbert Bastani and Rajeev Alur_, published in ICML 2023.
 
 ## Dependencies
 
-Python version is 3.7.10. Install dependencies in requirements.txt, preferably in a virtual environment:
+Python version is 3.7.10. Install dependencies in `requirements.txt`, preferably in a virtual environment:
 
 ```
 pip install -r requirements.txt
@@ -39,7 +39,7 @@ the asynchronous version of the algorithm:
 python cegrl.py -d {save_directory} -n {run_number} -v {gpu_number} -g -z -c
 ```
 
-In the above command, omit option '-z' for the DAGGER baseline and omit both '-z' and '-c' for the NAIVE baseline. To run the MADDPG baseline,
+In the above command, omit option `-z` for the DAGGER baseline and omit both `-z` and `-c` for the NAIVE baseline. To run the MADDPG baseline,
 
 ```
 python maddpg.py -d {save_directory} -n {run_number}
